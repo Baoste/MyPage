@@ -1,28 +1,24 @@
 import type { PhotoActivityStats } from "@/types";
 
 const DAY_IN_MILLISECONDS = 86_400_000;
+export const PHOTO_FULL_DENSITY_DAYS = 21;
+export const PHOTO_ZERO_DENSITY_DAYS = 40;
 
 export function clamp(value: number, minimum: number, maximum: number) {
   return Math.min(maximum, Math.max(minimum, value));
 }
 
-export function calculatePhotoVitality(
-  uploadsLast30Days: number,
-  daysSinceLastUpload: number | null,
-) {
-  const safeUploads = Math.max(0, Math.floor(uploadsLast30Days));
-  const frequency = clamp(safeUploads / 8, 0, 1);
+export function calculatePhotoVitality(daysSinceLastUpload: number | null) {
+  if (daysSinceLastUpload === null || !Number.isFinite(daysSinceLastUpload)) return 0;
 
-  let recency: number;
-  if (daysSinceLastUpload === null || !Number.isFinite(daysSinceLastUpload)) {
-    recency = 0.12;
-  } else if (daysSinceLastUpload <= 30) {
-    recency = 1;
-  } else {
-    recency = Math.max(0.12, Math.exp(-(daysSinceLastUpload - 30) / 60));
-  }
+  const safeDays = Math.max(0, daysSinceLastUpload);
+  if (safeDays <= PHOTO_FULL_DENSITY_DAYS) return 1;
+  if (safeDays >= PHOTO_ZERO_DENSITY_DAYS) return 0;
 
-  return clamp((0.35 + 0.65 * frequency) * recency, 0.08, 1);
+  const progress =
+    (safeDays - PHOTO_FULL_DENSITY_DAYS) /
+    (PHOTO_ZERO_DENSITY_DAYS - PHOTO_FULL_DENSITY_DAYS);
+  return clamp(1 - progress ** 3, 0, 1);
 }
 
 export function daysBetween(now: Date, earlier: Date) {
@@ -30,23 +26,16 @@ export function daysBetween(now: Date, earlier: Date) {
   return Math.max(0, difference / DAY_IN_MILLISECONDS);
 }
 
-export function createPhotoActivityStats(
-  uploadsLast30Days: number,
-  daysSinceLastUpload: number | null,
-): PhotoActivityStats {
-  const safeUploads = Math.max(0, Math.floor(uploadsLast30Days));
-
+export function createPhotoActivityStats(daysSinceLastUpload: number | null): PhotoActivityStats {
   return {
-    uploadsLast30Days: safeUploads,
     daysSinceLastUpload,
-    vitality: calculatePhotoVitality(safeUploads, daysSinceLastUpload),
+    vitality: calculatePhotoVitality(daysSinceLastUpload),
     status: daysSinceLastUpload === null ? "empty" : "live",
   };
 }
 
 export const unavailablePhotoActivity: PhotoActivityStats = {
-  uploadsLast30Days: 0,
   daysSinceLastUpload: null,
-  vitality: 0.62,
+  vitality: 0,
   status: "unavailable",
 };

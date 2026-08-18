@@ -1,4 +1,4 @@
-export type TreePaletteName = "spring" | "autumn" | "night";
+export type TreePaletteName = "mist" | "spring" | "autumn" | "night";
 export type TreePixelScale = "auto" | 2 | 3 | 4;
 
 export interface TreeControls {
@@ -8,7 +8,6 @@ export interface TreeControls {
   branchDepth: number;
   canopyWidth: number;
   trunkScale: number;
-  leafSize: number;
   windStrength: number;
   windSpeed: number;
   gustStrength: number;
@@ -37,7 +36,7 @@ export interface TreePalette {
   ];
 }
 
-export const TREE_CONTROL_STORAGE_KEY = "private-tree-controls:v1";
+export const TREE_CONTROL_STORAGE_KEY = "private-tree-controls:v2";
 
 export const defaultTreeControls: TreeControls = {
   autoActivity: true,
@@ -46,19 +45,37 @@ export const defaultTreeControls: TreeControls = {
   branchDepth: 8,
   canopyWidth: 1,
   trunkScale: 1,
-  leafSize: 2,
   windStrength: 0.38,
   windSpeed: 0.72,
   gustStrength: 0.24,
   fallRate: 0.28,
   gravity: 1,
   drift: 0.48,
-  palette: "spring",
+  palette: "mist",
   pixelScale: "auto",
   isPaused: false,
 };
 
 export const treePalettes: Record<TreePaletteName, TreePalette> = {
+  mist: {
+    label: "雾白",
+    backgroundTop: [0.075, 0.125, 0.125],
+    backgroundBottom: [0.12, 0.17, 0.155],
+    trunks: [
+      [0.105, 0.145, 0.135],
+      [0.18, 0.235, 0.205],
+      [0.31, 0.36, 0.235],
+      [0.48, 0.49, 0.255],
+    ],
+    leaves: [
+      [0.1, 0.18, 0.195],
+      [0.18, 0.29, 0.33],
+      [0.31, 0.43, 0.47],
+      [0.54, 0.64, 0.64],
+      [0.8, 0.82, 0.77],
+      [0.94, 0.925, 0.855],
+    ],
+  },
   spring: {
     label: "春绿",
     backgroundTop: [0.075, 0.11, 0.105],
@@ -136,7 +153,10 @@ export function sanitizeStoredControls(value: unknown): TreeControls {
   if (!isRecord(value)) return { ...defaultTreeControls };
 
   const palette =
-    value.palette === "spring" || value.palette === "autumn" || value.palette === "night"
+    value.palette === "mist" ||
+    value.palette === "spring" ||
+    value.palette === "autumn" ||
+    value.palette === "night"
       ? value.palette
       : defaultTreeControls.palette;
   const pixelScale =
@@ -162,7 +182,6 @@ export function sanitizeStoredControls(value: unknown): TreeControls {
     ),
     canopyWidth: finiteNumber(value.canopyWidth, defaultTreeControls.canopyWidth, 0.6, 1.4),
     trunkScale: finiteNumber(value.trunkScale, defaultTreeControls.trunkScale, 0.6, 1.6),
-    leafSize: Math.round(finiteNumber(value.leafSize, defaultTreeControls.leafSize, 1, 4)),
     windStrength: finiteNumber(value.windStrength, defaultTreeControls.windStrength, 0, 1),
     windSpeed: finiteNumber(value.windSpeed, defaultTreeControls.windSpeed, 0.1, 2),
     gustStrength: finiteNumber(value.gustStrength, defaultTreeControls.gustStrength, 0, 1),

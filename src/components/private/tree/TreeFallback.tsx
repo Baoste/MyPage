@@ -53,8 +53,15 @@ export function TreeFallback({ controls, vitality }: TreeFallbackProps) {
       drawingContext.fillStyle = gradient;
       drawingContext.fillRect(0, 0, width, height);
 
-      const toScreenX = (value: number) => (value * 0.5 + 0.5) * width;
-      const toScreenY = (value: number) => (1 - (value * 0.5 + 0.5)) * height;
+      const portrait = height >= width;
+      const aspectScale = Math.max(0.9, Math.min(1.55, height / width));
+      const toScreenX = (value: number) =>
+        (value * aspectScale * 0.5 + 0.5) * width;
+      const toScreenY = (value: number) => {
+        const projected =
+          value * (portrait ? 0.78 : 1) - (portrait ? 0.08 : 0) + (portrait ? 0 : 0.06);
+        return (1 - (projected * 0.5 + 0.5)) * height;
+      };
       const widthScale = Math.max(0.65, Math.min(width, height) / 620);
 
       drawingContext.lineCap = "butt";
@@ -67,10 +74,23 @@ export function TreeFallback({ controls, vitality }: TreeFallbackProps) {
         drawingContext.stroke();
       }
 
+      const groundLeaves = [...tree.groundLeaves].sort(
+        (left, right) => right.sizePixels - left.sizePixels,
+      );
+      for (const leaf of groundLeaves) {
+        const size = leaf.sizePixels;
+        const x = Math.round(toScreenX(leaf.x));
+        const y = Math.round(toScreenY(leaf.y));
+        drawingContext.fillStyle = colorToCss(palette.leaves[leaf.colorIndex]);
+        drawingContext.fillRect(x - Math.floor(size / 2), y - Math.floor(size / 2), size, size);
+      }
+
       const leafCount = getActiveLeafCount(tree.leaves.length, density);
-      for (let index = 0; index < leafCount; index += 1) {
-        const leaf = tree.leaves[index];
-        const size = Math.max(1, Math.round(controls.leafSize * leaf.sizeVariation * 1.25));
+      const visibleLeaves = tree.leaves
+        .slice(0, leafCount)
+        .sort((left, right) => right.sizePixels - left.sizePixels);
+      for (const leaf of visibleLeaves) {
+        const size = leaf.sizePixels;
         const x = Math.round(toScreenX(leaf.x));
         const y = Math.round(toScreenY(leaf.y));
         drawingContext.fillStyle = colorToCss(palette.leaves[leaf.colorIndex]);

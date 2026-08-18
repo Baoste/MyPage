@@ -73,24 +73,16 @@ export async function getPhotoActivityStats(
 
   try {
     const client = createServerSupabaseClient();
-    const thirtyDaysAgo = new Date(now.getTime() - 30 * 86_400_000).toISOString();
-    const [recentResult, latestResult] = await Promise.all([
-      client
-        .from("photo_entries")
-        .select("id", { count: "exact", head: true })
-        .gte("created_at", thirtyDaysAgo),
-      client
-        .from("photo_entries")
-        .select("created_at")
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle(),
-    ]);
+    const latestResult = await client
+      .from("photo_entries")
+      .select("created_at")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
-    if (recentResult.error || latestResult.error) {
+    if (latestResult.error) {
       console.error("Unable to calculate private photo activity.", {
-        recent: recentResult.error?.code,
-        latest: latestResult.error?.code,
+        latest: latestResult.error.code,
       });
       return { ...unavailablePhotoActivity };
     }
@@ -104,7 +96,7 @@ export async function getPhotoActivityStats(
       ? daysBetween(now, latestTimestamp)
       : null;
 
-    return createPhotoActivityStats(recentResult.count ?? 0, daysSinceLastUpload);
+    return createPhotoActivityStats(daysSinceLastUpload);
   } catch (error) {
     console.error(
       "Unable to initialize private photo activity.",

@@ -24,9 +24,17 @@ vec2 applyWind(vec2 point) {
   return point;
 }
 
+vec2 projectPoint(vec2 point) {
+  float portrait = step(u_resolution.x, u_resolution.y);
+  float aspectScale = clamp(u_resolution.y / u_resolution.x, 0.9, 1.55);
+  point.x = point.x * aspectScale;
+  point.y = point.y * mix(1.0, 0.78, portrait) - portrait * 0.08 + (1.0 - portrait) * 0.06;
+  return point;
+}
+
 void main() {
-  vec2 start = applyWind(a_start);
-  vec2 end = applyWind(a_end);
+  vec2 start = projectPoint(applyWind(a_start));
+  vec2 end = projectPoint(applyWind(a_end));
   vec2 startPixels = (start * 0.5 + 0.5) * u_resolution;
   vec2 endPixels = (end * 0.5 + 0.5) * u_resolution;
   vec2 direction = normalize(endPixels - startPixels + vec2(0.0001));
@@ -64,7 +72,6 @@ uniform float u_time;
 uniform float u_windStrength;
 uniform float u_windSpeed;
 uniform float u_gustStrength;
-uniform float u_leafSize;
 uniform int u_attached;
 
 flat out int v_color;
@@ -78,13 +85,22 @@ vec2 applyWind(vec2 point) {
   return point;
 }
 
+vec2 projectPoint(vec2 point) {
+  float portrait = step(u_resolution.x, u_resolution.y);
+  float aspectScale = clamp(u_resolution.y / u_resolution.x, 0.9, 1.55);
+  point.x = point.x * aspectScale;
+  point.y = point.y * mix(1.0, 0.78, portrait) - portrait * 0.08 + (1.0 - portrait) * 0.06;
+  return point;
+}
+
 void main() {
   vec2 point = u_attached == 1 ? applyWind(a_position) : a_position;
+  point = projectPoint(point);
   vec2 centerPixels = floor((point * 0.5 + 0.5) * u_resolution) + 0.5;
-  float size = max(1.0, floor(u_leafSize * a_meta.x + 0.5));
-  float flip = u_attached == 1
-    ? 1.0
-    : 0.42 + abs(sin(u_time * 2.4 + a_meta.z)) * 0.58;
+  float size = clamp(floor(a_meta.x + 0.5), 1.0, 3.0);
+  float flip = u_attached == 0
+    ? 0.42 + abs(sin(u_time * 2.4 + a_meta.z)) * 0.58
+    : 1.0;
   vec2 positionPixels = centerPixels + a_vertex * vec2(max(1.0, size * flip), size);
   vec2 position = (positionPixels / u_resolution) * 2.0 - 1.0;
   gl_Position = vec4(position, 0.0, 1.0);
@@ -130,7 +146,7 @@ void main() {
   vec4 scene = texture(u_scene, v_uv);
   float horizon = smoothstep(0.0, 1.0, v_uv.y);
   vec3 background = mix(u_backgroundBottom, u_backgroundTop, horizon);
-  float vignette = 1.0 - smoothstep(0.42, 0.92, distance(v_uv, vec2(0.54, 0.52))) * 0.18;
+  float vignette = 1.0 - smoothstep(0.42, 0.92, distance(v_uv, vec2(0.5, 0.52))) * 0.18;
   background *= vignette;
   outColor = vec4(mix(background, scene.rgb, scene.a), 1.0);
 }

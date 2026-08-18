@@ -31,7 +31,6 @@ interface BranchUniforms extends WindUniforms {
 
 interface LeafUniforms extends WindUniforms {
   colors: WebGLUniformLocation;
-  leafSize: WebGLUniformLocation;
   attached: WebGLUniformLocation;
 }
 
@@ -105,12 +104,14 @@ export class PixelTreeRenderer {
   private readonly leafProgram: WebGLProgram;
   private readonly postProgram: WebGLProgram;
   private readonly branchVao: WebGLVertexArrayObject;
+  private readonly groundLeafVao: WebGLVertexArrayObject;
   private readonly leafVao: WebGLVertexArrayObject;
   private readonly particleVao: WebGLVertexArrayObject;
   private readonly postVao: WebGLVertexArrayObject;
   private readonly branchVertexBuffer: WebGLBuffer;
   private readonly branchInstanceBuffer: WebGLBuffer;
   private readonly leafVertexBuffer: WebGLBuffer;
+  private readonly groundLeafInstanceBuffer: WebGLBuffer;
   private readonly leafInstanceBuffer: WebGLBuffer;
   private readonly particleInstanceBuffer: WebGLBuffer;
   private readonly postVertexBuffer: WebGLBuffer;
@@ -118,9 +119,10 @@ export class PixelTreeRenderer {
   private readonly leafUniforms: LeafUniforms;
   private readonly postUniforms: PostUniforms;
 
-  private tree: TreeModel = { branches: [], leaves: [], seed: "" };
+  private tree: TreeModel = { branches: [], leaves: [], groundLeaves: [], seed: "" };
   private controls: TreeControls;
   private branchCount = 0;
+  private groundLeafCount = 0;
   private visibleLeafCount = 0;
   private particleCount = 0;
   private cachedActiveLeaves = -1;
@@ -156,12 +158,14 @@ export class PixelTreeRenderer {
     this.postProgram = createProgram(gl, postVertexShader, postFragmentShader, "post");
 
     this.branchVao = requireValue(gl.createVertexArray(), "branch VAO");
+    this.groundLeafVao = requireValue(gl.createVertexArray(), "ground leaf VAO");
     this.leafVao = requireValue(gl.createVertexArray(), "leaf VAO");
     this.particleVao = requireValue(gl.createVertexArray(), "particle VAO");
     this.postVao = requireValue(gl.createVertexArray(), "post VAO");
     this.branchVertexBuffer = requireValue(gl.createBuffer(), "branch vertex buffer");
     this.branchInstanceBuffer = requireValue(gl.createBuffer(), "branch instance buffer");
     this.leafVertexBuffer = requireValue(gl.createBuffer(), "leaf vertex buffer");
+    this.groundLeafInstanceBuffer = requireValue(gl.createBuffer(), "ground leaf instance buffer");
     this.leafInstanceBuffer = requireValue(gl.createBuffer(), "leaf instance buffer");
     this.particleInstanceBuffer = requireValue(gl.createBuffer(), "particle instance buffer");
     this.postVertexBuffer = requireValue(gl.createBuffer(), "post vertex buffer");
@@ -181,7 +185,6 @@ export class PixelTreeRenderer {
       windSpeed: uniform(gl, this.leafProgram, "u_windSpeed"),
       gustStrength: uniform(gl, this.leafProgram, "u_gustStrength"),
       colors: uniform(gl, this.leafProgram, "u_colors[0]"),
-      leafSize: uniform(gl, this.leafProgram, "u_leafSize"),
       attached: uniform(gl, this.leafProgram, "u_attached"),
     };
     this.postUniforms = {
@@ -217,6 +220,20 @@ export class PixelTreeRenderer {
     this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.branchInstanceBuffer);
     this.gl.bufferData(this.gl.ARRAY_BUFFER, branchData, this.gl.STATIC_DRAW);
     this.branchCount = tree.branches.length;
+
+    const layeredGroundLeaves = [...tree.groundLeaves].sort(
+      (left, right) => right.sizePixels - left.sizePixels,
+    );
+    const groundLeafData = new Float32Array(layeredGroundLeaves.length * 5);
+    layeredGroundLeaves.forEach((leaf, index) => {
+      groundLeafData.set(
+        [leaf.x, leaf.y, leaf.sizePixels, leaf.colorIndex, leaf.phase],
+        index * 5,
+      );
+    });
+    this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.groundLeafInstanceBuffer);
+    this.gl.bufferData(this.gl.ARRAY_BUFFER, groundLeafData, this.gl.STATIC_DRAW);
+    this.groundLeafCount = tree.groundLeaves.length;
   }
 
   setControls(controls: TreeControls) {
@@ -285,7 +302,10 @@ export class PixelTreeRenderer {
     gl.useProgram(this.leafProgram);
     this.applyWindUniforms(this.leafUniforms, elapsedSeconds);
     gl.uniform3fv(this.leafUniforms.colors, flattenColors(palette.leaves));
-    gl.uniform1f(this.leafUniforms.leafSize, this.controls.leafSize);
+    gl.uniform1i(this.leafUniforms.attached, 2);
+    gl.bindVertexArray(this.groundLeafVao);
+    gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, this.groundLeafCount);
+
     gl.uniform1i(this.leafUniforms.attached, 1);
     gl.bindVertexArray(this.leafVao);
     gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, this.visibleLeafCount);
@@ -316,10 +336,12 @@ export class PixelTreeRenderer {
     gl.deleteBuffer(this.branchVertexBuffer);
     gl.deleteBuffer(this.branchInstanceBuffer);
     gl.deleteBuffer(this.leafVertexBuffer);
+    gl.deleteBuffer(this.groundLeafInstanceBuffer);
     gl.deleteBuffer(this.leafInstanceBuffer);
     gl.deleteBuffer(this.particleInstanceBuffer);
     gl.deleteBuffer(this.postVertexBuffer);
     gl.deleteVertexArray(this.branchVao);
+    gl.deleteVertexArray(this.groundLeafVao);
     gl.deleteVertexArray(this.leafVao);
     gl.deleteVertexArray(this.particleVao);
     gl.deleteVertexArray(this.postVao);
@@ -356,6 +378,7 @@ export class PixelTreeRenderer {
 
     gl.bindBuffer(gl.ARRAY_BUFFER, this.leafVertexBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, leafVertices, gl.STATIC_DRAW);
+    this.configureLeafVao(this.groundLeafVao, this.groundLeafInstanceBuffer);
     this.configureLeafVao(this.leafVao, this.leafInstanceBuffer);
     this.configureLeafVao(this.particleVao, this.particleInstanceBuffer);
 
@@ -452,11 +475,16 @@ export class PixelTreeRenderer {
       return;
     }
 
-    const values: number[] = [];
+    const visibleLeaves = [];
     for (let index = 0; index < activeLeafCount; index += 1) {
       if (hiddenLeaves.has(index)) continue;
-      const leaf = this.tree.leaves[index];
-      values.push(leaf.x, leaf.y, leaf.sizeVariation, leaf.colorIndex, leaf.phase);
+      visibleLeaves.push(this.tree.leaves[index]);
+    }
+
+    visibleLeaves.sort((left, right) => right.sizePixels - left.sizePixels);
+    const values: number[] = [];
+    for (const leaf of visibleLeaves) {
+      values.push(leaf.x, leaf.y, leaf.sizePixels, leaf.colorIndex, leaf.phase);
     }
 
     const data = new Float32Array(values);
@@ -468,13 +496,16 @@ export class PixelTreeRenderer {
   }
 
   private updateParticles(particles: readonly FallingLeaf[]) {
-    const data = new Float32Array(particles.length * 5);
-    particles.forEach((particle, index) => {
+    const layeredParticles = [...particles].sort(
+      (left, right) => right.sizePixels - left.sizePixels,
+    );
+    const data = new Float32Array(layeredParticles.length * 5);
+    layeredParticles.forEach((particle, index) => {
       data.set(
         [
           particle.x,
           particle.y,
-          particle.sizeVariation,
+          particle.sizePixels,
           particle.colorIndex,
           particle.phase,
         ],

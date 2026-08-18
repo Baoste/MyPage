@@ -55,7 +55,6 @@ export type PhotoActivityStatus = "live" | "empty" | "unavailable";
  * It intentionally contains no photo metadata or storage URLs.
  */
 export interface PhotoActivityStats {
-  uploadsLast30Days: number;
   daysSinceLastUpload: number | null;
   vitality: number;
   status: PhotoActivityStatus;

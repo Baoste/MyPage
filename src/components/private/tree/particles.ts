@@ -2,6 +2,7 @@ import type { TreeControls } from "@/components/private/tree/config";
 import {
   createSeededRandom,
   type RandomSource,
+  type TreeLeaf,
   type TreeModel,
 } from "@/components/private/tree/generation";
 
@@ -10,7 +11,7 @@ export interface FallingLeaf {
   y: number;
   velocityX: number;
   velocityY: number;
-  sizeVariation: number;
+  sizePixels: TreeLeaf["sizePixels"];
   colorIndex: number;
   phase: number;
   age: number;
@@ -139,7 +140,7 @@ export class FallingLeafSystem {
       y: source.y,
       velocityX: (this.random() - 0.35) * 0.035 + controls.windStrength * 0.012,
       velocityY: -0.012 - this.random() * 0.018,
-      sizeVariation: source.sizeVariation,
+      sizePixels: source.sizePixels,
       colorIndex: source.colorIndex,
       phase: source.phase,
       age: 0,

@@ -9,6 +9,7 @@ import {
 } from "@/components/private/tree/config";
 import { PixelTreeScene } from "@/components/private/tree/scene";
 import { TreeControlPanel } from "@/components/private/tree/TreeControlPanel";
+import { TreeElapsedTimer } from "@/components/private/tree/TreeElapsedTimer";
 import { TreeFallback } from "@/components/private/tree/TreeFallback";
 import type { PhotoActivityStats } from "@/types";
 
@@ -20,14 +21,14 @@ interface ProceduralTreeProps {
 
 function describeActivity(activity: PhotoActivityStats) {
   if (activity.status === "unavailable") {
-    return "照片统计暂不可用，树以中等活力生长。";
+    return "照片统计暂不可用，树暂时不显示叶片。";
   }
   if (activity.status === "empty") {
-    return "还没有照片上传记录，树保留少量叶片等待新的时刻。";
+    return "还没有照片上传记录，树冠暂时没有叶片。";
   }
   const days = activity.daysSinceLastUpload ?? 0;
   const recency = days < 1 ? "最后一次上传发生在今天" : `距最后一次上传约 ${Math.floor(days)} 天`;
-  return `最近三十天上传了 ${activity.uploadsLast30Days} 次照片，${recency}，当前树木活力为 ${Math.round(activity.vitality * 100)}%。`;
+  return `${recency}，当前树木叶片密度为 ${Math.round(activity.vitality * 100)}%。`;
 }
 
 function randomSeed() {
@@ -184,7 +185,7 @@ export function ProceduralTree({ activity }: ProceduralTreeProps) {
   return (
     <section
       ref={containerRef}
-      aria-labelledby="private-tree-title"
+      aria-label="照片时间生命树"
       className="relative min-h-[36rem] w-full flex-1 overflow-hidden bg-[#121813]"
     >
       <canvas
@@ -197,18 +198,6 @@ export function ProceduralTree({ activity }: ProceduralTreeProps) {
         <TreeFallback controls={controls} vitality={activity.vitality} />
       ) : null}
 
-      <header className="pointer-events-none absolute left-5 top-7 z-10 max-w-[19rem] text-[#efeee1] sm:left-8 sm:top-10 md:left-auto md:right-10 md:max-w-[23rem] md:text-right lg:right-16">
-        <p className="text-[0.66rem] font-semibold uppercase tracking-[0.18em] text-[#aabf72]">
-          A living record
-        </p>
-        <h1 id="private-tree-title" className="display-type mt-2 text-5xl sm:text-6xl lg:text-7xl">
-          Welcome.
-        </h1>
-        <p className="mt-3 text-sm leading-6 text-[#c4c6b8]">
-          Some moments take root. The leaves remember the rhythm of the photographs kept here.
-        </p>
-      </header>
-
       <TreeControlPanel
         controls={controls}
         activity={activity}
@@ -218,6 +207,8 @@ export function ProceduralTree({ activity }: ProceduralTreeProps) {
         onReset={resetControls}
         onRandomize={() => changeControls({ seed: randomSeed() })}
       />
+
+      <TreeElapsedTimer />
 
       <p className="sr-only" aria-live="polite">
         {describeActivity(activity)}

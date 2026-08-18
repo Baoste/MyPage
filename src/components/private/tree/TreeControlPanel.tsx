@@ -59,7 +59,7 @@ function RangeControl({
 
 function ActivitySummary({ activity }: { activity: PhotoActivityStats }) {
   if (activity.status === "unavailable") {
-    return <span>照片统计暂不可用 · 使用中性活力</span>;
+    return <span>照片统计暂不可用 · 自动密度为 0%</span>;
   }
   if (activity.status === "empty") {
     return <span>暂无上传记录 · 树正在休眠</span>;
@@ -67,7 +67,8 @@ function ActivitySummary({ activity }: { activity: PhotoActivityStats }) {
 
   const days = activity.daysSinceLastUpload ?? 0;
   const recency = days < 1 ? "今天有记录" : `距上次 ${Math.floor(days)} 天`;
-  return <span>近 30 天 {activity.uploadsLast30Days} 次 · {recency}</span>;
+  const stage = days <= 21 ? "保持茂盛" : days < 40 ? "叶片衰减中" : "叶片已归零";
+  return <span>{recency} · {stage}</span>;
 }
 
 interface TreeControlPanelProps {
@@ -208,15 +209,6 @@ export function TreeControlPanel({
             step={0.01}
             format={(value) => `${Math.round(value * 100)}%`}
             onChange={(trunkScale) => onChange({ trunkScale })}
-          />
-          <RangeControl
-            label="叶片尺寸"
-            value={controls.leafSize}
-            minimum={1}
-            maximum={4}
-            step={1}
-            format={(value) => `${value} px`}
-            onChange={(leafSize) => onChange({ leafSize })}
           />
         </fieldset>
 
