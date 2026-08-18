@@ -128,6 +128,76 @@ input:focus-visible {
   will-change: opacity, transform;
 }
 
+.food-gallery {
+  grid-auto-rows: 8px;
+}
+
+.food-card {
+  perspective: 1100px;
+}
+
+.food-card-button {
+  appearance: none;
+  border: 0;
+  padding: 0;
+}
+
+.food-card-inner {
+  position: relative;
+  transform-style: preserve-3d;
+  transition: transform 500ms cubic-bezier(0.22, 0.72, 0.2, 1);
+  will-change: transform;
+}
+
+.food-card-inner.is-flipped {
+  transform: rotateY(180deg);
+}
+
+.food-card-face {
+  backface-visibility: hidden;
+  inset: 0;
+  overflow: hidden;
+  position: absolute;
+}
+
+.food-card-back {
+  transform: rotateY(180deg);
+}
+
+.food-detail-dialog::backdrop,
+.food-upload-dialog::backdrop {
+  background: rgb(13 15 13 / 78%);
+}
+
+.food-stats-enter {
+  animation: food-stats-enter 420ms cubic-bezier(0.2, 0.72, 0.2, 1);
+}
+
+@keyframes food-stats-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-12px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 767px) {
+  .food-detail-dialog > div {
+    grid-template-rows: minmax(40svh, 52%) minmax(0, 1fr);
+  }
+
+  .food-detail-dialog,
+  .food-upload-dialog {
+    height: 100svh;
+    max-height: 100svh;
+    width: 100vw;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;

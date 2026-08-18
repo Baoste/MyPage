@@ -108,6 +108,31 @@ export async function uploadPrivateAsset(
   await uploadImage(PRIVATE_DIARY_BUCKET, storagePath, body, contentType);
 }
 
+export async function createPrivateSignedUploadUrl(
+  storagePath: string,
+  options: { upsert?: boolean } = {},
+) {
+  const path = cleanStoragePath(storagePath);
+  const client = createServerSupabaseClient();
+  const { data, error } = await client.storage
+    .from(PRIVATE_DIARY_BUCKET)
+    .createSignedUploadUrl(path, { upsert: options.upsert ?? false });
+
+  if (error || !data?.signedUrl) {
+    throw new Error("Unable to create a private upload URL.");
+  }
+
+  return { path, signedUrl: data.signedUrl, token: data.token };
+}
+
+export async function deletePrivateAssets(storagePaths: string[]) {
+  if (storagePaths.length === 0) return;
+  const paths = [...new Set(storagePaths.map(cleanStoragePath))];
+  const client = createServerSupabaseClient();
+  const { error } = await client.storage.from(PRIVATE_DIARY_BUCKET).remove(paths);
+  if (error) throw new Error("Unable to delete private media.");
+}
+
 export async function deleteAsset(
   bucket: typeof PUBLIC_ASSET_BUCKET | typeof PRIVATE_DIARY_BUCKET,
   storagePath: string,

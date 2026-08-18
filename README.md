@@ -7,14 +7,14 @@
 | 区域 | 实现 |
 | --- | --- |
 | Public | 首页 Hero、3/2/1 列作品 Gallery、文章列表、Markdown 文章详情、Resume 页面、响应式导航 |
-| Private | `/yfxl99` 登录、照片活跃度驱动的 WebGL2 程序化像素树 Welcome、Photos、Food、独立导航、Logout、Loading/Empty/Error 状态 |
+| Private | `/yfxl99` 登录、照片活跃度驱动的 WebGL2 程序化像素树 Welcome、Photos、支持多图上传/翻面/长按详情/统计的 Food 画廊、独立导航、Logout、Loading/Empty/Error 状态 |
 | Authentication | bcrypt 密码哈希校验、HS256 签名 Session、统一 Proxy/Auth Guard、HttpOnly Cookie、7 天过期、同源校验、简单登录限流 |
-| Data | `projects`、`photo_entries`、`food_entries` Service Layer；未配置 Supabase 时仅公开作品使用本地 Mock |
-| Storage | `public-assets` 公共 Bucket、`private-diary` 私有 Bucket、私密图片 5 分钟 Signed URL |
+| Data | `projects`、`photo_entries`、`food_entries`、`food_images` Service Layer；未配置 Supabase 时仅公开作品使用本地 Mock |
+| Storage | `public-assets` 公共 Bucket、`private-diary` 私有 Bucket、私密图片 5 分钟 Signed URL、Food 限路径 Signed Upload |
 | Database | 完整 migration、索引、约束、updated_at trigger、RLS、Storage policies、可选 seed |
 | Quality | TypeScript strict、Server/Client 边界、响应式、键盘焦点、语义 HTML、SEO、robots、sitemap、安全 Header |
 
-没有实现 Admin Dashboard、注册、多用户、Supabase Auth 或上传 UI；这些均不属于当前阶段。
+没有实现通用 Admin Dashboard、注册、多用户或 Supabase Auth；Food 页面包含自己专用的私密多图上传流程。
 
 ## 技术栈
 
@@ -51,9 +51,10 @@ src/
 ├── data/                         可替换 Mock / Resume 数据
 ├── lib/
 │   ├── auth/                     密码、Session、限流、请求校验
+│   ├── food/                     Food 校验、EXIF、地区、统计、上传限流
 │   ├── tree/                     照片活跃度纯函数
 │   └── supabase/                 Public/Server Client 与 Storage
-├── services/                     Project / Photo / Food 数据访问
+├── services/                     Project / Photo / Food 数据访问与 Food 草稿发布
 ├── types/                        Entity、Row、ViewModel 类型
 └── proxy.ts                      私密页面 307 / 私密 API 401 入口保护
 supabase/
@@ -151,13 +152,28 @@ npx supabase link --project-ref YOUR_PROJECT_REF
 npx supabase db push
 ```
 
-也可以在 Dashboard 的 SQL Editor 中执行 `supabase/migrations/202608180001_initial_schema.sql`。Migration 会自动创建：
+也可以在 Dashboard 的 SQL Editor 中按文件名顺序执行：
+
+1. `supabase/migrations/202608180001_initial_schema.sql`
+2. `supabase/migrations/202608180002_food_groups_and_images.sql`
+
+第一份 Migration 创建：
 
 - `projects`、`photo_entries`、`food_entries`；
 - 日期/公开排序索引和 rating/path 约束；
 - 自动更新 `updated_at` 的 trigger；
 - 两个 Storage buckets；
 - 全部 RLS 与公开 Storage policy。
+
+第二份 Migration 将 Food 从“一行一张图片”升级为“美食组 + 图片”：
+
+- 保留原有 `food_entries` 行和原 Storage 对象，不重命名、不丢记录；
+- 为旧行补齐组字段，并把旧 `storage_path` 回填成一条 `food_images`；
+- 新建 `food_images`、顺序/尺寸/MIME/大小约束、索引、trigger 和 RLS；
+- 为新上传增加 `draft / ready` 状态及幂等 `upload_request_id`；
+- 固定记录时区为中国北京时间 `Asia/Shanghai`。
+
+代码部署早于第二份 Migration 时，Food 页面会安全回退到旧单图字段继续浏览，并显示 Migration 提示、禁用新增按钮，不会再因缺少 `status` 或 `food_images` 整页崩溃。执行 Migration 后刷新页面即可自动切换到完整多图模式；若只执行了部分 SQL，页面会拒绝读取不完整结构，避免把 draft 数据误显示出来。
 
 可选开发数据：在 SQL Editor 执行 `supabase/seed.sql`。它只写入一个公开 Project，不写无对应图片对象的私密记录。
 
@@ -166,7 +182,7 @@ npx supabase db push
 Migration 已创建：
 
 - `public-assets`：Public，用于 `projects/`、`articles/`；
-- `private-diary`：Private，用于 `photos/YYYY/MM/`、`food/YYYY/MM/`。
+- `private-diary`：Private；Photo 使用 `photos/YYYY/MM/`，新 Food 使用 `food/{groupId}/{imageId}.{ext}`，旧 Food 路径继续兼容。
 
 Dashboard 中必须确认 `private-diary` 的 Public 开关关闭。两个 Bucket 均限制为 JPEG、PNG、WebP，单文件最大 10 MB。
 
@@ -174,7 +190,7 @@ Dashboard 中必须确认 `private-diary` 的 Public 开关关闭。两个 Bucke
 
 - anon/authenticated 只可 `SELECT projects WHERE is_published = true`；
 - anon/authenticated 不能写 `projects`；
-- `photo_entries` 与 `food_entries` 没有 anon/authenticated policy，因此不能匿名 CRUD；
+- `photo_entries`、`food_entries` 与 `food_images` 没有 anon/authenticated policy，因此不能匿名 CRUD；
 - `public-assets` 允许匿名读取；
 - `private-diary` 没有公开读取 policy；
 - 私密数据仅由 Next.js server 的 service-role client 在 Session 验证后访问。
@@ -321,33 +337,61 @@ insert into public.photo_entries (
 
 ### 添加 Food
 
-1. 上传到 `private-diary/food/2026/08/UUID.webp`。
-2. 插入 metadata；`rating` 只能为 `1` 到 `5` 或 `NULL`。
+登录后打开 `/yfxl99/food`，使用右下角“+”按钮建立一组记录。每组可选择 1～12 张 JPEG/PNG/WebP；支持预览、删除、调整顺序、1～5 星点击评分和最多 2000 字点评。单张上限 10 MB，整组上限 60 MB。
 
-```sql
-insert into public.food_entries (
-  name, storage_path, description, restaurant,
-  location, rating, food_date, tags
-) values (
-  'Dish name',
-  'food/2026/08/UUID.webp',
-  'Optional note',
-  'Restaurant name',
-  'Shanghai',
-  5,
-  '2026-08-18',
-  array['dinner']
-);
+发生时间优先读取第一张图片的 EXIF `DateTimeOriginal`，没有则使用当前时间。EXIF 没有时区，所以统一按中国北京时间解释；表单时间和数据库 `timezone` 也固定为 `Asia/Shanghai`。用户手动修改时间后，重新排序或增加图片不会覆盖；“重新读取第一张”可主动恢复。地点使用国家代码、国内省级代码和城市稳定代码，数据源未覆盖时允许受控手动补充，不上传 GPS。
+
+上传不是把 service-role key 交给浏览器：
+
+```text
+POST /api/private/food/uploads/init
+  → 验证 Session、同源、限流、字段、数量和声明大小
+  → 创建 draft 组与图片行
+  → 为 food/{groupId}/{imageId}.{ext} 签发逐文件 Signed Upload
+Browser 并发上传（最多 3 个）并展示每张进度
+POST /api/private/food/uploads/complete
+  → 服务器重新核对对象路径、数量、大小、MIME 与文件签名
+  → 全部通过后一次性发布为 ready
 ```
 
-私密页面读取 metadata 后，服务器会为每个 `storage_path` 生成短期 Signed URL。URL 不写回数据库。
+同一 `upload_request_id` 可安全重试，单图失败可单独重试；取消会删除本组对象和草稿，失败组不会进入画廊。服务层会清理超过 24 小时的旧草稿及对应对象。画廊读取时只查询 `ready` 组，为每张私有图片签发短期 Signed URL；单张 URL 过期或加载失败时可单独刷新。
+
+Food 页面将组内每张图都作为独立卡片连续显示。点击卡片以非线性动效翻面，查看分类、地点和北京时间；按住 450 ms 打开详情，桌面显示右侧资料栏，手机显示下方资料区。左下角“统计”按组计算记录、分类、地点、评分和时间线，只有“照片数”按图片计算，因此多图组只增加一条记录。
+
+主要实现文件：
+
+```text
+src/app/yfxl99/(protected)/food/page.tsx
+src/app/api/private/food/
+├── images/[id]/url/route.ts
+└── uploads/{init,complete,cancel}/route.ts
+src/components/private/food/
+├── FoodExperience.tsx
+├── FoodGallery.tsx
+├── FoodCard.tsx
+├── FoodDetailDialog.tsx
+├── FoodUploadDialog.tsx
+├── FoodImagePicker.tsx
+├── FoodLocationPicker.tsx
+└── FoodStatsPanel.tsx
+src/lib/food/
+├── contracts.ts
+├── image-headers.ts
+├── image-metadata.ts
+├── locations.ts
+├── statistics.ts
+└── upload-rate-limit.ts
+src/services/foodService.ts
+supabase/migrations/202608180002_food_groups_and_images.sql
+```
 
 ### 图片命名与删除
 
 - 使用 UUID 文件名，支持 `.jpg`、`.jpeg`、`.png`、`.webp`；
 - 不使用原始相机名、中文名或可预测路径；
+- 新 Food 路径必须为 `food/{groupId}/{imageId}.{extension}`；旧 `food/YYYY/MM/` 路径仅为迁移兼容；
 - 删除 Photo/Food 时同时删除数据库行和 Storage object，避免孤儿文件；
-- `src/lib/supabase/storage.ts` 已提供统一上传验证与 `deleteAsset()`，但当前没有 Admin UI。
+- `src/lib/supabase/storage.ts` 提供私有 Signed Upload、Signed URL 和批量对象删除封装。
 
 ### 配置 Resume PDF
 
@@ -402,17 +446,19 @@ npm start
 ## 验收清单
 
 - [ ] 将 `.env.example` 复制为 `.env.local` 并填写真实值
-- [ ] 执行 migration，确认三张表与两个 Buckets
-- [ ] 确认 `private-diary` 为 Private，私密表匿名查询失败
+- [ ] 按顺序执行两份 migration，确认 `projects`、`photo_entries`、`food_entries`、`food_images` 与两个 Buckets
+- [ ] 确认 `private-diary` 为 Private，三张私密表匿名查询失败
 - [ ] 为 `CODEX.md` 指定的初始密码生成 hash
 - [x] `npm run lint`
 - [x] `npm run typecheck`
 - [x] `npm run build`
 - [x] 未登录访问 Photos/Food 会重定向
+- [x] Food API 未登录返回 401、跨站写入返回 403、超大 JSON 返回 413
+- [x] Food 桌面/手机瀑布流、翻面、长按详情、统计、图片选择和上传弹窗通过 Chrome 验收
 - [x] 正确/错误密码、限流和 Logout 行为符合预期
 - [x] 浏览器源码与静态 Bundle 中不存在明文密码或 Server Secrets
 
-前三项 Supabase/生产 Secret 步骤需要项目所有者在自己的 Supabase Dashboard 和部署环境中完成。
+前三项 Supabase/生产 Secret 步骤需要项目所有者在自己的 Supabase Dashboard 和部署环境中完成；其中第二份 Food Migration 是本轮新增，部署前不能遗漏。
 
 ## 验证记录
 
@@ -431,4 +477,9 @@ npm start
 - 增量时间纯函数验收：北京时间起点本身得到 `0 day 00 h 00 m 00 s`，增加 90,061 秒后准确得到 `1 day 01 h 01 m 01 s`。
 - 像素树质量检查：`npm run lint` 与 `npm run typecheck` 通过；扫描 19 个 `.next/static` 文件，未发现明文密码、Password Hash、Session Secret 或 Service Role 变量名。
 - 像素树生产构建：当前 `.env.local` 指向的公开 Supabase `projects` 查询在预渲染时不可用；未修改该文件，改用项目已有的“未配置 Supabase”回退模式完成 `npm run build`，所有路由成功生成。正式部署前应确认 Supabase 项目可从构建环境访问。
-- 未进行真实 Supabase 端到端读图：交付环境没有用户的 Supabase URL/Keys/数据；所需代码、Migration、Bucket 与 RLS 均已完成，按上文手动配置即可连接。
+- Food 生产构建：`npm run typecheck`、`npm run lint`、`npm run build` 全部通过；构建产物包含 Food 图片 URL 刷新及上传 `init / complete / cancel` 四个动态 API。
+- Food Chrome 验收：用不进入正式代码的临时本地数据检查 1440×960 与 390×844；9 张图片分别显示为桌面 4 列、手机 2 列不等高瀑布流，均无横向溢出或控制台错误；点击翻面、450 ms 长按、详情同组切换区、`Escape`、统计展开和桌面/手机上传弹窗均正常。
+- Food 图片校验验收：上传弹窗读取本地 JPEG 后正确显示文件预览、`44KB` 与 `736×736` 尺寸；服务器文件头解析以真实 JPEG 及合成 PNG/WebP 头验证，三种格式均正确复验尺寸；没有发起外部上传。
+- Food API 安全冒烟：未登录页面 `307 → /yfxl99`，未登录 API `401`，携带有效本地测试 Session 的跨站 POST `403`，同源非法字段 `400`，超过 64KB 的 JSON `413`，有效 Session 页面 `200`。
+- Food 静态安全扫描：扫描 21 个 `.next/static` 文件，未发现 `SUPABASE_SERVICE_ROLE_KEY`、密码 Hash、Session Secret 的变量名或实际值。
+- 未进行真实 Supabase Food 上传/回填验收：当前交付环境无法连接可用且已应用新 Migration 的 Supabase 数据库与 Storage。代码、增量 Migration、Private Bucket 安全边界、回滚与旧行回填逻辑已完成；项目所有者仍需按“Supabase 配置”章节执行第二份 Migration，并在正式环境上传一组多图做最终端到端确认。
