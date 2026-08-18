@@ -7,7 +7,7 @@
 | 区域 | 实现 |
 | --- | --- |
 | Public | 首页 Hero、3/2/1 列作品 Gallery、文章列表、Markdown 文章详情、Resume 页面、响应式导航 |
-| Private | `/yfxl99` 登录/Welcome、Photos、Food、独立导航、Logout、Loading/Empty/Error 状态 |
+| Private | `/yfxl99` 登录、照片活跃度驱动的 WebGL2 程序化像素树 Welcome、Photos、Food、独立导航、Logout、Loading/Empty/Error 状态 |
 | Authentication | bcrypt 密码哈希校验、HS256 签名 Session、统一 Proxy/Auth Guard、HttpOnly Cookie、7 天过期、同源校验、简单登录限流 |
 | Data | `projects`、`photo_entries`、`food_entries` Service Layer；未配置 Supabase 时仅公开作品使用本地 Mock |
 | Storage | `public-assets` 公共 Bucket、`private-diary` 私有 Bucket、私密图片 5 分钟 Signed URL |
@@ -21,6 +21,7 @@
 - Next.js 16 App Router
 - React 19 + TypeScript
 - Tailwind CSS 4
+- 原生 WebGL2（程序化像素树）+ Canvas 2D 静态降级
 - Supabase PostgreSQL + Storage
 - `@supabase/supabase-js`
 - `bcryptjs`（密码哈希）
@@ -45,11 +46,12 @@ src/
 ├── components/
 │   ├── common/                   图片、Empty State
 │   ├── public/                   公开 UI
-│   └── private/                  私密 UI
+│   └── private/                  私密 UI、像素树场景与控制面板
 ├── config/site.ts                个人资料与导航
 ├── data/                         可替换 Mock / Resume 数据
 ├── lib/
 │   ├── auth/                     密码、Session、限流、请求校验
+│   ├── tree/                     照片活跃度纯函数
 │   └── supabase/                 Public/Server Client 与 Storage
 ├── services/                     Project / Photo / Food 数据访问
 ├── types/                        Entity、Row、ViewModel 类型
@@ -83,7 +85,7 @@ npm run build
 npm start
 ```
 
-没有配置 Supabase 时，公开首页显示 `src/data/projects.ts` 的少量 Mock；文章和 Resume 正常工作；私密 Gallery 显示 Empty State。登录仍必须配置密码哈希与 Session Secret。
+没有配置 Supabase 时，公开首页显示 `src/data/projects.ts` 的少量 Mock；文章和 Resume 正常工作；私密 Gallery 显示 Empty State；Welcome 像素树采用 62% 的中性活力回退值。登录仍必须配置密码哈希与 Session Secret。
 
 ## 环境变量
 
@@ -187,7 +189,55 @@ Dashboard 中必须确认 `private-diary` 的 Public 开关关闭。两个 Bucke
 
 ### 修改私密 Welcome 首页
 
-登录后的 `/yfxl99` 首页内容已独立到 `src/components/private/WelcomeHome.tsx`。可以直接修改该组件的文案和布局，不需要改动 `src/app/yfxl99/page.tsx` 中的 Session 判断或登录逻辑。
+登录后的 `/yfxl99` 首页入口保留在 `src/components/private/WelcomeHome.tsx`，实际场景位于 `src/components/private/tree/`。认证判断和服务端照片统计仍在 `src/app/yfxl99/page.tsx`，修改视觉时不要把该页面改成 Client Component，也不要移动或删除 Session 判断。
+
+像素树完全由代码生成，不使用树木图片素材。相同 seed 与相同结构参数会生成相同的树；WebGL2 先渲染到低分辨率 framebuffer，再使用 nearest-neighbor 放大。浏览器不支持 WebGL2 时会自动显示静态 Canvas 2D 树，导航和页面内容仍然可用。
+
+#### 照片活跃度如何控制叶片
+
+服务端的 `getPhotoActivityStats()` 只读取 `photo_entries.created_at` 并向浏览器传递以下聚合值：最近 30 天上传次数、距最后一次上传的天数、`0～1` 活力值和状态。它不会传递照片 URL、标题、位置或其他照片内容。
+
+默认算法位于 `src/lib/tree/activity.ts`：
+
+```text
+frequency = clamp(uploadsLast30Days / 8, 0, 1)
+
+最近一次上传不超过 30 天：recency = 1
+超过 30 天：recency = max(0.12, exp(-(days - 30) / 60))
+从未上传：recency = 0.12
+
+vitality = clamp((0.35 + 0.65 * frequency) * recency, 0.08, 1)
+```
+
+因此一个月约 8 次上传达到完整频率活力；连续 30 天没有新上传后叶片才开始平滑减少；长期没有记录时仍保留树干和少量叶片。Supabase 未配置或统计查询失败时使用 62% 中性回退值，页面不会白屏。
+
+#### 控制面板
+
+登录后控制面板默认展开，可调整：
+
+- 照片活跃度自动驱动、手动叶片密度；
+- seed、分枝深度、树冠宽度、树干粗细、叶片尺寸；
+- 风力、风速、阵风、落叶率、重力、横向漂移；
+- 春绿/秋金/夜蓝色板、像素倍率和播放/暂停。
+
+结构参数使用 170ms 防抖重建，其他参数实时生效。“随机”只更换 seed，“恢复默认值”恢复项目默认配置。设置保存在当前浏览器的 `private-tree-controls:v1` 中；其中不保存照片统计、Cookie、Session 或 Token。删除该 localStorage key 即可清除本机自定义值。
+
+主要维护文件：
+
+```text
+src/components/private/tree/
+├── ProceduralTree.tsx       React 生命周期、WebGL context 恢复、设置持久化
+├── TreeControlPanel.tsx     控制面板
+├── config.ts                默认值、参数校验、三套色板
+├── generation.ts            seeded PRNG、树干/枝条/树叶生成
+├── particles.ts             落叶对象池
+├── renderer.ts              WebGL2 buffer、framebuffer 与绘制
+├── scene.ts                 动画循环、密度平滑、可见性暂停
+├── shaders.ts               WebGL2 shaders
+└── TreeFallback.tsx         Canvas 2D 静态降级
+```
+
+页面隐藏、动画暂停或组件卸载时会停止 `requestAnimationFrame`；渲染 DPR 上限为 2，叶片候选数上限为 8,000，空中落叶和落地叶片也分别设有固定上限。系统启用 `prefers-reduced-motion` 且浏览器没有已保存设置时，动画默认暂停，用户仍可在控制面板主动播放。
 
 ### 添加 Project
 
@@ -358,4 +408,7 @@ npm start
 - Rate Limit：同一客户端连续 6 次错误请求状态为 `401, 401, 401, 401, 401, 429`。
 - 静态安全扫描：源码没有指定明文密码；扫描 19 个 `.next/static` 浏览器文件，未发现明文密码或 server-only 环境变量名。
 - 视觉抽查：使用 production build 检查了 1440px 桌面和 500px 小屏布局，导航、排版与响应式断点正常。
+- 像素树浏览器验收：登录后在 Chrome WebGL2 环境检查 1440×960 与 390×844；shader 正常、桌面/手机均无页面溢出，控制面板可滚动、收起、重新打开，自动/手动密度切换与 localStorage 持久化正常。
+- 像素树质量检查：`npm run lint` 与 `npm run typecheck` 通过；扫描 19 个 `.next/static` 文件，未发现明文密码、Password Hash、Session Secret 或 Service Role 变量名。
+- 像素树生产构建：当前 `.env.local` 指向的公开 Supabase `projects` 查询在预渲染时不可用；未修改该文件，改用项目已有的“未配置 Supabase”回退模式完成 `npm run build`，所有路由成功生成。正式部署前应确认 Supabase 项目可从构建环境访问。
 - 未进行真实 Supabase 端到端读图：交付环境没有用户的 Supabase URL/Keys/数据；所需代码、Migration、Bucket 与 RLS 均已完成，按上文手动配置即可连接。

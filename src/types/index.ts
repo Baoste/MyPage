@@ -48,6 +48,19 @@ export interface PhotoViewModel extends PhotoEntry {
   imageUrl: string;
 }
 
+export type PhotoActivityStatus = "live" | "empty" | "unavailable";
+
+/**
+ * Privacy-safe aggregate passed from the server to the Welcome tree.
+ * It intentionally contains no photo metadata or storage URLs.
+ */
+export interface PhotoActivityStats {
+  uploadsLast30Days: number;
+  daysSinceLastUpload: number | null;
+  vitality: number;
+  status: PhotoActivityStatus;
+}
+
 export interface FoodEntry {
   id: string;
   name: string;

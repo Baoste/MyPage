@@ -2,6 +2,7 @@ import { LoginForm } from "@/components/private/LoginForm";
 import { PrivateNavbar } from "@/components/private/PrivateNavbar";
 import { WelcomeHome } from "@/components/private/WelcomeHome";
 import { getPrivateSession } from "@/lib/auth/session";
+import { getPhotoActivityStats } from "@/services/photoService";
 
 export default async function PrivateHomePage() {
   const session = await getPrivateSession();
@@ -25,10 +26,12 @@ export default async function PrivateHomePage() {
     );
   }
 
+  const activity = await getPhotoActivityStats();
+
   return (
-    <>
+    <div className="flex min-h-svh flex-col">
       <PrivateNavbar />
-      <WelcomeHome />
-    </>
+      <WelcomeHome activity={activity} />
+    </div>
   );
 }
