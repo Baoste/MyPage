@@ -5,15 +5,23 @@ import {
   defaultTreeControls,
   sanitizeStoredControls,
   TREE_CONTROL_STORAGE_KEY,
+  TREE_REFRESH_STORAGE_KEY,
   type TreeControls,
 } from "@/components/private/tree/config";
 import { PixelTreeScene } from "@/components/private/tree/scene";
 import { TreeControlPanel } from "@/components/private/tree/TreeControlPanel";
 import { TreeElapsedTimer } from "@/components/private/tree/TreeElapsedTimer";
 import { TreeFallback } from "@/components/private/tree/TreeFallback";
+import {
+  createPhotoActivityStats,
+  DAY_IN_MILLISECONDS,
+} from "@/lib/tree/activity";
 import type { PhotoActivityStats } from "@/types";
 
 type RenderMode = "loading" | "webgl" | "fallback" | "lost";
+const OPEN_CONTROL_PANEL_COMMAND = "open_tree_control_panel";
+const REFRESH_TREE_COMMAND = "refresh_tree";
+const ACTIVITY_CLOCK_INTERVAL_MILLISECONDS = 60_000;
 
 interface ProceduralTreeProps {
   activity: PhotoActivityStats;
@@ -37,15 +45,100 @@ function randomSeed() {
   return `tree-${values[0].toString(36)}-${values[1].toString(36)}`;
 }
 
+function readStoredTreeRefresh(now: number) {
+  try {
+    const value = Number(window.localStorage.getItem(TREE_REFRESH_STORAGE_KEY));
+    if (Number.isFinite(value) && value > 0 && value <= now + ACTIVITY_CLOCK_INTERVAL_MILLISECONDS) {
+      return value;
+    }
+  } catch {
+    // The command still works for the current page when storage is unavailable.
+  }
+  return null;
+}
+
 export function ProceduralTree({ activity }: ProceduralTreeProps) {
   const containerRef = useRef<HTMLElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const sceneRef = useRef<PixelTreeScene | null>(null);
   const controlsRef = useRef<TreeControls>(defaultTreeControls);
+  const vitalityRef = useRef(activity.vitality);
   const [controls, setControls] = useState<TreeControls>(defaultTreeControls);
-  const [isPanelOpen, setIsPanelOpen] = useState(true);
+  const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [renderMode, setRenderMode] = useState<RenderMode>("loading");
   const [preferencesReady, setPreferencesReady] = useState(false);
+  const [refreshStartedAt, setRefreshStartedAt] = useState<number | null>(null);
+  const [activityClock, setActivityClock] = useState(0);
+
+  const refreshedDays = refreshStartedAt === null
+    ? null
+    : Math.max(0, (activityClock - refreshStartedAt) / DAY_IN_MILLISECONDS);
+  const useLocalRefresh = refreshedDays !== null && (
+    activity.daysSinceLastUpload === null
+    || refreshedDays < activity.daysSinceLastUpload
+  );
+  const effectiveActivity = useLocalRefresh
+    ? createPhotoActivityStats(refreshedDays)
+    : activity;
+
+  useEffect(() => {
+    const now = Date.now();
+    const savedRefresh = readStoredTreeRefresh(now);
+    const frame = window.requestAnimationFrame(() => {
+      setActivityClock(now);
+      setRefreshStartedAt(savedRefresh);
+    });
+    const interval = window.setInterval(
+      () => setActivityClock(Date.now()),
+      ACTIVITY_CLOCK_INTERVAL_MILLISECONDS,
+    );
+    const commands = [OPEN_CONTROL_PANEL_COMMAND, REFRESH_TREE_COMMAND] as const;
+    const previousDescriptors = new Map(
+      commands.map((command) => [command, Object.getOwnPropertyDescriptor(window, command)]),
+    );
+
+    Object.defineProperty(window, OPEN_CONTROL_PANEL_COMMAND, {
+      configurable: true,
+      get() {
+        setIsPanelOpen(true);
+        return "Tree control panel opened temporarily.";
+      },
+    });
+
+    Object.defineProperty(window, REFRESH_TREE_COMMAND, {
+      configurable: true,
+      get() {
+        const refreshedAt = Date.now();
+        try {
+          window.localStorage.setItem(TREE_REFRESH_STORAGE_KEY, String(refreshedAt));
+        } catch {
+          // Keep the refresh active for the current page even without storage.
+        }
+        setActivityClock(refreshedAt);
+        setRefreshStartedAt(refreshedAt);
+        setControls((current) => ({ ...current, autoActivity: true }));
+        return "Tree refreshed to 100%; the 40-day vitality clock restarted.";
+      },
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.clearInterval(interval);
+      for (const command of commands) {
+        const previousDescriptor = previousDescriptors.get(command);
+        if (previousDescriptor) {
+          Object.defineProperty(window, command, previousDescriptor);
+        } else {
+          Reflect.deleteProperty(window, command);
+        }
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    vitalityRef.current = effectiveActivity.vitality;
+    sceneRef.current?.setVitality(effectiveActivity.vitality);
+  }, [effectiveActivity.vitality]);
 
   useEffect(() => {
     let nextControls = { ...defaultTreeControls };
@@ -104,7 +197,7 @@ export function ProceduralTree({ activity }: ProceduralTreeProps) {
 
     function initializeScene() {
       try {
-        activeScene = new PixelTreeScene(renderCanvas, controlsRef.current, activity.vitality);
+        activeScene = new PixelTreeScene(renderCanvas, controlsRef.current, vitalityRef.current);
         sceneRef.current = activeScene;
         resizeScene();
         activeScene.setVisible(!document.hidden);
@@ -149,7 +242,7 @@ export function ProceduralTree({ activity }: ProceduralTreeProps) {
       activeScene?.dispose();
       sceneRef.current = null;
     };
-  }, [activity.vitality, preferencesReady]);
+  }, [preferencesReady]);
 
   useEffect(() => {
     if (!preferencesReady) return;
@@ -195,14 +288,14 @@ export function ProceduralTree({ activity }: ProceduralTreeProps) {
         style={{ imageRendering: "pixelated" }}
       />
       {renderMode === "fallback" ? (
-        <TreeFallback controls={controls} vitality={activity.vitality} />
+        <TreeFallback controls={controls} vitality={effectiveActivity.vitality} />
       ) : null}
 
       <TreeControlPanel
         controls={controls}
-        activity={activity}
+        activity={effectiveActivity}
         isOpen={isPanelOpen}
-        onToggle={() => setIsPanelOpen((current) => !current)}
+        onToggle={() => setIsPanelOpen(false)}
         onChange={changeControls}
         onReset={resetControls}
         onRandomize={() => changeControls({ seed: randomSeed() })}
@@ -211,7 +304,7 @@ export function ProceduralTree({ activity }: ProceduralTreeProps) {
       <TreeElapsedTimer />
 
       <p className="sr-only" aria-live="polite">
-        {describeActivity(activity)}
+        {describeActivity(effectiveActivity)}
         {renderMode === "fallback" ? " 当前浏览器使用静态像素树降级画面。" : ""}
         {renderMode === "lost" ? " 图形上下文正在恢复。" : ""}
       </p>

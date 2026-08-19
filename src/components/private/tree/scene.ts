@@ -21,7 +21,7 @@ export class PixelTreeScene {
   constructor(
     canvas: HTMLCanvasElement,
     controls: TreeControls,
-    private readonly vitality: number,
+    private vitality: number,
   ) {
     this.controls = controls;
     this.currentDensity = getTreeDensity(controls, vitality);
@@ -50,6 +50,14 @@ export class PixelTreeScene {
       this.renderOnce();
     } else if (wasPaused) {
       this.start();
+    }
+  }
+
+  setVitality(vitality: number) {
+    this.vitality = vitality;
+    if (this.controls.isPaused) {
+      this.currentDensity = getTreeDensity(this.controls, vitality);
+      this.renderOnce();
     }
   }
 

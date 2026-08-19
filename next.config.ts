@@ -29,8 +29,16 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   images: { remotePatterns },
+  allowedDevOrigins: [
+    "yifan55.cn",
+    "www.yifan55.cn",
+    "82.156.118.238",
+  ],
   async headers() {
-    return [{ source: "/(.*)", headers: securityHeaders }];
+    return [{
+      source: "/(.*)",
+      headers: securityHeaders,
+    }];
   },
 };
 

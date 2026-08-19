@@ -90,19 +90,7 @@ export function TreeControlPanel({
   onReset,
   onRandomize,
 }: TreeControlPanelProps) {
-  if (!isOpen) {
-    return (
-      <button
-        type="button"
-        onClick={onToggle}
-        aria-expanded="false"
-        aria-controls="tree-control-panel"
-        className="absolute bottom-4 left-4 z-20 min-h-11 border border-white/25 bg-[#111713e8] px-4 text-[0.7rem] font-semibold uppercase tracking-[0.14em] text-[#ecebdd] backdrop-blur-sm md:bottom-6 md:left-6"
-      >
-        调整树
-      </button>
-    );
-  }
+  if (!isOpen) return null;
 
   return (
     <aside

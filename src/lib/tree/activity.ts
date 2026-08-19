@@ -1,6 +1,6 @@
 import type { PhotoActivityStats } from "@/types";
 
-const DAY_IN_MILLISECONDS = 86_400_000;
+export const DAY_IN_MILLISECONDS = 86_400_000;
 export const PHOTO_FULL_DENSITY_DAYS = 21;
 export const PHOTO_ZERO_DENSITY_DAYS = 40;
 
