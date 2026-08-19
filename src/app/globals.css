@@ -129,20 +129,44 @@ input:focus-visible {
 }
 
 .food-gallery {
-  grid-auto-rows: 8px;
+  column-gap: clamp(0.9rem, 1.8vw, 1.25rem);
+  grid-auto-rows: 1px;
+  row-gap: 0;
 }
 
 .food-card {
+  border-radius: 1.4rem;
   perspective: 1100px;
+  transform-origin: top left;
+}
+
+.food-card-compact {
+  border-radius: inherit;
 }
 
 .food-card-button {
   appearance: none;
+  background: #ded8cd;
   border: 0;
+  border-radius: inherit;
+  box-shadow: 0 8px 24px rgb(48 42 34 / 9%);
+  isolation: isolate;
+  overflow: hidden;
   padding: 0;
+  transition:
+    box-shadow 260ms ease,
+    transform 260ms cubic-bezier(0.22, 0.74, 0.2, 1);
+}
+
+@media (hover: hover) {
+  .food-card-button:hover {
+    box-shadow: 0 14px 34px rgb(48 42 34 / 15%);
+    transform: translateY(-3px);
+  }
 }
 
 .food-card-inner {
+  border-radius: inherit;
   position: relative;
   transform-style: preserve-3d;
   transition: transform 500ms cubic-bezier(0.22, 0.72, 0.2, 1);
@@ -155,6 +179,7 @@ input:focus-visible {
 
 .food-card-face {
   backface-visibility: hidden;
+  border-radius: inherit;
   inset: 0;
   overflow: hidden;
   position: absolute;
@@ -164,10 +189,52 @@ input:focus-visible {
   transform: rotateY(180deg);
 }
 
-.food-detail-dialog::backdrop,
+.food-card-expanded {
+  perspective: none;
+  z-index: 2;
+}
+
+.food-expanded-shell {
+  animation: food-expanded-enter 380ms cubic-bezier(0.22, 0.74, 0.2, 1);
+  box-shadow: 0 24px 65px rgb(47 40 31 / 16%);
+}
+
+@keyframes food-expanded-enter {
+  from {
+    opacity: 0.72;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
 .food-edit-dialog::backdrop,
 .food-upload-dialog::backdrop {
-  background: rgb(13 15 13 / 78%);
+  backdrop-filter: blur(3px);
+  background: rgb(26 25 22 / 62%);
+}
+
+.food-edit-dialog,
+.food-upload-dialog {
+  border-radius: 1.75rem;
+}
+
+.food-edit-dialog input,
+.food-edit-dialog textarea,
+.food-upload-dialog input,
+.food-upload-dialog textarea {
+  border-radius: 0.9rem;
+}
+
+.food-edit-dialog header,
+.food-upload-dialog header {
+  background: #f7f3ec;
+}
+
+.food-edit-dialog footer,
+.food-upload-dialog footer {
+  background: #ece5da;
 }
 
 .food-stats-enter {
@@ -187,13 +254,9 @@ input:focus-visible {
 }
 
 @media (max-width: 767px) {
-  .food-detail-dialog > div {
-    grid-template-rows: minmax(40svh, 52%) minmax(0, 1fr);
-  }
-
-  .food-detail-dialog,
   .food-edit-dialog,
   .food-upload-dialog {
+    border-radius: 0;
     height: 100svh;
     max-height: 100svh;
     width: 100vw;

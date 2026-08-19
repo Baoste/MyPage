@@ -40,13 +40,13 @@ export function FoodExperience({
 
   return (
     <div className="pb-28">
-      <div ref={statsRef} className="scroll-mt-28">
+      <div ref={statsRef} className={`scroll-mt-28 ${statsOpen ? "container-shell pt-6 md:pt-8" : ""}`}>
         {statsOpen ? <FoodStatsPanel statistics={statistics} /> : null}
       </div>
 
-      <div className="container-shell py-10 md:py-14">
+      <div className="container-shell py-8 md:py-12">
         {!uploadEnabled ? (
-          <p id="food-upload-unavailable" className="mb-8 border border-[#c9c0b4] bg-[#eee8de] px-4 py-3 text-xs leading-5 text-[#72695f]">
+          <p id="food-upload-unavailable" className="mb-8 rounded-2xl border border-[#d5cdc1] bg-[#eee8de] px-4 py-3.5 text-xs leading-5 text-[#72695f]">
             {uploadDisabledReason ?? "当前暂时不能上传美食记录。"}
           </p>
         ) : null}
@@ -59,7 +59,7 @@ export function FoodExperience({
           aria-expanded={statsOpen}
           aria-controls="food-statistics-region"
           onClick={toggleStatistics}
-          className="pointer-events-auto grid size-14 place-items-center rounded-full border border-[#d1c7ba] bg-[#292d27] text-[0.62rem] font-semibold tracking-[0.08em] text-white shadow-[0_8px_28px_rgba(30,30,25,0.22)]"
+          className="pointer-events-auto grid size-14 place-items-center rounded-full bg-[#30342e] text-[0.62rem] font-semibold tracking-[0.08em] text-white shadow-[0_10px_30px_rgba(30,30,25,0.2)] transition-transform hover:-translate-y-0.5"
         >
           {statsOpen ? "收起" : "统计"}
         </button>
@@ -70,7 +70,7 @@ export function FoodExperience({
           onClick={() => setUploadOpen(true)}
           aria-label="新增美食记录"
           title={uploadEnabled ? "新增美食记录" : uploadDisabledReason ?? "暂时无法上传"}
-          className="pointer-events-auto grid size-14 place-items-center rounded-full border border-[#d1c7ba] bg-[#a64b2a] text-3xl font-light leading-none text-white shadow-[0_8px_28px_rgba(30,30,25,0.22)] disabled:cursor-not-allowed disabled:opacity-45"
+          className="pointer-events-auto grid size-14 place-items-center rounded-full bg-[#a64b2a] text-3xl font-light leading-none text-white shadow-[0_10px_30px_rgba(88,44,27,0.24)] transition-transform hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-45"
         >
           <span aria-hidden="true" className="-translate-y-px">+</span>
         </button>

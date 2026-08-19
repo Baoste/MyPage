@@ -87,7 +87,7 @@ export function FoodImagePicker({
           <legend className="text-sm font-semibold text-[#39342f]">图片</legend>
           <p className="mt-1 text-xs leading-5 text-[#776f66]">1～12 张，JPEG / PNG / WebP，单张不超过 10MB。</p>
         </div>
-        <label className={`shrink-0 border border-[#9e9488] px-3 py-2 text-xs font-semibold text-[#4a433d] ${disabled || isInspecting ? "pointer-events-none opacity-45" : "cursor-pointer"}`}>
+        <label className={`shrink-0 rounded-full border border-[#9e9488] px-3.5 py-2 text-xs font-semibold text-[#4a433d] ${disabled || isInspecting ? "pointer-events-none opacity-45" : "cursor-pointer"}`}>
           {isInspecting ? "正在读取…" : "选择图片"}
           <input
             ref={inputRef}
@@ -104,10 +104,10 @@ export function FoodImagePicker({
       {images.length > 0 ? (
         <ol className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
           {images.map((image, index) => (
-            <li key={image.clientId} className="min-w-0 border border-[#d0c7bb] bg-[#f7f3ec] p-2">
-              <div className="relative aspect-square overflow-hidden bg-[#ddd7ca]">
+            <li key={image.clientId} className="min-w-0 rounded-2xl border border-[#d0c7bb] bg-[#f7f3ec] p-2">
+              <div className="relative aspect-square overflow-hidden rounded-xl bg-[#ddd7ca]">
                 <Image unoptimized src={image.previewUrl} alt={`待上传图片 ${index + 1}`} fill sizes="10rem" className="object-cover" />
-                <span className="absolute left-1.5 top-1.5 grid size-6 place-items-center bg-[#252822] text-[0.62rem] font-semibold text-white">{index + 1}</span>
+                <span className="absolute left-1.5 top-1.5 grid size-6 place-items-center rounded-full bg-[#252822] text-[0.62rem] font-semibold text-white">{index + 1}</span>
               </div>
               <p className="mt-2 truncate text-[0.68rem] text-[#625b53]">{image.file.name}</p>
               <p className="mt-1 text-[0.6rem] text-[#8a8177]">{Math.round(image.byteSize / 1024)}KB · {image.width}×{image.height}</p>
@@ -129,7 +129,7 @@ export function FoodImagePicker({
           ))}
         </ol>
       ) : (
-        <button type="button" disabled={disabled || isInspecting} onClick={() => inputRef.current?.click()} className="mt-4 grid min-h-32 w-full place-items-center border border-dashed border-[#b9afa3] text-sm text-[#756d64] disabled:opacity-45">选择这一组的图片</button>
+        <button type="button" disabled={disabled || isInspecting} onClick={() => inputRef.current?.click()} className="mt-4 grid min-h-32 w-full place-items-center rounded-2xl border border-dashed border-[#b9afa3] text-sm text-[#756d64] disabled:opacity-45">选择这一组的图片</button>
       )}
     </fieldset>
   );

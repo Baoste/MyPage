@@ -306,7 +306,7 @@ export function FoodUploadDialog({ onClose }: FoodUploadDialogProps) {
             <p className="eyebrow">New food memory</p>
             <h2 id="food-upload-title" className="display-type mt-2 text-3xl sm:text-4xl">新增一组记录</h2>
           </div>
-          <button type="button" disabled={isBusy} onClick={() => void requestClose()} aria-label="关闭新增美食记录" className="grid size-11 shrink-0 place-items-center border border-[#bcb3a8] text-xl disabled:opacity-40">×</button>
+          <button type="button" disabled={isBusy} onClick={() => void requestClose()} aria-label="关闭新增美食记录" className="grid size-11 shrink-0 place-items-center rounded-full border border-[#bcb3a8] bg-[#fffdf8] text-xl disabled:opacity-40">×</button>
         </header>
 
         <div className="min-h-0 flex-1 space-y-7 overflow-y-auto px-5 py-6 sm:px-8">
@@ -315,11 +315,11 @@ export function FoodUploadDialog({ onClose }: FoodUploadDialogProps) {
           <div className="grid gap-5 sm:grid-cols-[1fr_auto]">
             <label className="block text-xs font-semibold text-[#5d554e]">
               分类
-              <input value={category} onChange={(event) => setCategory(event.target.value)} disabled={isLocked} required maxLength={40} placeholder="例如：火锅、甜品、家常菜" className="mt-2 w-full border border-[#bdb3a7] bg-[#fbf8f2] px-3 py-2.5 text-sm font-normal text-[#302d29]" />
+              <input value={category} onChange={(event) => setCategory(event.target.value)} disabled={isLocked} required maxLength={40} placeholder="例如：火锅、甜品、家常菜" className="mt-2 w-full rounded-xl border border-[#bdb3a7] bg-[#fbf8f2] px-3 py-2.5 text-sm font-normal text-[#302d29]" />
             </label>
             <fieldset disabled={isLocked}>
               <legend className="text-xs font-semibold text-[#5d554e]">评分</legend>
-              <div className="mt-2 flex h-[42px] items-center gap-1 border border-[#bdb3a7] bg-[#fbf8f2] px-3" role="radiogroup" aria-label="评分">
+              <div className="mt-2 flex h-[42px] items-center gap-1 rounded-xl border border-[#bdb3a7] bg-[#fbf8f2] px-3" role="radiogroup" aria-label="评分">
                 {[1, 2, 3, 4, 5].map((value) => (
                   <label key={value} className="cursor-pointer">
                     <input type="radio" name="food-rating" value={value} checked={rating === value} onChange={() => setRating(value as FoodRating)} className="sr-only" />
@@ -336,22 +336,22 @@ export function FoodUploadDialog({ onClose }: FoodUploadDialogProps) {
           <div className="grid items-end gap-3 sm:grid-cols-[1fr_auto]">
             <label className="block text-xs font-semibold text-[#5d554e]">
               发生时间
-              <input type="datetime-local" value={occurredAtLocal} onChange={(event) => { setOccurredAtLocal(event.target.value); setTimeWasEdited(true); }} disabled={isLocked} required className="mt-2 w-full border border-[#bdb3a7] bg-[#fbf8f2] px-3 py-2.5 text-sm font-normal text-[#302d29]" />
+              <input type="datetime-local" value={occurredAtLocal} onChange={(event) => { setOccurredAtLocal(event.target.value); setTimeWasEdited(true); }} disabled={isLocked} required className="mt-2 w-full rounded-xl border border-[#bdb3a7] bg-[#fbf8f2] px-3 py-2.5 text-sm font-normal text-[#302d29]" />
             </label>
-            <button type="button" disabled={isLocked || !images.length} onClick={() => { setTimeWasEdited(false); setOccurredAtLocal(toDateTimeLocalValue(images[0]?.capturedAt ?? Date.now())); }} className="h-[42px] border border-[#bdb3a7] px-3 text-xs font-semibold disabled:opacity-40">重新读取第一张</button>
+            <button type="button" disabled={isLocked || !images.length} onClick={() => { setTimeWasEdited(false); setOccurredAtLocal(toDateTimeLocalValue(images[0]?.capturedAt ?? Date.now())); }} className="h-[42px] rounded-full border border-[#bdb3a7] px-4 text-xs font-semibold disabled:opacity-40">重新读取第一张</button>
           </div>
           <p className="-mt-5 text-[0.66rem] leading-5 text-[#7b736a]">时区固定为中国北京时间（{FOOD_TIMEZONE}）。没有拍摄时间时使用当前北京时间，手动修改后不会被图片排序覆盖。</p>
 
           <label className="block text-xs font-semibold text-[#5d554e]">
             点评
-            <textarea value={review} onChange={(event) => setReview(event.target.value)} disabled={isLocked} maxLength={2000} rows={5} placeholder="那天的味道、心情，或者想记住的一句话。" className="mt-2 w-full resize-y border border-[#bdb3a7] bg-[#fbf8f2] px-3 py-2.5 text-sm font-normal leading-6 text-[#302d29]" />
+            <textarea value={review} onChange={(event) => setReview(event.target.value)} disabled={isLocked} maxLength={2000} rows={5} placeholder="那天的味道、心情，或者想记住的一句话。" className="mt-2 w-full resize-y rounded-xl border border-[#bdb3a7] bg-[#fbf8f2] px-3 py-2.5 text-sm font-normal leading-6 text-[#302d29]" />
             <span className="mt-1 block text-right text-[0.62rem] font-normal text-[#81796f]">{review.length} / 2000</span>
           </label>
         </div>
 
         <footer className="flex flex-wrap items-center justify-between gap-4 border-t border-[#cec5b8] bg-[#eee8de] px-5 py-4 sm:px-8">
           <p aria-live="polite" className={`min-w-0 flex-1 text-xs leading-5 ${phase === "failed" ? "text-[#96392c]" : "text-[#6f675e]"}`}>{message || "图片只会上传到私有空间。"}</p>
-          <button type="submit" disabled={isBusy} className="min-w-32 bg-[#2e332c] px-5 py-3 text-xs font-semibold tracking-[0.1em] text-white disabled:opacity-50">
+          <button type="submit" disabled={isBusy} className="min-w-32 rounded-full bg-[#2e332c] px-5 py-3 text-xs font-semibold tracking-[0.1em] text-white disabled:opacity-50">
             {phase === "initializing" ? "准备中…" : phase === "uploading" ? "上传中…" : phase === "finalizing" ? "保存中…" : draft ? "完成保存" : "开始上传"}
           </button>
         </footer>

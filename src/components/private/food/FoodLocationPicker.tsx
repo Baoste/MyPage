@@ -71,7 +71,7 @@ export function FoodLocationPicker({ value, disabled, onChange }: FoodLocationPi
           required
           autoComplete="off"
           placeholder="搜索并选择国家"
-          className="mt-2 w-full border border-[#bdb3a7] bg-[#fbf8f2] px-3 py-2.5 text-sm font-normal text-[#302d29]"
+          className="mt-2 w-full rounded-xl border border-[#bdb3a7] bg-[#fbf8f2] px-3 py-2.5 text-sm font-normal text-[#302d29]"
         />
         <datalist id="food-country-options">
           {countries.map((country) => <option key={country.code} value={country.name} />)}
@@ -85,7 +85,7 @@ export function FoodLocationPicker({ value, disabled, onChange }: FoodLocationPi
           onChange={(event) => changeRegion(event.target.value)}
           autoComplete="off"
           placeholder={value.countryCode === "CN" ? "选择省级地区" : "输入省或州"}
-          className="mt-2 w-full border border-[#bdb3a7] bg-[#fbf8f2] px-3 py-2.5 text-sm font-normal text-[#302d29]"
+          className="mt-2 w-full rounded-xl border border-[#bdb3a7] bg-[#fbf8f2] px-3 py-2.5 text-sm font-normal text-[#302d29]"
         />
         <datalist id="food-region-options">
           {value.countryCode === "CN" ? chinaRegions.map((region) => <option key={region.code} value={region.name} />) : null}
@@ -100,7 +100,7 @@ export function FoodLocationPicker({ value, disabled, onChange }: FoodLocationPi
           required
           autoComplete="off"
           placeholder="选择或补充城市"
-          className="mt-2 w-full border border-[#bdb3a7] bg-[#fbf8f2] px-3 py-2.5 text-sm font-normal text-[#302d29]"
+          className="mt-2 w-full rounded-xl border border-[#bdb3a7] bg-[#fbf8f2] px-3 py-2.5 text-sm font-normal text-[#302d29]"
         />
         <datalist id="food-city-options">
           {cities.map((city) => <option key={city.code} value={city.name} />)}

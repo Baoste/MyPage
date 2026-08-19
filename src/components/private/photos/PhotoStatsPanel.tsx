@@ -1,15 +1,15 @@
 "use client";
 
-import { FOOD_TIMEZONE } from "@/lib/food/contracts";
-import type { FoodRankingItem, FoodStatistics } from "@/types";
+import { PHOTO_TIMEZONE } from "@/lib/photo/contracts";
+import type { PhotoRankingItem, PhotoStatistics } from "@/types";
 
-function Ranking({ title, items }: { title: string; items: FoodRankingItem[] }) {
+function Ranking({ title, items }: { title: string; items: PhotoRankingItem[] }) {
   return (
     <section>
       <h3 className="text-[0.64rem] font-semibold uppercase tracking-[0.18em] text-[#777067]">{title}</h3>
-      {items.length > 0 ? (
+      {items.length ? (
         <ol className="mt-4 space-y-3">
-          {items.map((item) => (
+          {items.slice(0, 6).map((item) => (
             <li key={item.key}>
               <div className="flex items-baseline justify-between gap-4 text-xs">
                 <span className="truncate text-[#423d37]">{item.label}</span>
@@ -26,34 +26,35 @@ function Ranking({ title, items }: { title: string; items: FoodRankingItem[] }) 
   );
 }
 
-export function FoodStatsPanel({ statistics }: { statistics: FoodStatistics }) {
+export function PhotoStatsPanel({ statistics }: { statistics: PhotoStatistics }) {
   const maximumMonth = Math.max(1, ...statistics.monthlyTimeline.map((item) => item.count));
   const firstDate = statistics.firstRecordedAt
-    ? new Intl.DateTimeFormat("zh-CN", { timeZone: FOOD_TIMEZONE, year: "numeric", month: "long", day: "numeric" }).format(new Date(statistics.firstRecordedAt))
+    ? new Intl.DateTimeFormat("zh-CN", {
+      timeZone: PHOTO_TIMEZONE,
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    }).format(new Date(statistics.firstRecordedAt))
     : null;
 
   return (
-    <section id="food-statistics-region" aria-labelledby="food-stats-title" className="food-stats-enter rounded-[1.75rem] border border-[#d4ccbf] bg-[#eee8de] px-5 py-8 shadow-[0_14px_42px_rgba(55,47,38,0.08)] sm:px-8 sm:py-10">
+    <section id="photo-statistics-region" aria-labelledby="photo-stats-title" className="food-stats-enter rounded-[1.75rem] border border-[#d4ccbf] bg-[#eee8de] px-5 py-8 shadow-[0_14px_42px_rgba(55,47,38,0.08)] sm:px-8 sm:py-10">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="eyebrow">Our shared table</p>
-          <h2 id="food-stats-title" className="display-type mt-2 text-4xl sm:text-5xl">一起吃过的日子</h2>
+          <p className="eyebrow">Our photo archive</p>
+          <h2 id="photo-stats-title" className="display-type mt-2 text-4xl sm:text-5xl">被留下来的日子</h2>
         </div>
-        {firstDate ? (
-          <p className="max-w-xs text-right text-xs leading-5 text-[#70685f]">
-            第一条记录是 {firstDate}，距今 {statistics.daysSinceFirst ?? 0} 天。
-          </p>
-        ) : null}
+        {firstDate ? <p className="max-w-xs text-right text-xs leading-5 text-[#70685f]">第一张记录于 {firstDate}，距今 {statistics.daysSinceFirst ?? 0} 天。</p> : null}
       </div>
 
       <dl className="mt-8 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
         {[
-          ["记录", statistics.groupCount],
-          ["照片", statistics.imageCount],
-          ["分类", statistics.uniqueCategoryCount],
+          ["照片", statistics.photoCount],
           ["国家", statistics.countryCount],
           ["城市", statistics.cityCount],
-          ["平均评分", statistics.averageRating === null ? "—" : `${statistics.averageRating}★`],
+          ["标签", statistics.uniqueTagCount],
+          ["有描述", statistics.describedCount],
+          ["近一年", statistics.recentYearCount],
         ].map(([label, value]) => (
           <div key={label} className="rounded-2xl bg-[#f7f3ec] px-4 py-5 text-center">
             <dt className="text-[0.58rem] font-semibold uppercase tracking-[0.16em] text-[#81786f]">{label}</dt>
@@ -62,23 +63,21 @@ export function FoodStatsPanel({ statistics }: { statistics: FoodStatistics }) {
         ))}
       </dl>
 
-      {statistics.groupCount > 0 ? (
+      {statistics.photoCount ? (
         <div className="mt-10 grid gap-10 lg:grid-cols-3">
-          <Ranking title="分类排行" items={statistics.categoryRanking.slice(0, 6)} />
-          <Ranking title="城市排行" items={statistics.cityRanking.slice(0, 6)} />
-          <Ranking title="评分分布" items={statistics.ratingDistribution} />
+          <Ranking title="国家排行" items={statistics.countryRanking} />
+          <Ranking title="城市排行" items={statistics.cityRanking} />
+          <Ranking title="标签排行" items={statistics.tagRanking} />
         </div>
-      ) : (
-        <p className="mt-10 text-sm text-[#756d64]">还没有足够记录，上传第一组图片后这里会开始积累。</p>
-      )}
+      ) : <p className="mt-10 text-sm text-[#756d64]">上传第一张照片后，这里会开始积累。</p>}
 
-      {statistics.groupCount > 0 ? (
+      {statistics.photoCount ? (
         <section className="mt-10 border-t border-[#c9c0b4] pt-8">
           <div className="flex flex-wrap items-end justify-between gap-3">
             <h3 className="text-[0.64rem] font-semibold uppercase tracking-[0.18em] text-[#777067]">最近十二个月</h3>
-            <p className="text-xs text-[#777067]">最近一年新增 {statistics.recentYearGroupCount} 组 · {statistics.recentYearImageCount} 张照片 · 五星 {statistics.fiveStarCount} 次</p>
+            <p className="text-xs text-[#777067]">最近一年新增 {statistics.recentYearCount} 张</p>
           </div>
-          <div className="mt-5 grid h-36 grid-cols-12 items-end gap-1" role="img" aria-label={`最近十二个月共记录 ${statistics.monthlyTimeline.reduce((total, item) => total + item.count, 0)} 组美食`}>
+          <div className="mt-5 grid h-36 grid-cols-12 items-end gap-1" role="img" aria-label={`最近十二个月共记录 ${statistics.monthlyTimeline.reduce((total, item) => total + item.count, 0)} 张照片`}>
             {statistics.monthlyTimeline.map((item) => (
               <div key={item.key} className="flex h-full min-w-0 flex-col justify-end gap-2 text-center">
                 <span className="text-[0.58rem] tabular-nums text-[#756d64]">{item.count || ""}</span>
@@ -90,14 +89,14 @@ export function FoodStatsPanel({ statistics }: { statistics: FoodStatistics }) {
         </section>
       ) : null}
 
-      {statistics.todayMemories.length > 0 ? (
+      {statistics.todayMemories.length ? (
         <section className="mt-10 border-t border-[#c9c0b4] pt-8">
           <h3 className="text-[0.64rem] font-semibold uppercase tracking-[0.18em] text-[#777067]">往年今日</h3>
           <ul className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {statistics.todayMemories.map((memory) => (
               <li key={memory.id} className="rounded-2xl border border-[#d4ccbf] bg-[#f7f3ec] p-4 text-sm">
-                <p className="display-type text-2xl">{memory.category}</p>
-                <p className="mt-2 text-xs text-[#756d64]">{memory.cityName} · {new Intl.DateTimeFormat("zh-CN", { timeZone: FOOD_TIMEZONE, year: "numeric", month: "long", day: "numeric" }).format(new Date(memory.occurredAt))}</p>
+                <p className="display-type text-2xl">{memory.title}</p>
+                <p className="mt-2 text-xs text-[#756d64]">{memory.cityName} · {new Intl.DateTimeFormat("zh-CN", { timeZone: PHOTO_TIMEZONE, year: "numeric", month: "long", day: "numeric" }).format(new Date(memory.occurredAt))}</p>
               </li>
             ))}
           </ul>
@@ -106,3 +105,4 @@ export function FoodStatsPanel({ statistics }: { statistics: FoodStatistics }) {
     </section>
   );
 }
+

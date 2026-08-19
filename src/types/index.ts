@@ -32,20 +32,66 @@ export interface ArticleDocument extends Article {
   content: string;
 }
 
+export type PhotoImageMimeType = "image/jpeg" | "image/png" | "image/webp";
+
 export interface PhotoEntry {
   id: string;
   storagePath: string;
   title?: string;
   description?: string;
   date: string;
-  location?: string;
+  occurredAt: string;
+  timezone: string;
+  location: FoodLocation;
   tags: string[];
+  width: number;
+  height: number;
+  mimeType: PhotoImageMimeType;
+  byteSize: number;
+  capturedAt?: string;
+  legacyRecord: boolean;
   createdAt: string;
   updatedAt: string;
 }
 
 export interface PhotoViewModel extends PhotoEntry {
   imageUrl: string;
+}
+
+export interface PhotoRankingItem {
+  key: string;
+  label: string;
+  count: number;
+  percentage: number;
+}
+
+export interface PhotoTimelineItem {
+  key: string;
+  label: string;
+  count: number;
+}
+
+export interface PhotoMemoryItem {
+  id: string;
+  title: string;
+  occurredAt: string;
+  cityName: string;
+}
+
+export interface PhotoStatistics {
+  photoCount: number;
+  countryCount: number;
+  cityCount: number;
+  uniqueTagCount: number;
+  describedCount: number;
+  firstRecordedAt: string | null;
+  daysSinceFirst: number | null;
+  recentYearCount: number;
+  countryRanking: PhotoRankingItem[];
+  cityRanking: PhotoRankingItem[];
+  tagRanking: PhotoRankingItem[];
+  monthlyTimeline: PhotoTimelineItem[];
+  todayMemories: PhotoMemoryItem[];
 }
 
 export type PhotoActivityStatus = "live" | "empty" | "unavailable";
@@ -170,6 +216,22 @@ export interface PhotoEntryRow {
   photo_date: string;
   location: string | null;
   tags: string[] | null;
+  occurred_at: string;
+  timezone: string;
+  location_country_code: string;
+  location_country_name: string;
+  location_region_code: string | null;
+  location_region_name: string | null;
+  location_city_code: string | null;
+  location_city_name: string;
+  width: number;
+  height: number;
+  mime_type: PhotoImageMimeType;
+  byte_size: number;
+  captured_at: string | null;
+  status: "draft" | "ready";
+  upload_request_id: string | null;
+  legacy_record: boolean;
   created_at: string;
   updated_at: string;
 }
