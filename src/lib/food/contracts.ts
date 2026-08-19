@@ -27,14 +27,17 @@ export interface FoodUploadImageInput {
   capturedAt?: string;
 }
 
-export interface FoodUploadRequestInput {
-  requestId: string;
+export interface FoodGroupUpdateInput {
   category: string;
   review?: string;
   rating: FoodRating;
   occurredAt: string;
   timezone: string;
   location: FoodLocation;
+}
+
+export interface FoodUploadRequestInput extends FoodGroupUpdateInput {
+  requestId: string;
   images: FoodUploadImageInput[];
 }
 
@@ -42,7 +45,7 @@ export interface FoodUploadTarget {
   clientId: string;
   imageId: string;
   storagePath: string;
-  signedUrl: string;
+  uploadUrl: string;
 }
 
 export interface FoodUploadIntentResponse {
@@ -73,8 +76,14 @@ export interface FoodValidationError {
   message: string;
 }
 
+export interface FoodGroupUpdateValidationResult {
+  ok: true;
+  value: FoodGroupUpdateInput;
+}
+
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const LOCATION_CODE_PATTERN = /^[a-z0-9:_-]{2,80}$/i;
+const CHINESE_LOCATION_PATTERN = /^\p{Script=Han}+$/u;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -126,7 +135,10 @@ function validLocation(value: unknown): FoodLocation | null {
     !LOCATION_CODE_PATTERN.test(countryCode) ||
     !countryName ||
     !cityName ||
+    !CHINESE_LOCATION_PATTERN.test(countryName) ||
+    !CHINESE_LOCATION_PATTERN.test(cityName) ||
     regionName === null ||
+    (regionName && !CHINESE_LOCATION_PATTERN.test(regionName)) ||
     regionCode === null ||
     cityCode === null ||
     (regionCode && !LOCATION_CODE_PATTERN.test(regionCode)) ||
@@ -142,6 +154,39 @@ function validLocation(value: unknown): FoodLocation | null {
     regionName,
     cityCode,
     cityName,
+  };
+}
+
+export function validateFoodGroupUpdateRequest(
+  value: unknown,
+): FoodGroupUpdateValidationResult | FoodValidationError {
+  if (!isRecord(value)) return { ok: false, message: "提交内容格式不正确。" };
+
+  const category = cleanText(value.category, FOOD_UPLOAD_LIMITS.maximumCategoryLength);
+  const review = optionalReview(value.review);
+  const rating = value.rating;
+  const occurredAt = validDateTime(value.occurredAt);
+  const timezone = validTimezone(value.timezone);
+  const location = validLocation(value.location);
+
+  if (!category) return { ok: false, message: "分类需要填写 1～40 个字符。" };
+  if (review === null) return { ok: false, message: "点评不能超过 2000 个字符。" };
+  if (!Number.isInteger(rating) || (rating as number) < 1 || (rating as number) > 5) {
+    return { ok: false, message: "请选择 1～5 星评分。" };
+  }
+  if (!occurredAt || !timezone) return { ok: false, message: "发生时间或时区无效。" };
+  if (!location) return { ok: false, message: "地区名称只能包含中文，并且需要完整选择国家和城市。" };
+
+  return {
+    ok: true,
+    value: {
+      category,
+      review,
+      rating: rating as FoodRating,
+      occurredAt,
+      timezone,
+      location,
+    },
   };
 }
 
@@ -181,23 +226,12 @@ function validImage(value: unknown): FoodUploadImageInput | null {
 export function validateFoodUploadRequest(value: unknown): FoodValidationResult | FoodValidationError {
   if (!isRecord(value)) return { ok: false, message: "提交内容格式不正确。" };
 
+  const metadata = validateFoodGroupUpdateRequest(value);
+  if (!metadata.ok) return metadata;
   const requestId = typeof value.requestId === "string" ? value.requestId : "";
-  const category = cleanText(value.category, FOOD_UPLOAD_LIMITS.maximumCategoryLength);
-  const review = optionalReview(value.review);
-  const rating = value.rating;
-  const occurredAt = validDateTime(value.occurredAt);
-  const timezone = validTimezone(value.timezone);
-  const location = validLocation(value.location);
   const rawImages = Array.isArray(value.images) ? value.images : [];
 
   if (!UUID_PATTERN.test(requestId)) return { ok: false, message: "上传请求标识无效。" };
-  if (!category) return { ok: false, message: "分类需要填写 1～40 个字符。" };
-  if (review === null) return { ok: false, message: "点评不能超过 2000 个字符。" };
-  if (!Number.isInteger(rating) || (rating as number) < 1 || (rating as number) > 5) {
-    return { ok: false, message: "请选择 1～5 星评分。" };
-  }
-  if (!occurredAt || !timezone) return { ok: false, message: "发生时间或时区无效。" };
-  if (!location) return { ok: false, message: "请完整填写国家和城市。" };
   if (rawImages.length < 1 || rawImages.length > FOOD_UPLOAD_LIMITS.maximumImages) {
     return { ok: false, message: "每组需要选择 1～12 张图片。" };
   }
@@ -217,13 +251,8 @@ export function validateFoodUploadRequest(value: unknown): FoodValidationResult 
   return {
     ok: true,
     value: {
+      ...metadata.value,
       requestId,
-      category,
-      review,
-      rating: rating as FoodRating,
-      occurredAt,
-      timezone,
-      location,
       images: safeImages,
     },
   };

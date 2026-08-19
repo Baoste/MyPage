@@ -12,7 +12,13 @@ interface DetailSelection {
   trigger: HTMLElement;
 }
 
-export function FoodGallery({ groups }: { groups: FoodGroupViewModel[] }) {
+export function FoodGallery({
+  groups,
+  mutationsEnabled,
+}: {
+  groups: FoodGroupViewModel[];
+  mutationsEnabled: boolean;
+}) {
   const [selection, setSelection] = useState<DetailSelection | null>(null);
   const imageCount = groups.reduce((total, group) => total + group.images.length, 0);
 
@@ -48,6 +54,7 @@ export function FoodGallery({ groups }: { groups: FoodGroupViewModel[] }) {
         <FoodDetailDialog
           group={selection.group}
           initialImageIndex={selection.imageIndex}
+          mutationsEnabled={mutationsEnabled}
           onClose={closeDetails}
         />
       ) : null}

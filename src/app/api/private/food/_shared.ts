@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPrivateSession } from "@/lib/auth/session";
 import { hasValidRequestOrigin, requestClientKey } from "@/lib/auth/request";
+import { FOOD_UPLOAD_LIMITS } from "@/lib/food/contracts";
 import { consumeFoodWriteAttempt } from "@/lib/food/upload-rate-limit";
 import { FoodServiceError } from "@/services/foodService";
 
@@ -60,6 +61,49 @@ export async function readFoodJson(request: NextRequest) {
   } catch {
     return { ok: false as const, response: foodApiError("提交内容格式不正确。", 400) };
   }
+}
+
+export async function readFoodImageBytes(request: NextRequest) {
+  const declaredLength = Number(request.headers.get("content-length"));
+  if (
+    Number.isFinite(declaredLength) &&
+    declaredLength > FOOD_UPLOAD_LIMITS.maximumImageBytes
+  ) {
+    return { ok: false as const, response: foodApiError("单张图片不能超过 10 MB。", 413) };
+  }
+
+  const reader = request.body?.getReader();
+  if (!reader) {
+    return { ok: false as const, response: foodApiError("没有收到图片内容。", 400) };
+  }
+
+  const chunks: Uint8Array[] = [];
+  let totalBytes = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      totalBytes += value.byteLength;
+      if (totalBytes > FOOD_UPLOAD_LIMITS.maximumImageBytes) {
+        await reader.cancel();
+        return { ok: false as const, response: foodApiError("单张图片不能超过 10 MB。", 413) };
+      }
+      chunks.push(value);
+    }
+  } catch {
+    return { ok: false as const, response: foodApiError("读取上传图片失败。", 400) };
+  }
+
+  if (totalBytes === 0) {
+    return { ok: false as const, response: foodApiError("没有收到图片内容。", 400) };
+  }
+  const bytes = new Uint8Array(totalBytes);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return { ok: true as const, bytes };
 }
 
 export function foodServiceError(error: unknown) {

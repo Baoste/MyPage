@@ -1,6 +1,6 @@
 # Personal Portfolio
 
-一个基于 Next.js App Router 的长期维护型个人网站骨架。公开区域用于作品、文章和简历；`/yfxl99` 是使用共享密码保护的私密照片与美食记录。项目不是静态 UI Demo：数据库、Storage、RLS、密码哈希、签名 Session 和私有图片 Signed URL 均已接入实际代码路径。
+一个基于 Next.js App Router 的长期维护型个人网站骨架。公开区域用于作品、文章和简历；`/yfxl99` 是使用共享密码保护的私密照片与美食记录。项目不是静态 UI Demo：数据库、可配置的 Food 本地文件目录、Supabase Storage 兼容层、RLS、密码哈希和签名 Session 均已接入实际代码路径。
 
 ## 已实现内容
 
@@ -10,7 +10,7 @@
 | Private | `/yfxl99` 登录、照片活跃度驱动的 WebGL2 程序化像素树 Welcome、Photos、支持多图上传/翻面/长按详情/统计的 Food 画廊、独立导航、Logout、Loading/Empty/Error 状态 |
 | Authentication | bcrypt 密码哈希校验、HS256 签名 Session、统一 Proxy/Auth Guard、HttpOnly Cookie、7 天过期、同源校验、简单登录限流 |
 | Data | `projects`、`photo_entries`、`food_entries`、`food_images` Service Layer；未配置 Supabase 时仅公开作品使用本地 Mock |
-| Storage | `public-assets` 公共 Bucket、`private-diary` 私有 Bucket、私密图片 5 分钟 Signed URL、Food 限路径 Signed Upload |
+| Storage | 新 Food 图片写入 `FOOD_STORAGE_ROOT` 持久磁盘并经鉴权接口读取；Photo 与已有 Food 图片继续兼容 Supabase Storage |
 | Database | 完整 migration、索引、约束、updated_at trigger、RLS、Storage policies、可选 seed |
 | Quality | TypeScript strict、Server/Client 边界、响应式、键盘焦点、语义 HTML、SEO、robots、sitemap、安全 Header |
 
@@ -22,7 +22,8 @@
 - React 19 + TypeScript
 - Tailwind CSS 4
 - 原生 WebGL2（程序化像素树）+ Canvas 2D 静态降级
-- Supabase PostgreSQL + Storage
+- Supabase PostgreSQL + Storage（公开资源、Photo 与旧 Food 兼容）
+- 服务器本地持久磁盘（新 Food 图片）
 - `@supabase/supabase-js`
 - `bcryptjs`（密码哈希）
 - `jose`（签名 Session）
@@ -51,7 +52,7 @@ src/
 ├── data/                         可替换 Mock / Resume 数据
 ├── lib/
 │   ├── auth/                     密码、Session、限流、请求校验
-│   ├── food/                     Food 校验、EXIF、地区、统计、上传限流
+│   ├── food/                     Food 校验、EXIF、地区、统计、本地存储、上传限流
 │   ├── tree/                     照片活跃度纯函数
 │   └── supabase/                 Public/Server Client 与 Storage
 ├── services/                     Project / Photo / Food 数据访问与 Food 草稿发布
@@ -97,10 +98,11 @@ npm start
 | `NEXT_PUBLIC_SITE_URL` | 站点绝对 URL，用于 metadata/sitemap | Public |
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase Project URL | Public |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | 公开项目读取使用的 anon key | Public |
-| `SUPABASE_SERVICE_ROLE_KEY` | 私密 DB、Storage、Signed URL | Server only |
+| `SUPABASE_SERVICE_ROLE_KEY` | 私密 DB、Photo/旧 Food Storage 与 Signed URL | Server only |
 | `PRIVATE_SITE_PASSWORD_HASH` | bcrypt hash，不是明文密码 | Server only |
 | `SESSION_SECRET` | Session 签名密钥，至少 32 字符 | Server only |
-| `PRIVATE_MEDIA_SIGNED_URL_TTL_SECONDS` | 私密图片 URL 有效期，默认 `300` | Server only |
+| `PRIVATE_MEDIA_SIGNED_URL_TTL_SECONDS` | Photo/旧 Food 私密 URL 有效期，默认 `300` | Server only |
+| `FOOD_STORAGE_ROOT` | 新 Food 图片的持久化根目录；默认 `.data/private-media` | Server only |
 
 Next.js 会对 `.env.local` 执行变量展开，因此 bcrypt Hash 中的每个 `$` 必须写成 `\$`。例如：
 
@@ -177,14 +179,16 @@ npx supabase db push
 
 可选开发数据：在 SQL Editor 执行 `supabase/seed.sql`。它只写入一个公开 Project，不写无对应图片对象的私密记录。
 
-### 3. 核对 Storage Buckets
+### 3. 核对文件存储
 
 Migration 已创建：
 
 - `public-assets`：Public，用于 `projects/`、`articles/`；
-- `private-diary`：Private；Photo 使用 `photos/YYYY/MM/`，新 Food 使用 `food/{groupId}/{imageId}.{ext}`，旧 Food 路径继续兼容。
+- `private-diary`：Private；Photo 使用 `photos/YYYY/MM/`，切换前上传的 Food 路径继续兼容读取和删除。
 
 Dashboard 中必须确认 `private-diary` 的 Public 开关关闭。两个 Bucket 均限制为 JPEG、PNG、WebP，单文件最大 10 MB。
+
+新上传的 Food 图片不再写入 Supabase Storage，而是写到 `FOOD_STORAGE_ROOT/food/{groupId}/{imageId}.{ext}`。数据库仍只保存 `food/{groupId}/{imageId}.{ext}` 相对路径，既不保存 Windows/Linux 绝对路径，也不保存公开 URL。未配置 `FOOD_STORAGE_ROOT` 时，开发环境默认使用项目下的 `.data/private-media`；该目录已加入 `.gitignore`。生产环境必须显式配置到项目目录之外的持久磁盘，并单独备份。
 
 ### 4. 核对 RLS
 
@@ -339,37 +343,44 @@ insert into public.photo_entries (
 
 登录后打开 `/yfxl99/food`，使用右下角“+”按钮建立一组记录。每组可选择 1～12 张 JPEG/PNG/WebP；支持预览、删除、调整顺序、1～5 星点击评分和最多 2000 字点评。单张上限 10 MB，整组上限 60 MB。
 
-发生时间优先读取第一张图片的 EXIF `DateTimeOriginal`，没有则使用当前时间。EXIF 没有时区，所以统一按中国北京时间解释；表单时间和数据库 `timezone` 也固定为 `Asia/Shanghai`。用户手动修改时间后，重新排序或增加图片不会覆盖；“重新读取第一张”可主动恢复。地点使用国家代码、国内省级代码和城市稳定代码，数据源未覆盖时允许受控手动补充，不上传 GPS。
+发生时间优先读取第一张图片的 EXIF `DateTimeOriginal`，没有则使用当前时间。EXIF 没有时区，所以统一按中国北京时间解释；表单时间和数据库 `timezone` 也固定为 `Asia/Shanghai`。用户手动修改时间后，重新排序或增加图片不会覆盖；“重新读取第一张”可主动恢复。地点候选和输入框只显示并保留中文字符，`CN`、`CN-BJ` 等稳定代码只在后台保存；数字、拉丁字母和符号会在输入时过滤，服务端也会拒绝非中文地点。不调用浏览器定位，也不上传 GPS。
 
-上传不是把 service-role key 交给浏览器：
+上传不会把 service-role key 或服务器绝对路径交给浏览器：
 
 ```text
 POST /api/private/food/uploads/init
   → 验证 Session、同源、限流、字段、数量和声明大小
   → 创建 draft 组与图片行
-  → 为 food/{groupId}/{imageId}.{ext} 签发逐文件 Signed Upload
-Browser 并发上传（最多 3 个）并展示每张进度
+  → 返回每张图片专用的同源鉴权上传接口
+PUT /api/private/food/uploads/{groupId}/{imageId}
+  → 再次验证 Session、同源、草稿归属、MIME、大小、文件签名和尺寸
+  → 原子写入 FOOD_STORAGE_ROOT/food/{groupId}/{imageId}.{ext}
+Browser 最多并发 3 个 PUT，并展示每张进度
 POST /api/private/food/uploads/complete
-  → 服务器重新核对对象路径、数量、大小、MIME 与文件签名
+  → 服务器重新核对本地文件路径、数量、大小、MIME 与文件签名
   → 全部通过后一次性发布为 ready
 ```
 
-同一 `upload_request_id` 可安全重试，单图失败可单独重试；取消会删除本组对象和草稿，失败组不会进入画廊。服务层会清理超过 24 小时的旧草稿及对应对象。画廊读取时只查询 `ready` 组，为每张私有图片签发短期 Signed URL；单张 URL 过期或加载失败时可单独刷新。
+同一 `upload_request_id` 可安全重试，单图失败可单独重试；取消会删除本组本地文件和草稿，失败组不会进入画廊。服务层会清理超过 24 小时的旧草稿及对应文件。画廊只查询 `ready` 组：本地图片通过 `/api/private/food/images/{id}/file` 在验证 Session 后读取，已有 Supabase Food 图片仍使用短期 Signed URL；单图加载失败时可以重新解析正确来源。
 
-Food 页面将组内每张图都作为独立卡片连续显示。点击卡片以非线性动效翻面，查看分类、地点和北京时间；按住 450 ms 打开详情，桌面显示右侧资料栏，手机显示下方资料区。左下角“统计”按组计算记录、分类、地点、评分和时间线，只有“照片数”按图片计算，因此多图组只增加一条记录。
+Food 页面不显示额外标题文案，进入后直接展示画廊。组内每张图都作为独立卡片连续显示。点击卡片以非线性动效翻面，查看分类、地点和北京时间；按住 450 ms 打开详情，桌面显示右侧资料栏，手机显示下方资料区。详情中的“修改”可更新整组分类、中文地点、北京时间、评分和点评，不替换图片；“删除”经不可恢复确认后删除整组及全部图片。删除时先把组切到隐藏的 `draft` 状态，再按实际来源清理精确本地文件或旧 Storage 对象并级联删除数据库行；文件清理失败会尝试恢复 `ready`，数据库末步失败则保留隐藏草稿供旧草稿清理流程继续处理。左下角“统计”按组计算记录、分类、地点、评分和时间线，只有“照片数”按图片计算，因此多图组只增加一条记录。
 
 主要实现文件：
 
 ```text
 src/app/yfxl99/(protected)/food/page.tsx
 src/app/api/private/food/
+├── groups/[id]/route.ts
+├── images/[id]/file/route.ts
 ├── images/[id]/url/route.ts
-└── uploads/{init,complete,cancel}/route.ts
+├── uploads/{init,complete,cancel}/route.ts
+└── uploads/[groupId]/[imageId]/route.ts
 src/components/private/food/
 ├── FoodExperience.tsx
 ├── FoodGallery.tsx
 ├── FoodCard.tsx
 ├── FoodDetailDialog.tsx
+├── FoodEditDialog.tsx
 ├── FoodUploadDialog.tsx
 ├── FoodImagePicker.tsx
 ├── FoodLocationPicker.tsx
@@ -378,6 +389,7 @@ src/lib/food/
 ├── contracts.ts
 ├── image-headers.ts
 ├── image-metadata.ts
+├── local-storage.ts
 ├── locations.ts
 ├── statistics.ts
 └── upload-rate-limit.ts
@@ -389,9 +401,9 @@ supabase/migrations/202608180002_food_groups_and_images.sql
 
 - 使用 UUID 文件名，支持 `.jpg`、`.jpeg`、`.png`、`.webp`；
 - 不使用原始相机名、中文名或可预测路径；
-- 新 Food 路径必须为 `food/{groupId}/{imageId}.{extension}`；旧 `food/YYYY/MM/` 路径仅为迁移兼容；
-- 删除 Photo/Food 时同时删除数据库行和 Storage object，避免孤儿文件；
-- `src/lib/supabase/storage.ts` 提供私有 Signed Upload、Signed URL 和批量对象删除封装。
+- 新 Food 数据库路径必须为 `food/{groupId}/{imageId}.{extension}`，实际文件位于 `FOOD_STORAGE_ROOT` 下的同名相对路径；旧 `food/YYYY/MM/` 路径仅为 Supabase 兼容；
+- 删除 Photo/Food 时同时删除数据库行和对应本地文件或 Storage object，避免孤儿文件；
+- `src/lib/food/local-storage.ts` 负责根目录配置、路径越界防护、写入、读取与精确删除；`src/lib/supabase/storage.ts` 继续负责 Photo 和旧 Food 的 Signed URL/对象兼容。
 
 ### 配置 Resume PDF
 
@@ -417,7 +429,8 @@ Browser
   → protected Server Component
   → session verification
   → server-only Supabase service-role client
-  → PostgreSQL metadata + private Storage Signed URL
+  → PostgreSQL metadata
+  → Food local authenticated file response / Photo and old Food Storage Signed URL
 ```
 
 当前限流器按实例内存和请求 IP 工作，适合第一阶段与单实例部署；多实例、高流量公网部署应换成 Upstash/Redis 等共享存储限流器。反向代理必须可信地覆盖 `X-Forwarded-For`。
@@ -426,12 +439,18 @@ Browser
 
 ### Vercel
 
-1. 导入仓库；
-2. 在 Project Settings 配置 `.env.example` 中全部变量；
-3. 将 `NEXT_PUBLIC_SITE_URL` 设置为正式 HTTPS 域名；
-4. 确保 Supabase migration 已执行；
-5. Build Command 使用 `npm run build`；
-6. 部署后检查 Login、Logout、未登录重定向和私密图片过期 URL。
+公开页面仍可部署到 Vercel，但当前 Food 新上传依赖可持续写入的本地磁盘，不能使用 Vercel 函数的临时文件系统保存。若要在 Vercel 运行完整 Food 功能，需要另行接入对象存储；当前推荐部署到带持久云硬盘的腾讯云 CVM。
+
+### 腾讯云 CVM
+
+1. 将一块持久云硬盘挂载到固定位置，例如 `/data`；
+2. 创建 `/data/mypage`，确保运行 Node.js 的系统用户拥有读写权限；
+3. 在生产环境设置 `FOOD_STORAGE_ROOT=/data/mypage`；
+4. 如果使用 Docker，把宿主机持久目录挂载到容器内相同的配置路径；
+5. 配置 Supabase、密码和 Session 环境变量，执行两份 Migration；
+6. 使用 HTTPS 反向代理运行 `npm start`，并定期备份 `/data/mypage`。
+
+以后更换磁盘位置只需修改 `FOOD_STORAGE_ROOT` 并把原目录内容完整复制到新目录；数据库内的 `food/...` 相对路径不需要修改。
 
 ### Node Server
 
@@ -442,12 +461,14 @@ npm start
 ```
 
 生产环境应置于 HTTPS 反向代理后。`NODE_ENV=production` 时 Session Cookie 使用 `Secure` 和 `__Host-` 前缀，因此 HTTPS 是必需的。
+Node 进程还必须对 `FOOD_STORAGE_ROOT` 拥有持续读写权限。不要把生产路径设在源码目录、`.next`、系统临时目录或容器未挂载的可写层中。
 
 ## 验收清单
 
 - [ ] 将 `.env.example` 复制为 `.env.local` 并填写真实值
 - [ ] 按顺序执行两份 migration，确认 `projects`、`photo_entries`、`food_entries`、`food_images` 与两个 Buckets
 - [ ] 确认 `private-diary` 为 Private，三张私密表匿名查询失败
+- [ ] 将 `FOOD_STORAGE_ROOT` 指向持久磁盘，确认 Node 进程可读写并配置目录备份
 - [ ] 为 `CODEX.md` 指定的初始密码生成 hash
 - [x] `npm run lint`
 - [x] `npm run typecheck`
@@ -458,7 +479,7 @@ npm start
 - [x] 正确/错误密码、限流和 Logout 行为符合预期
 - [x] 浏览器源码与静态 Bundle 中不存在明文密码或 Server Secrets
 
-前三项 Supabase/生产 Secret 步骤需要项目所有者在自己的 Supabase Dashboard 和部署环境中完成；其中第二份 Food Migration 是本轮新增，部署前不能遗漏。
+Supabase、生产 Secret 和持久磁盘步骤需要项目所有者在自己的 Dashboard 与部署环境中完成；其中第二份 Food Migration 和 `FOOD_STORAGE_ROOT` 都不能遗漏。
 
 ## 验证记录
 
@@ -477,9 +498,12 @@ npm start
 - 增量时间纯函数验收：北京时间起点本身得到 `0 day 00 h 00 m 00 s`，增加 90,061 秒后准确得到 `1 day 01 h 01 m 01 s`。
 - 像素树质量检查：`npm run lint` 与 `npm run typecheck` 通过；扫描 19 个 `.next/static` 文件，未发现明文密码、Password Hash、Session Secret 或 Service Role 变量名。
 - 像素树生产构建：当前 `.env.local` 指向的公开 Supabase `projects` 查询在预渲染时不可用；未修改该文件，改用项目已有的“未配置 Supabase”回退模式完成 `npm run build`，所有路由成功生成。正式部署前应确认 Supabase 项目可从构建环境访问。
-- Food 生产构建：`npm run typecheck`、`npm run lint`、`npm run build` 全部通过；构建产物包含 Food 图片 URL 刷新及上传 `init / complete / cancel` 四个动态 API。
+- Food 生产构建：`npm run typecheck`、`npm run lint`、`npm run build` 全部通过；构建产物包含组修改/删除、本地图片读取、图片来源刷新、上传 `init / per-file PUT / complete / cancel` 共七个动态 Food API 路由。
 - Food Chrome 验收：用不进入正式代码的临时本地数据检查 1440×960 与 390×844；9 张图片分别显示为桌面 4 列、手机 2 列不等高瀑布流，均无横向溢出或控制台错误；点击翻面、450 ms 长按、详情同组切换区、`Escape`、统计展开和桌面/手机上传弹窗均正常。
 - Food 图片校验验收：上传弹窗读取本地 JPEG 后正确显示文件预览、`44KB` 与 `736×736` 尺寸；服务器文件头解析以真实 JPEG 及合成 PNG/WebP 头验证，三种格式均正确复验尺寸；没有发起外部上传。
+- Food 修改验收：production Chrome 中以 450 ms 长按打开详情，确认“修改 / 删除”入口；桌面与 390×844 手机编辑弹窗无横向溢出或控制台错误。291 个地区候选均为纯中文，混合输入会过滤为中文，非中文地点 PATCH 返回 `400`；未提交修改或确认删除现有数据。
+- Food 本地文件验收：使用独立临时根目录验证 `FOOD_STORAGE_ROOT` 生效、重复上传安全覆盖、限长读取、目录穿越拒绝和精确删除，测试结束后临时文件与目录均已清理；生产构建包含本地 PUT 与鉴权读取路由，且不再触发动态目录的全项目文件追踪警告。
 - Food API 安全冒烟：未登录页面 `307 → /yfxl99`，未登录 API `401`，携带有效本地测试 Session 的跨站 POST `403`，同源非法字段 `400`，超过 64KB 的 JSON `413`，有效 Session 页面 `200`。
+- Food 本地路由冒烟：独立 production server 中，本地图片读取路由和逐文件 PUT 路由在没有 Session 时均返回 `401`；测试服务器已停止，没有残留监听端口。
 - Food 静态安全扫描：扫描 21 个 `.next/static` 文件，未发现 `SUPABASE_SERVICE_ROLE_KEY`、密码 Hash、Session Secret 的变量名或实际值。
-- 未进行真实 Supabase Food 上传/回填验收：当前交付环境无法连接可用且已应用新 Migration 的 Supabase 数据库与 Storage。代码、增量 Migration、Private Bucket 安全边界、回滚与旧行回填逻辑已完成；项目所有者仍需按“Supabase 配置”章节执行第二份 Migration，并在正式环境上传一组多图做最终端到端确认。
+- 未对正式数据库执行真实 Food 写入或删除：现有数据没有被修改。项目所有者仍需执行第二份 Migration，并在最终 `FOOD_STORAGE_ROOT` 上上传一组多图，核对数据库相对路径、本地文件、旧 Supabase 图片回退与整组删除。

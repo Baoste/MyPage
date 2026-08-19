@@ -6,14 +6,21 @@ import {
   extensionForFoodMimeType,
   foodDateInTimezone,
   formatFoodLocation,
+  type FoodGroupUpdateInput,
   type FoodUploadRequestInput,
 } from "@/lib/food/contracts";
 import { imageDimensionsFromBytes, imageSignatureMatches } from "@/lib/food/image-headers";
+import {
+  deleteLocalFoodFiles,
+  getLocalFoodFileInfo,
+  readLocalFoodFile,
+  readLocalFoodFileHeader,
+  writeLocalFoodFile,
+} from "@/lib/food/local-storage";
 import { calculateFoodStatistics } from "@/lib/food/statistics";
 import { isServerSupabaseConfigured } from "@/lib/supabase/config";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import {
-  createPrivateSignedUploadUrl,
   deletePrivateAssets,
   getPrivateSignedUrl,
   PRIVATE_DIARY_BUCKET,
@@ -154,11 +161,17 @@ async function mapWithConcurrency<T, R>(
 
 async function toImageViewModel(image: FoodImage): Promise<FoodImageViewModel> {
   try {
-    return { ...image, imageUrl: await getPrivateSignedUrl(image.storagePath) };
+    return { ...image, imageUrl: await foodImageUrl(image.id, image.storagePath) };
   } catch (error) {
     console.error("Unable to sign one food image.", { imageId: image.id, error });
     return { ...image, imageUrl: "" };
   }
+}
+
+async function foodImageUrl(imageId: string, storagePath: string) {
+  return await getLocalFoodFileInfo(storagePath)
+    ? `/api/private/food/images/${encodeURIComponent(imageId)}/file`
+    : getPrivateSignedUrl(storagePath);
 }
 
 async function getLegacyFoodGroups(): Promise<FoodGroupViewModel[]> {
@@ -299,7 +312,7 @@ async function selectDraftImages(groupId: string) {
 }
 
 async function removeDraft(groupId: string, paths: string[]) {
-  await deletePrivateAssets(paths);
+  await deleteFoodMedia(paths);
   const client = createServerSupabaseClient();
   const { error } = await client
     .from("food_entries")
@@ -307,6 +320,19 @@ async function removeDraft(groupId: string, paths: string[]) {
     .eq("id", groupId)
     .eq("status", "draft");
   if (error) throw new FoodServiceError("无法清理上传草稿。", 500);
+}
+
+async function deleteFoodMedia(paths: string[]) {
+  const uniquePaths = [...new Set(paths)];
+  const localPaths: string[] = [];
+  const remotePaths: string[] = [];
+  for (const storagePath of uniquePaths) {
+    if (await getLocalFoodFileInfo(storagePath)) localPaths.push(storagePath);
+    else remotePaths.push(storagePath);
+  }
+
+  await deleteLocalFoodFiles(localPaths);
+  await deletePrivateAssets(remotePaths);
 }
 
 async function cleanupStaleDrafts() {
@@ -341,19 +367,16 @@ function descriptorsMatch(input: FoodUploadRequestInput, images: UploadImageRow[
   });
 }
 
-async function signedTargets(
+function uploadTargets(
   input: FoodUploadRequestInput,
   images: UploadImageRow[],
 ) {
-  return mapWithConcurrency(images, 4, async (image) => {
-    const signed = await createPrivateSignedUploadUrl(image.storage_path, { upsert: true });
-    return {
+  return images.map((image) => ({
       clientId: input.images[image.sort_order].clientId,
       imageId: image.id,
       storagePath: image.storage_path,
-      signedUrl: signed.signedUrl,
-    };
-  });
+      uploadUrl: `/api/private/food/uploads/${encodeURIComponent(image.food_entry_id)}/${encodeURIComponent(image.id)}?requestId=${encodeURIComponent(input.requestId)}`,
+    }));
 }
 
 export async function initializeFoodUpload(input: FoodUploadRequestInput) {
@@ -388,7 +411,7 @@ export async function initializeFoodUpload(input: FoodUploadRequestInput) {
     return {
       groupId: existing.id,
       requestId: input.requestId,
-      uploads: await signedTargets(input, images),
+      uploads: uploadTargets(input, images),
       alreadyComplete: false,
     };
   }
@@ -447,7 +470,7 @@ export async function initializeFoodUpload(input: FoodUploadRequestInput) {
     return {
       groupId,
       requestId: input.requestId,
-      uploads: await signedTargets(input, imageRows),
+      uploads: uploadTargets(input, imageRows),
       alreadyComplete: false,
     };
   } catch {
@@ -456,14 +479,92 @@ export async function initializeFoodUpload(input: FoodUploadRequestInput) {
   }
 }
 
+function assertFoodImageContents(
+  image: FoodImageRow,
+  bytes: Uint8Array,
+  actualByteSize = bytes.byteLength,
+) {
+  if (actualByteSize !== image.byte_size) {
+    throw new FoodServiceError("图片大小与选择时不一致。", 422);
+  }
+  if (!imageSignatureMatches(bytes, image.mime_type)) {
+    throw new FoodServiceError("图片文件内容与格式不一致。", 422);
+  }
+  const dimensions = imageDimensionsFromBytes(bytes, image.mime_type);
+  if (!dimensions || dimensions.width !== image.width || dimensions.height !== image.height) {
+    throw new FoodServiceError("上传后的图片尺寸与选择时不一致。", 422);
+  }
+}
+
+export async function uploadFoodImage(
+  groupId: string,
+  imageId: string,
+  requestId: string,
+  bytes: Uint8Array,
+  contentType: string,
+) {
+  await requirePrivateSession();
+  assertConfigured();
+  assertUuid(groupId, "美食组标识");
+  assertUuid(imageId, "图片标识");
+  assertUuid(requestId, "上传请求标识");
+
+  const group = await selectDraft(groupId, requestId);
+  if (!group || group.status !== "draft") {
+    throw new FoodServiceError("上传草稿不存在或已经过期。", 404);
+  }
+
+  const client = createServerSupabaseClient();
+  const { data, error } = await client
+    .from("food_images")
+    .select("*")
+    .eq("id", imageId)
+    .eq("food_entry_id", groupId)
+    .maybeSingle();
+  if (error) throw new FoodServiceError("无法读取待上传图片记录。", 500);
+  if (!data) throw new FoodServiceError("待上传图片不存在。", 404);
+
+  const image = data as FoodImageRow;
+  if (contentType !== image.mime_type) {
+    throw new FoodServiceError("图片格式与选择时不一致。", 422);
+  }
+  assertFoodImageContents(image, bytes);
+
+  try {
+    await writeLocalFoodFile(image.storage_path, bytes);
+  } catch (error) {
+    console.error("Unable to write a local food image.", { groupId, imageId, error });
+    throw new FoodServiceError("无法写入本地图片目录，请检查 FOOD_STORAGE_ROOT。", 500);
+  }
+}
+
 async function verifyUploadedImages(groupId: string, images: FoodImageRow[]) {
+  const remoteImages: FoodImageRow[] = [];
+  await mapWithConcurrency(images, 3, async (image) => {
+    const info = await getLocalFoodFileInfo(image.storage_path);
+    if (!info) {
+      remoteImages.push(image);
+      return;
+    }
+    if (info.size !== image.byte_size) {
+      throw new FoodServiceError("上传后的图片信息与选择时不一致。", 422);
+    }
+    const bytes = await readLocalFoodFileHeader(
+      image.storage_path,
+      MAXIMUM_IMAGE_HEADER_BYTES,
+    );
+    if (!bytes) throw new FoodServiceError("无法读取已上传图片。", 422);
+    assertFoodImageContents(image, bytes, info.size);
+  });
+  if (remoteImages.length === 0) return;
+
   const client = createServerSupabaseClient();
   const folder = `food/${groupId}`;
   const { data, error } = await client.storage.from(PRIVATE_DIARY_BUCKET).list(folder, { limit: 100 });
   if (error) throw new FoodServiceError("无法核对已上传图片。", 500);
   const objects = new Map((data ?? []).map((item) => [item.name, item]));
 
-  await mapWithConcurrency(images, 3, async (image) => {
+  await mapWithConcurrency(remoteImages, 3, async (image) => {
     const name = image.storage_path.slice(folder.length + 1);
     const object = objects.get(name);
     const metadata = object?.metadata as { size?: number; mimetype?: string } | undefined;
@@ -477,13 +578,7 @@ async function verifyUploadedImages(groupId: string, images: FoodImageRow[]) {
     });
     if (!response.ok) throw new FoodServiceError("无法读取已上传图片。", 422);
     const bytes = new Uint8Array(await response.arrayBuffer());
-    if (!imageSignatureMatches(bytes, image.mime_type)) {
-      throw new FoodServiceError("图片文件内容与格式不一致。", 422);
-    }
-    const dimensions = imageDimensionsFromBytes(bytes, image.mime_type);
-    if (!dimensions || dimensions.width !== image.width || dimensions.height !== image.height) {
-      throw new FoodServiceError("上传后的图片尺寸与选择时不一致。", 422);
-    }
+    assertFoodImageContents(image, bytes, image.byte_size);
   });
 }
 
@@ -535,6 +630,159 @@ export async function cancelFoodUpload(groupId: string, requestId: string) {
   await removeDraft(groupId, images.map((image) => image.storage_path));
 }
 
+export async function updateFoodGroup(groupId: string, input: FoodGroupUpdateInput) {
+  await requirePrivateSession();
+  assertConfigured();
+  assertUuid(groupId, "美食组标识");
+
+  const client = createServerSupabaseClient();
+  const { data, error } = await client
+    .from("food_entries")
+    .update({
+      name: input.category,
+      description: input.review ?? null,
+      location: formatFoodLocation(input.location),
+      rating: input.rating,
+      food_date: foodDateInTimezone(input.occurredAt, input.timezone),
+      category: input.category,
+      review: input.review ?? null,
+      occurred_at: input.occurredAt,
+      timezone: input.timezone,
+      location_country_code: input.location.countryCode,
+      location_country_name: input.location.countryName,
+      location_region_code: input.location.regionCode ?? null,
+      location_region_name: input.location.regionName ?? null,
+      location_city_code: input.location.cityCode ?? null,
+      location_city_name: input.location.cityName,
+    })
+    .eq("id", groupId)
+    .eq("status", "ready")
+    .select("id")
+    .maybeSingle();
+
+  if (error) {
+    if (isMissingFoodSchemaError(error)) {
+      throw new FoodServiceError("请先执行最新 Food 数据库 Migration。", 503);
+    }
+    throw new FoodServiceError("无法修改美食记录。", 500);
+  }
+  if (!data) throw new FoodServiceError("美食记录不存在或当前不可修改。", 404);
+  return { groupId };
+}
+
+export async function deleteFoodGroup(groupId: string) {
+  await requirePrivateSession();
+  assertConfigured();
+  assertUuid(groupId, "美食组标识");
+
+  const client = createServerSupabaseClient();
+  const { data: groupData, error: groupError } = await client
+    .from("food_entries")
+    .select("id,status,storage_path")
+    .eq("id", groupId)
+    .maybeSingle();
+  if (groupError) {
+    if (isMissingFoodSchemaError(groupError)) {
+      throw new FoodServiceError("请先执行最新 Food 数据库 Migration。", 503);
+    }
+    throw new FoodServiceError("无法读取待删除的美食记录。", 500);
+  }
+  if (!groupData) throw new FoodServiceError("美食记录不存在。", 404);
+  if ((groupData as { status: string }).status !== "ready") {
+    throw new FoodServiceError("这条记录当前不可删除。", 409);
+  }
+
+  const { data: imageData, error: imageError } = await client
+    .from("food_images")
+    .select("storage_path")
+    .eq("food_entry_id", groupId);
+  if (imageError) {
+    if (isMissingFoodSchemaError(imageError)) {
+      throw new FoodServiceError("请先执行最新 Food 数据库 Migration。", 503);
+    }
+    throw new FoodServiceError("无法读取待删除的图片。", 500);
+  }
+  const paths = [
+    ...(imageData ?? []).map((image) => (image as { storage_path: string }).storage_path),
+    (groupData as { storage_path: string | null }).storage_path,
+  ].filter((path): path is string => Boolean(path));
+  if (paths.length === 0) throw new FoodServiceError("这条记录没有可删除的图片。", 409);
+
+  const { data: hiddenData, error: hiddenError } = await client
+    .from("food_entries")
+    .update({ status: "draft" })
+    .eq("id", groupId)
+    .eq("status", "ready")
+    .select("id")
+    .maybeSingle();
+  if (hiddenError || !hiddenData) throw new FoodServiceError("无法锁定待删除的美食记录。", 409);
+
+  try {
+    await deleteFoodMedia(paths);
+  } catch {
+    const { error: restoreError } = await client
+      .from("food_entries")
+      .update({ status: "ready" })
+      .eq("id", groupId)
+      .eq("status", "draft");
+    if (restoreError) {
+      console.error("Unable to restore a food record after Storage deletion failed.", {
+        groupId,
+      });
+    }
+    throw new FoodServiceError("无法删除私有图片，记录没有被删除。", 500);
+  }
+
+  const { data: deletedData, error: deleteError } = await client
+    .from("food_entries")
+    .delete()
+    .eq("id", groupId)
+    .eq("status", "draft")
+    .select("id")
+    .maybeSingle();
+  if (deleteError || !deletedData) {
+    throw new FoodServiceError("图片已清理，记录将在后台继续清理。", 500);
+  }
+}
+
+export async function readFoodImageFile(imageId: string) {
+  await requirePrivateSession();
+  assertConfigured();
+  assertUuid(imageId, "图片标识");
+
+  const client = createServerSupabaseClient();
+  const { data, error } = await client
+    .from("food_images")
+    .select("storage_path,mime_type,byte_size,food_entries!inner(status)")
+    .eq("id", imageId)
+    .eq("food_entries.status", "ready")
+    .maybeSingle();
+  if (error) {
+    if (isMissingFoodSchemaError(error)) {
+      throw new FoodServiceError("请先执行最新 Food 数据库 Migration。", 503);
+    }
+    throw new FoodServiceError("无法读取图片记录。", 500);
+  }
+  if (!data) throw new FoodServiceError("图片不存在。", 404);
+
+  const image = data as Pick<FoodImageRow, "storage_path" | "mime_type" | "byte_size">;
+  const info = await getLocalFoodFileInfo(image.storage_path);
+  if (!info) throw new FoodServiceError("本地图片不存在。", 404);
+  if (info.size !== image.byte_size) {
+    throw new FoodServiceError("本地图片大小与数据库记录不一致。", 409);
+  }
+
+  try {
+    return {
+      bytes: await readLocalFoodFile(image.storage_path),
+      mimeType: image.mime_type,
+    };
+  } catch (error) {
+    console.error("Unable to read a local food image.", { imageId, error });
+    throw new FoodServiceError("无法读取本地图片。", 500);
+  }
+}
+
 export async function refreshFoodImageUrl(imageId: string) {
   await requirePrivateSession();
   assertConfigured();
@@ -555,10 +803,13 @@ export async function refreshFoodImageUrl(imageId: string) {
         .maybeSingle();
       if (legacyError) throw new FoodServiceError("无法刷新图片地址。", 500);
       if (!legacyData) throw new FoodServiceError("图片不存在。", 404);
-      return getPrivateSignedUrl((legacyData as { storage_path: string }).storage_path);
+      return foodImageUrl(
+        imageId,
+        (legacyData as { storage_path: string }).storage_path,
+      );
     }
     throw new FoodServiceError("无法刷新图片地址。", 500);
   }
   if (!data) throw new FoodServiceError("图片不存在。", 404);
-  return getPrivateSignedUrl((data as { storage_path: string }).storage_path);
+  return foodImageUrl(imageId, (data as { storage_path: string }).storage_path);
 }

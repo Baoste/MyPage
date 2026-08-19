@@ -1,19 +1,31 @@
 "use client";
 
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { FoodEditDialog } from "@/components/private/food/FoodEditDialog";
 import { foodLocationLabel, formatFoodDateTime } from "@/components/private/food/food-format";
 import type { FoodGroupViewModel } from "@/types";
 
 interface FoodDetailDialogProps {
   group: FoodGroupViewModel;
   initialImageIndex: number;
+  mutationsEnabled: boolean;
   onClose: () => void;
 }
 
-export function FoodDetailDialog({ group, initialImageIndex, onClose }: FoodDetailDialogProps) {
+export function FoodDetailDialog({
+  group,
+  initialImageIndex,
+  mutationsEnabled,
+  onClose,
+}: FoodDetailDialogProps) {
+  const router = useRouter();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [imageIndex, setImageIndex] = useState(initialImageIndex);
+  const [editOpen, setEditOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [mutationMessage, setMutationMessage] = useState("");
   const image = group.images[imageIndex];
 
   useEffect(() => {
@@ -32,24 +44,47 @@ export function FoodDetailDialog({ group, initialImageIndex, onClose }: FoodDeta
     setImageIndex((current) => (current + amount + group.images.length) % group.images.length);
   }
 
+  async function deleteGroup() {
+    const confirmed = window.confirm(
+      `确定删除“${group.category}”这整组记录和全部 ${group.images.length} 张图片吗？删除后无法恢复。`,
+    );
+    if (!confirmed) return;
+
+    setIsDeleting(true);
+    setMutationMessage("正在删除整组记录…");
+    try {
+      const response = await fetch(`/api/private/food/groups/${group.id}`, {
+        method: "DELETE",
+      });
+      const data = await response.json() as { ok?: boolean; message?: string };
+      if (!response.ok || !data.ok) throw new Error(data.message || "删除失败，请稍后再试。");
+      onClose();
+      router.refresh();
+    } catch (error) {
+      setMutationMessage(error instanceof Error ? error.message : "删除失败，请稍后再试。");
+      setIsDeleting(false);
+    }
+  }
+
   return (
-    <dialog
-      ref={dialogRef}
-      aria-labelledby="food-detail-title"
-      className="food-detail-dialog m-auto h-[min(92svh,54rem)] w-[min(94vw,76rem)] max-w-none overflow-hidden border-0 bg-[#181c18] p-0 text-[#f5f1e8] shadow-2xl"
-      onCancel={(event) => {
-        event.preventDefault();
-        onClose();
-      }}
-      onClick={(event) => {
-        if (event.target === event.currentTarget) onClose();
-      }}
-      onKeyDown={(event) => {
-        if (event.key === "ArrowLeft" && group.images.length > 1) move(-1);
-        if (event.key === "ArrowRight" && group.images.length > 1) move(1);
-      }}
-    >
-      <div className="grid h-full min-h-0 md:grid-cols-[minmax(0,1.55fr)_minmax(19rem,0.72fr)]">
+    <>
+      <dialog
+        ref={dialogRef}
+        aria-labelledby="food-detail-title"
+        className="food-detail-dialog m-auto h-[min(92svh,54rem)] w-[min(94vw,76rem)] max-w-none overflow-hidden border-0 bg-[#181c18] p-0 text-[#f5f1e8] shadow-2xl"
+        onCancel={(event) => {
+          event.preventDefault();
+          onClose();
+        }}
+        onClick={(event) => {
+          if (event.target === event.currentTarget) onClose();
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "ArrowLeft" && group.images.length > 1) move(-1);
+          if (event.key === "ArrowRight" && group.images.length > 1) move(1);
+        }}
+      >
+        <div className="grid h-full min-h-0 md:grid-cols-[minmax(0,1.55fr)_minmax(19rem,0.72fr)]">
         <div className="relative flex min-h-[42svh] items-center justify-center bg-[#0f120f] p-4 md:min-h-0 md:p-8">
           {image?.imageUrl ? (
             <Image
@@ -100,8 +135,26 @@ export function FoodDetailDialog({ group, initialImageIndex, onClose }: FoodDeta
               ))}
             </div>
           ) : null}
+
+          {mutationsEnabled ? (
+            <div className="mt-8 border-t border-white/12 pt-6">
+              <div className="flex gap-3">
+                <button type="button" disabled={isDeleting} onClick={() => setEditOpen(true)} className="flex-1 border border-white/25 px-4 py-3 text-xs font-semibold tracking-[0.1em] disabled:opacity-40">修改</button>
+                <button type="button" disabled={isDeleting} onClick={() => void deleteGroup()} className="flex-1 border border-[#b85d4a] px-4 py-3 text-xs font-semibold tracking-[0.1em] text-[#f0a08d] disabled:opacity-40">删除</button>
+              </div>
+              <p aria-live="polite" className="mt-3 text-xs leading-5 text-[#f0a08d]">{mutationMessage}</p>
+            </div>
+          ) : null}
         </aside>
-      </div>
-    </dialog>
+        </div>
+      </dialog>
+      {editOpen ? (
+        <FoodEditDialog
+          group={group}
+          onClose={() => setEditOpen(false)}
+          onSaved={onClose}
+        />
+      ) : null}
+    </>
   );
 }

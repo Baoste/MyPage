@@ -161,7 +161,7 @@ Food 简洁标题区
 - 选择后立即生成本地预览，显示顺序、文件状态和删除按钮。
 - 支持拖动或键盘按钮调整顺序；排序结果写入 `sort_order`。
 - 单组总大小建议限制为 60MB，超过时在上传前明确提示。
-- 原始文件名不得进入 Storage 路径，也不得直接作为页面文案显示。
+- 原始文件名不得进入数据库相对路径或本地文件路径，也不得直接作为页面文案显示。
 
 ### 8.3 表单字段
 
@@ -284,29 +284,32 @@ interface FoodGroupViewModel extends Omit<FoodGroup, "images"> {
 - 先完成回填并校验数量，再把旧 `storage_path` 标记为兼容/弃用字段；不得在同一步无备份删除旧数据。
 - Migration 必须可在“已有旧数据”和“全新数据库”两种情况下执行。
 
-## 10. Storage 与上传事务
+## 10. 本地文件与上传事务
 
 ### 10.1 路径
 
-所有原图保存到私有 Bucket `private-diary`：
+新上传的原图保存到服务器持久磁盘：
 
 ```text
-food/{groupId}/{imageId}.{extension}
+FOOD_STORAGE_ROOT/food/{groupId}/{imageId}.{extension}
 ```
 
 - `groupId` 与数据库美食组 ID 相同。
 - `imageId` 与 `food_images.id` 相同。
 - 扩展名由服务器根据允许的 MIME 类型确定，不信任原文件名。
-- Bucket 必须保持 Private，不增加公开读取 Policy。
+- 数据库只保存 `food/{groupId}/{imageId}.{extension}` 相对路径，不保存 Windows/Linux 绝对路径。
+- `FOOD_STORAGE_ROOT` 未设置时开发环境默认使用 `.data/private-media`；生产环境必须指向项目外的持久磁盘。
+- 文件只能通过验证私密 Session 的服务端接口读取，不放入 `public/`。
+- 切换前已上传到私有 Bucket `private-diary` 的图片不迁移、不删除；本地文件不存在时继续用旧 Storage Signed URL 兼容读取。
 
 ### 10.2 推荐上传流程
 
-为避免多张大图经过单个 Next.js 请求造成部署平台 Body 限制，采用受控的分阶段上传：
+为避免整组大图一次经过单个请求，采用逐文件、受控的分阶段上传：
 
 1. 客户端完成预览、EXIF 时间读取和基础校验。
-2. `POST /api/private/food/uploads/init` 验证 Session、同源请求、表单与文件描述，服务器生成组 ID、图片 ID、Storage 路径和短期 Signed Upload Token，并建立 `draft`。
-3. 浏览器凭每张图片专用、短时、限定路径的 Token 直接上传到 `private-diary`；浏览器永远不能得到 Service Role Key。
-4. `POST /api/private/food/uploads/complete` 再次验证 Session 和同源请求，服务器核对对象数量、路径、MIME、大小与图片尺寸。
+2. `POST /api/private/food/uploads/init` 验证 Session、同源请求、表单与文件描述，服务器生成组 ID、图片 ID、相对路径和逐文件同源上传地址，并建立 `draft`。
+3. 浏览器用 `PUT /api/private/food/uploads/{groupId}/{imageId}` 逐张上传；接口再次验证 Session、同源、草稿归属、单图 10 MB 上限、MIME、大小、文件签名和尺寸，再原子写入 `FOOD_STORAGE_ROOT`。浏览器永远不能得到 Service Role Key 或绝对磁盘路径。
+4. `POST /api/private/food/uploads/complete` 再次验证 Session 和同源请求，服务器核对本地文件数量、路径、大小、签名与图片尺寸。
 5. 数据库事务写入/确认组与图片记录，并把组状态改为 `ready`。
 6. 任一步失败时删除本次已上传对象并回滚草稿；用户中途关闭页面产生的过期草稿需要可安全清理。
 
@@ -319,11 +322,11 @@ food/{groupId}/{imageId}.{extension}
 - 服务端重新校验数量、MIME、扩展名、单文件/总大小、字符串长度、评分、时间、地区代码和 UUID。
 - 不信任客户端提交的 `storage_path`、组 ID 与图片 ID 组合关系。
 - 必要时检查文件头或实际图片解码结果，不能只相信浏览器提供的 MIME。
-- 错误响应不得包含 Service Role Key、内部 SQL、完整 Storage Token 或其他私密配置。
+- 错误响应不得包含 Service Role Key、内部 SQL、`FOOD_STORAGE_ROOT` 绝对路径或其他私密配置。
 
 ### 10.4 删除与孤儿文件
 
-本阶段不要求提供删除 UI，但上传失败必须清理本次产生的对象。未来删除整组时应先记录精确路径，删除数据库记录和所有 Storage 对象；若 Storage 删除失败，不得悄悄留下数据库与文件状态不一致。
+详情页提供整组删除 UI，但不提供单张历史图片删除。删除前先记录精确相对路径并把组切换为不可见的草稿状态，再按实际来源删除全部本地文件或旧 Storage 对象以及数据库记录；若文件清理失败，应恢复可见状态并向用户报告错误，不得悄悄留下数据库与文件状态不一致。上传失败也必须清理本次产生的文件。
 
 ## 11. 统计面板
 
@@ -394,14 +397,14 @@ supabase/migrations/<timestamp>_food_groups_and_images.sql
 
 - Food 页面继续是 Server Component，负责鉴权后的首屏数据读取。
 - 只有卡片交互、Dialog、文件选择、EXIF 和上传进度组件使用 `"use client"`。
-- Service Layer 负责数据库与 Signed URL，不把 Supabase Service Role 逻辑放进组件。
+- Service Layer 负责数据库、本地文件与旧图 Signed URL，不把 Supabase Service Role 或绝对磁盘路径放进组件。
 - 执行时若修改 Next.js 路由或配置，必须先阅读本项目 `node_modules/next/dist/docs/` 中对应版本文档。
 
 ## 13. 响应式、性能与稳定性
 
 - 手机、平板和桌面均不得横向溢出。
 - 画廊存在大量图片时避免一次性优先加载全部原图。
-- Signed URL 应批量生成并限制并发，单张失败不能阻塞所有图片。
+- 本地图片使用受保护的同源读取接口；旧图 Signed URL 限制生成并发，单张失败不能阻塞所有图片。
 - 卡片翻转状态、详情状态与上传状态不得导致整页不必要重渲染。
 - Dialog 关闭、路由切换或组件卸载时清理 Pointer Timer、Object URL、事件监听器和上传请求。
 - 本地预览 Object URL 使用完后调用 `URL.revokeObjectURL()`。
@@ -424,14 +427,14 @@ supabase/migrations/<timestamp>_food_groups_and_images.sql
 - 空画廊显示简洁说明，并把右下新增按钮作为主要行动入口。
 - 统计区无数据时显示“还没有足够记录”，不展示空坐标轴。
 - 上传错误分为文件校验、网络上传、最终保存三类，并给出可执行的重试方式。
-- Signed URL 过期或图片加载失败时允许刷新该图片 URL，不要求用户退出重登。
-- 页面或接口错误不得回显数据库原始异常和 Storage 内部信息。
+- 本地图片或旧图 Signed URL 加载失败时允许刷新该图片来源，不要求用户退出重登。
+- 页面或接口错误不得回显数据库原始异常、绝对磁盘路径和 Storage 内部信息。
 
 ## 16. 安全边界
 
 - `/yfxl99/food`、Food API、Food Service 全部验证现有私密 Session。
 - Service Role Key 只能存在于 server-only 模块，不能进入 Client Bundle、HTML、日志或接口响应。
-- `private-diary` 保持 Private；查看使用短期 Signed URL，上传使用短期且限定单一路径的 Signed Upload Token。
+- 新 Food 图片写入 `FOOD_STORAGE_ROOT` 并只允许通过 Session 鉴权接口读取；`private-diary` 保持 Private，仅兼容查看和删除切换前的 Food 图片。
 - 不新增 anon/authenticated 对 `food_entries`、`food_images` 或私有 Storage 的读写 Policy。
 - 不保存永久图片 URL、Base64 图片或原文件二进制到 PostgreSQL。
 - 不信任客户端文件名、MIME、尺寸、评分、日期、地区代码或对象路径。
@@ -455,9 +458,9 @@ supabase/migrations/<timestamp>_food_groups_and_images.sql
 - [ ] 一组可选择 1～12 张 JPEG/PNG/WebP，并能预览、删除和排序。
 - [ ] 第一张图片有 EXIF 时间时自动填入；没有时使用当前时间；手动修改后不被覆盖。
 - [ ] 分类、三级地点、发生时间、评分和点评校验清晰。
-- [ ] Storage 路径严格为 `food/{groupId}/{imageId}.{extension}`。
+- [ ] 数据库相对路径严格为 `food/{groupId}/{imageId}.{extension}`，实际文件位于 `FOOD_STORAGE_ROOT` 下。
 - [ ] 上传进度、单图重试、防重复提交与取消确认可用。
-- [ ] 上传失败不会留下可见的半组数据；过期草稿和孤儿对象有清理策略。
+- [ ] 上传失败不会留下可见的半组数据；过期草稿和孤儿文件有清理策略。
 
 ### 17.3 数据与统计
 
@@ -476,19 +479,19 @@ supabase/migrations/<timestamp>_food_groups_and_images.sql
 - [ ] 上传 MIME、大小、路径和数据库字段都由服务器复验。
 - [ ] `npm run typecheck`、`npm run lint`、`npm run build` 全部通过。
 - [ ] Chrome 中完成桌面与手机的点击、长按、上传、统计和键盘验收。
-- [ ] README 记录新增文件、Migration、Storage 路径、上传限制、统计口径和手动 Supabase 步骤。
+- [ ] README 记录新增文件、Migration、本地相对路径、上传限制、统计口径和手动部署步骤。
 
 ## 18. 建议执行顺序
 
 1. 阅读项目规则与当前 Next.js 版本文档，确认现有私密鉴权和 Supabase 封装。
 2. 定义 Food Group/Image 类型、纯校验函数和统计口径。
 3. 编写增量 Migration，建立 `food_images`、组字段、约束、索引和旧数据回填。
-4. 扩展 Food Service，批量生成 Signed URL，并先完成只读的多图 ViewModel。
+4. 扩展 Food Service，完成本地图鉴权地址、旧图 Signed URL 回退与多图 ViewModel。
 5. 重构瀑布流、翻转卡片和长按详情层，完成响应式与可访问性。
 6. 实现地点选择、EXIF 时间、图片排序和上传表单。
-7. 实现受保护的初始化/完成上传 API、Signed Upload 与失败回滚。
+7. 实现受保护的初始化、逐文件 PUT、完成上传 API 与失败回滚。
 8. 实现服务器统计与前端统计面板。
-9. 验证 Empty/Error、Reduced Motion、Signed URL 过期和资源清理。
+9. 验证 Empty/Error、Reduced Motion、本地图读取、旧图 Signed URL 过期和资源清理。
 10. 更新 README，执行 TypeScript、Lint、生产构建、数据库与真实浏览器验收。
 
 ## 19. 非目标
@@ -497,7 +500,7 @@ supabase/migrations/<timestamp>_food_groups_and_images.sql
 - 不实现地图轨迹、自动 GPS 定位或第三方地图服务。
 - 不实现视频、Live Photo、HEIC 自动转换或图片编辑器。
 - 不实现复杂 CMS、多人账号或 Supabase Auth。
-- 不在本阶段增加编辑/删除历史组的 UI；但数据结构不能阻碍未来增加。
+- 不实现单张历史图片删除、替换图片或批量管理；当前修改/删除以整组记录为单位。
 - 不复制小红书或其他商业产品的代码、图标、品牌和受版权保护素材。
 
 ## 20. 执行完成后的文档要求
@@ -506,22 +509,27 @@ supabase/migrations/<timestamp>_food_groups_and_images.sql
 
 - 新增和修改了哪些文件；
 - 数据库如何从单图记录迁移为组与图片；
-- 图片路径、限制、Signed Upload/Signed URL 和失败清理流程；
+- 图片相对路径、`FOOD_STORAGE_ROOT`、本地上传/读取、旧图 Signed URL 和失败清理流程；
 - EXIF 时间与地点选择的回退规则；
 - 各统计指标的准确口径；
 - 执行了哪些自动检查与浏览器验收；
 - 哪些 Supabase Migration 或部署配置仍需项目所有者手动完成。
 
-## 21. 执行结果（2026-08-18）
+## 21. 执行结果（2026-08-18，更新于 2026-08-19）
 
 已完成：
 
 - 用 `food_entries` 表示美食组、新增 `food_images` 表示独立图片；增量 Migration 原样保留旧行和旧 Storage 路径，并把每条旧记录回填成一张 legacy 图片。
-- 新增只读取 `ready` 组的服务层、多图 Signed URL、单图 URL 刷新、草稿清理、幂等初始化、逐路径 Signed Upload、服务端文件复验、发布、取消和失败回滚。
+- 新增只读取 `ready` 组的服务层、本地图鉴权读取与旧图 Signed URL 回退、单图 URL 刷新、草稿清理、幂等初始化、逐文件同源 PUT、服务端文件复验、发布、取消和失败回滚。
 - 新增不等高瀑布流、非线性翻面、450 ms 长按详情、同组图片切换、统计面板、地点选择、多图预览/排序/删除、星级评分、进度与单图重试。
 - 按本文件最新文字将时区固定为中国北京时间 `Asia/Shanghai`；EXIF 无时区时按北京时间解释，客户端与服务端不接受其他记录时区。
 - 写 API 具备 Session、严格同源、64KB JSON 上限和基础限流；Storage 与数据库仍只由 server-only service-role 客户端访问。
 - 第二份 Migration 尚未执行时安全回退读取旧单图记录，显示明确提示并禁用上传；Migration 完整执行后自动启用新结构。
+- 页面顶部的 `Shared table / Food / 英文说明` 标题文案已移除，登录后进入 Food 即直接显示画廊。
+- 长按详情新增整组“修改 / 删除”：修改分类、纯中文地点、北京时间、评分和点评；删除经确认后清理整组全部 Storage 图片并级联删除数据库记录。
+- 地区候选不再显示后台代码，输入只保留中文字符；客户端过滤数字、拉丁字母和符号，服务端再次拒绝非中文地点名称。
+- 新 Food 图片改为写入可配置的 `FOOD_STORAGE_ROOT` 持久磁盘，数据库仍只保存 `food/...` 相对路径；浏览器通过受保护的逐文件 PUT 上传与 Session 鉴权读取接口访问图片。
+- 本地目录不存在时自动建立；路径严格限定为两级 UUID 与允许扩展名，防止绝对路径和目录穿越。切换前的 Supabase Food 图片仍可读取、刷新和删除，没有迁移或删除现有对象。
 - `README.md` 已记录新增文件、迁移、路径、限制、上传流程、统计口径、验证结果和手动部署步骤。
 
 验证结果：
@@ -530,11 +538,15 @@ supabase/migrations/<timestamp>_food_groups_and_images.sql
 - Chrome 1440×960 与 390×844 验证桌面 4 列、手机 2 列；9 张临时图片均独立显示，无横向溢出或控制台错误。
 - 点击翻面、450 ms 长按详情、`Escape`、统计展开、上传弹窗和真实本地 JPEG 的预览/尺寸读取均通过。
 - 发布前的服务器图片头解析使用真实 JPEG 与合成 PNG/WebP 头验证，三种格式均能复验实际宽高。
+- production Chrome 验证长按详情的“修改 / 删除”、桌面与 390×844 手机编辑弹窗；291 个候选项均为纯中文，混合输入 `上海123Shanghai·市` 得到 `上海市`，非中文地点 API 返回 `400`。
+- 独立临时目录验证 `FOOD_STORAGE_ROOT`、重复写入覆盖、限长读取、目录穿越拒绝和精确删除；测试后没有残留临时图片或目录。
 - 未登录页面/API、跨站写入、非法同源请求、超大 JSON 与有效 Session 的状态码符合预期。
+- production server 中，本地图片读取和逐文件 PUT 在未登录时均返回 `401`，测试后服务进程与监听端口已清理。
 - 扫描 21 个客户端静态文件，未发现 Service Role Key、密码 Hash 或 Session Secret 的变量名/实际值。
 
 仍需项目所有者完成：
 
 1. 在正式 Supabase 按顺序执行 `202608180001_initial_schema.sql` 和 `202608180002_food_groups_and_images.sql`（若第一份已执行，只执行第二份）。
 2. 确认 `private-diary` 保持 Private，`food_entries` / `food_images` 没有公开 Policy。
-3. 在正式环境上传一组多图，最终核对真实 Storage 上传、旧数据回填数量与线上 Signed URL。
+3. 在腾讯云 CVM 将 `FOOD_STORAGE_ROOT` 指向持久云硬盘目录（例如 `/data/mypage`），赋予 Node 进程读写权限并配置备份。
+4. 在正式环境上传一组多图，核对本地文件、数据库相对路径、旧图 Supabase 回退和删除行为。

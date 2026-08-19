@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import {
   chinaRegions,
+  chineseLocationText,
   getChinaCityOptions,
   getCountryOptions,
   manualLocationCode,
@@ -23,35 +24,38 @@ export function FoodLocationPicker({ value, disabled, onChange }: FoodLocationPi
   );
 
   function changeCountry(countryName: string) {
+    const chineseName = chineseLocationText(countryName);
     const country = countries.find(
-      (option) => option.name === countryName || option.code.toLowerCase() === countryName.toLowerCase(),
+      (option) => option.name === chineseName,
     );
     onChange({
       countryCode: country?.code ?? "",
-      countryName,
+      countryName: chineseName,
       cityName: "",
     });
   }
 
   function changeRegion(regionName: string) {
+    const chineseName = chineseLocationText(regionName);
     const region = value.countryCode === "CN"
-      ? chinaRegions.find((option) => option.name === regionName || option.code === regionName)
+      ? chinaRegions.find((option) => option.name === chineseName)
       : undefined;
     onChange({
       ...value,
-      regionName: regionName || undefined,
-      regionCode: region?.code ?? manualLocationCode(regionName),
+      regionName: chineseName || undefined,
+      regionCode: region?.code ?? manualLocationCode(chineseName),
       cityName: "",
       cityCode: undefined,
     });
   }
 
   function changeCity(cityName: string) {
-    const city = cities.find((option) => option.name === cityName || option.code === cityName);
+    const chineseName = chineseLocationText(cityName);
+    const city = cities.find((option) => option.name === chineseName);
     onChange({
       ...value,
-      cityName,
-      cityCode: city?.code ?? manualLocationCode(cityName),
+      cityName: chineseName,
+      cityCode: city?.code ?? manualLocationCode(chineseName),
     });
   }
 
@@ -70,7 +74,7 @@ export function FoodLocationPicker({ value, disabled, onChange }: FoodLocationPi
           className="mt-2 w-full border border-[#bdb3a7] bg-[#fbf8f2] px-3 py-2.5 text-sm font-normal text-[#302d29]"
         />
         <datalist id="food-country-options">
-          {countries.map((country) => <option key={country.code} value={country.name}>{country.code}</option>)}
+          {countries.map((country) => <option key={country.code} value={country.name} />)}
         </datalist>
       </label>
       <label className="block text-xs font-semibold text-[#5d554e]">
@@ -84,7 +88,7 @@ export function FoodLocationPicker({ value, disabled, onChange }: FoodLocationPi
           className="mt-2 w-full border border-[#bdb3a7] bg-[#fbf8f2] px-3 py-2.5 text-sm font-normal text-[#302d29]"
         />
         <datalist id="food-region-options">
-          {value.countryCode === "CN" ? chinaRegions.map((region) => <option key={region.code} value={region.name}>{region.code}</option>) : null}
+          {value.countryCode === "CN" ? chinaRegions.map((region) => <option key={region.code} value={region.name} />) : null}
         </datalist>
       </label>
       <label className="block text-xs font-semibold text-[#5d554e]">
@@ -99,7 +103,7 @@ export function FoodLocationPicker({ value, disabled, onChange }: FoodLocationPi
           className="mt-2 w-full border border-[#bdb3a7] bg-[#fbf8f2] px-3 py-2.5 text-sm font-normal text-[#302d29]"
         />
         <datalist id="food-city-options">
-          {cities.map((city) => <option key={city.code} value={city.name}>{city.code}</option>)}
+          {cities.map((city) => <option key={city.code} value={city.name} />)}
         </datalist>
       </label>
       {value.countryName && !value.countryCode ? (

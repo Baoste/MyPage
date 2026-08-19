@@ -100,8 +100,8 @@ export function FoodUploadDialog({ onClose }: FoodUploadDialogProps) {
       const request = new XMLHttpRequest();
       activeRequestsRef.current.add(request);
       updateImage(image.clientId, { status: "uploading", progress: 1, error: undefined });
-      request.open("PUT", target.signedUrl);
-      request.setRequestHeader("x-upsert", "true");
+      request.open("PUT", target.uploadUrl);
+      request.setRequestHeader("Content-Type", image.mimeType);
       request.upload.onprogress = (event) => {
         if (!event.lengthComputable) return;
         updateImage(image.clientId, {
@@ -129,10 +129,7 @@ export function FoodUploadDialog({ onClose }: FoodUploadDialogProps) {
         updateImage(image.clientId, { status: "error", progress: 0, error: "上传已取消" });
         reject(new Error("上传已取消"));
       };
-      const body = new FormData();
-      body.append("cacheControl", "3600");
-      body.append("", image.file);
-      request.send(body);
+      request.send(image.file);
     });
   }
 

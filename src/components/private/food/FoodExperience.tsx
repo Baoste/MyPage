@@ -10,6 +10,7 @@ interface FoodExperienceProps {
   groups: FoodGroupViewModel[];
   statistics: FoodStatistics;
   uploadEnabled: boolean;
+  mutationsEnabled: boolean;
   uploadDisabledReason?: string;
 }
 
@@ -17,6 +18,7 @@ export function FoodExperience({
   groups,
   statistics,
   uploadEnabled,
+  mutationsEnabled,
   uploadDisabledReason,
 }: FoodExperienceProps) {
   const statsRef = useRef<HTMLDivElement>(null);
@@ -48,7 +50,7 @@ export function FoodExperience({
             {uploadDisabledReason ?? "当前暂时不能上传美食记录。"}
           </p>
         ) : null}
-        <FoodGallery groups={groups} />
+        <FoodGallery groups={groups} mutationsEnabled={mutationsEnabled} />
       </div>
 
       <div className="pointer-events-none fixed inset-x-0 bottom-[max(1rem,env(safe-area-inset-bottom))] z-30 flex items-end justify-between px-4 sm:px-6">
