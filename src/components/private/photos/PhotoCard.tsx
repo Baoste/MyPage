@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useCallback, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { PhotoExpandedCard } from "@/components/private/photos/PhotoExpandedCard";
 import {
   formatPhotoDateTime,
@@ -35,6 +35,7 @@ export function PhotoCard({
   const articleRef = useRef<HTMLElement | null>(null);
   const expandedContentRef = useRef<HTMLDivElement>(null);
   const pressTimerRef = useRef<number | null>(null);
+  const pressTargetRef = useRef<HTMLButtonElement | null>(null);
   const pressOriginRef = useRef({ x: 0, y: 0 });
   const [isFlipped, setIsFlipped] = useState(false);
   const [collapsedRowSpan, setCollapsedRowSpan] = useState(24);
@@ -87,11 +88,18 @@ export function PhotoCard({
     return () => observer.disconnect();
   }, [displayRatio, isExpanded]);
 
+  useEffect(() => () => {
+    if (pressTimerRef.current !== null) window.clearTimeout(pressTimerRef.current);
+    pressTargetRef.current?.classList.remove("is-pressing");
+  }, []);
+
   function clearPressTimer() {
     if (pressTimerRef.current !== null) {
       window.clearTimeout(pressTimerRef.current);
       pressTimerRef.current = null;
     }
+    pressTargetRef.current?.classList.remove("is-pressing");
+    pressTargetRef.current = null;
   }
 
   function expandDetails() {
@@ -103,7 +111,10 @@ export function PhotoCard({
   function handlePointerDown(event: React.PointerEvent<HTMLButtonElement>) {
     if (event.pointerType === "mouse" && event.button !== 0) return;
     pressOriginRef.current = { x: event.clientX, y: event.clientY };
-    event.currentTarget.setPointerCapture(event.pointerId);
+    const trigger = event.currentTarget;
+    pressTargetRef.current = trigger;
+    trigger.classList.add("is-pressing");
+    trigger.setPointerCapture(event.pointerId);
     clearPressTimer();
     pressTimerRef.current = window.setTimeout(() => {
       if (navigator.vibrate) navigator.vibrate(18);
@@ -262,4 +273,3 @@ export function PhotoCard({
     </article>
   );
 }
-

@@ -513,6 +513,18 @@ Node 进程还必须对 `PHOTO_STORAGE_ROOT` 和 `FOOD_STORAGE_ROOT` 拥有持�
 
 Supabase、生产 Secret 和持久磁盘步骤需要项目所有者在自己的 Dashboard 与部署环境中完成；Food/Photos 的增量 Migration 与两个存储根目录都不能遗漏。
 
+## `/yfxl99` 动画与性能审查（2026-08-19）
+
+本次只审查和修改 `/yfxl99` 登录页、Welcome 像素树、Food、Photos 及其共用私密导航/Loading/Error 边界，没有改变公开页面、认证、数据库结构、图片路径或正式数据。
+
+- 新增 `src/lib/motion.ts`，统一 160ms 触控反馈、300ms 常规过渡、420ms 布局动画和快速收尾缓动。
+- Food / Photos 卡片 FLIP 支持动画中断续接；旧卡先收起、再展开新卡的既有规则保持不变。合成层提示只在播放时存在，结束后自动清理。
+- 卡片悬停移除了高成本的动态阴影；长按增加即时压感，触摸滑动仍会取消长按。统计面板现在能平滑开合，上传/修改 Dialog 具有进入和退出动画。
+- 像素树移除了逐帧叶片复制、排序、色板数组创建与 GPU buffer 重建；可见叶片和粒子改为复用类型数组及 `bufferSubData`。
+- Reduced Motion 现在覆盖 CSS、FLIP、原生平滑滚动和 WebGL RAF，并实时响应系统偏好变化。
+- production Chrome 验收覆盖桌面与 390×844、DPR 2：Food 连续切卡、Food 统计、Photo 展开、满叶树的 P95 帧间隔约 16.8–17.1ms，所有样本都没有超过 25ms 的帧；运行时错误为 0，动画结束后的活动 `will-change` 为 0。
+- 浏览器验收使用临时本地 SVG 假图和临时公开预览入口；验收完成后两者以及 Chrome 配置、服务器进程均已删除，没有连接或修改正式数据库、现有照片与 `.env.local`。
+
 ## 验证记录
 
 - 交付机原本没有 Node.js；使用未安装到系统的官方便携版 Node.js `22.23.2` 完成验证，并生成 `package-lock.json`。

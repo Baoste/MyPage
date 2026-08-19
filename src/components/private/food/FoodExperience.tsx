@@ -40,8 +40,16 @@ export function FoodExperience({
 
   return (
     <div className="pb-28">
-      <div ref={statsRef} className={`scroll-mt-28 ${statsOpen ? "container-shell pt-6 md:pt-8" : ""}`}>
-        {statsOpen ? <FoodStatsPanel statistics={statistics} /> : null}
+      <div
+        ref={statsRef}
+        aria-hidden={!statsOpen}
+        className={`food-stats-region scroll-mt-28 ${statsOpen ? "is-open" : ""}`}
+      >
+        <div className="food-stats-clip">
+          <div className="food-stats-content container-shell pt-6 md:pt-8">
+            <FoodStatsPanel statistics={statistics} />
+          </div>
+        </div>
       </div>
 
       <div className="container-shell py-8 md:py-12">
@@ -59,7 +67,7 @@ export function FoodExperience({
           aria-expanded={statsOpen}
           aria-controls="food-statistics-region"
           onClick={toggleStatistics}
-          className="pointer-events-auto grid size-14 place-items-center rounded-full bg-[#30342e] text-[0.62rem] font-semibold tracking-[0.08em] text-white shadow-[0_10px_30px_rgba(30,30,25,0.2)] transition-transform hover:-translate-y-0.5"
+          className="private-fab pointer-events-auto grid size-14 place-items-center rounded-full bg-[#30342e] text-[0.62rem] font-semibold tracking-[0.08em] text-white shadow-[0_10px_30px_rgba(30,30,25,0.2)]"
         >
           {statsOpen ? "收起" : "统计"}
         </button>
@@ -70,7 +78,7 @@ export function FoodExperience({
           onClick={() => setUploadOpen(true)}
           aria-label="新增美食记录"
           title={uploadEnabled ? "新增美食记录" : uploadDisabledReason ?? "暂时无法上传"}
-          className="pointer-events-auto grid size-14 place-items-center rounded-full bg-[#a64b2a] text-3xl font-light leading-none text-white shadow-[0_10px_30px_rgba(88,44,27,0.24)] transition-transform hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-45"
+          className="private-fab pointer-events-auto grid size-14 place-items-center rounded-full bg-[#a64b2a] text-3xl font-light leading-none text-white shadow-[0_10px_30px_rgba(88,44,27,0.24)] disabled:cursor-not-allowed disabled:opacity-45"
         >
           <span aria-hidden="true" className="-translate-y-px">+</span>
         </button>

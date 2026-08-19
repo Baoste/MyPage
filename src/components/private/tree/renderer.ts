@@ -98,6 +98,14 @@ function flattenColors(colors: readonly (readonly [number, number, number])[]) {
   return values;
 }
 
+const LEAF_DRAW_LAYERS = [3, 2, 1] as const;
+
+function nextBufferCapacity(requiredFloats: number) {
+  let capacity = 32;
+  while (capacity < requiredFloats) capacity *= 2;
+  return capacity;
+}
+
 export class PixelTreeRenderer {
   private readonly gl: WebGL2RenderingContext;
   private readonly branchProgram: WebGLProgram;
@@ -127,6 +135,12 @@ export class PixelTreeRenderer {
   private particleCount = 0;
   private cachedActiveLeaves = -1;
   private cachedHiddenRevision = -1;
+  private trunkColors = new Float32Array(0);
+  private leafColors = new Float32Array(0);
+  private visibleLeafData = new Float32Array(0);
+  private visibleLeafBufferCapacity = 0;
+  private particleData = new Float32Array(0);
+  private particleBufferCapacity = 0;
   private sceneFramebuffer: WebGLFramebuffer | null = null;
   private sceneTexture: WebGLTexture | null = null;
   private renderWidth = 1;
@@ -140,6 +154,7 @@ export class PixelTreeRenderer {
     controls: TreeControls,
   ) {
     this.controls = controls;
+    this.cachePaletteColors();
     this.gl = requireValue(
       canvas.getContext("webgl2", {
         alpha: false,
@@ -237,7 +252,9 @@ export class PixelTreeRenderer {
   }
 
   setControls(controls: TreeControls) {
+    const paletteChanged = this.controls.palette !== controls.palette;
     this.controls = controls;
+    if (paletteChanged) this.cachePaletteColors();
   }
 
   resize(cssWidth: number, cssHeight: number, devicePixelRatio: number) {
@@ -295,13 +312,13 @@ export class PixelTreeRenderer {
 
     gl.useProgram(this.branchProgram);
     this.applyWindUniforms(this.branchUniforms, elapsedSeconds);
-    gl.uniform3fv(this.branchUniforms.colors, flattenColors(palette.trunks));
+    gl.uniform3fv(this.branchUniforms.colors, this.trunkColors);
     gl.bindVertexArray(this.branchVao);
     gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, this.branchCount);
 
     gl.useProgram(this.leafProgram);
     this.applyWindUniforms(this.leafUniforms, elapsedSeconds);
-    gl.uniform3fv(this.leafUniforms.colors, flattenColors(palette.leaves));
+    gl.uniform3fv(this.leafUniforms.colors, this.leafColors);
     gl.uniform1i(this.leafUniforms.attached, 2);
     gl.bindVertexArray(this.groundLeafVao);
     gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, this.groundLeafCount);
@@ -475,46 +492,71 @@ export class PixelTreeRenderer {
       return;
     }
 
-    const visibleLeaves = [];
-    for (let index = 0; index < activeLeafCount; index += 1) {
-      if (hiddenLeaves.has(index)) continue;
-      visibleLeaves.push(this.tree.leaves[index]);
+    const maximumFloats = activeLeafCount * 5;
+    if (maximumFloats > this.visibleLeafData.length) {
+      this.visibleLeafData = new Float32Array(nextBufferCapacity(maximumFloats));
     }
 
-    visibleLeaves.sort((left, right) => right.sizePixels - left.sizePixels);
-    const values: number[] = [];
-    for (const leaf of visibleLeaves) {
-      values.push(leaf.x, leaf.y, leaf.sizePixels, leaf.colorIndex, leaf.phase);
+    let offset = 0;
+    for (const layer of LEAF_DRAW_LAYERS) {
+      for (let index = 0; index < activeLeafCount; index += 1) {
+        if (hiddenLeaves.has(index)) continue;
+        const leaf = this.tree.leaves[index];
+        if (leaf.sizePixels !== layer) continue;
+        this.visibleLeafData[offset] = leaf.x;
+        this.visibleLeafData[offset + 1] = leaf.y;
+        this.visibleLeafData[offset + 2] = leaf.sizePixels;
+        this.visibleLeafData[offset + 3] = leaf.colorIndex;
+        this.visibleLeafData[offset + 4] = leaf.phase;
+        offset += 5;
+      }
     }
 
-    const data = new Float32Array(values);
-    this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.leafInstanceBuffer);
-    this.gl.bufferData(this.gl.ARRAY_BUFFER, data, this.gl.DYNAMIC_DRAW);
-    this.visibleLeafCount = data.length / 5;
+    const gl = this.gl;
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.leafInstanceBuffer);
+    if (this.visibleLeafData.length !== this.visibleLeafBufferCapacity) {
+      gl.bufferData(gl.ARRAY_BUFFER, this.visibleLeafData.byteLength, gl.DYNAMIC_DRAW);
+      this.visibleLeafBufferCapacity = this.visibleLeafData.length;
+    }
+    if (offset > 0) gl.bufferSubData(gl.ARRAY_BUFFER, 0, this.visibleLeafData, 0, offset);
+    this.visibleLeafCount = offset / 5;
     this.cachedActiveLeaves = activeLeafCount;
     this.cachedHiddenRevision = hiddenRevision;
   }
 
   private updateParticles(particles: readonly FallingLeaf[]) {
-    const layeredParticles = [...particles].sort(
-      (left, right) => right.sizePixels - left.sizePixels,
-    );
-    const data = new Float32Array(layeredParticles.length * 5);
-    layeredParticles.forEach((particle, index) => {
-      data.set(
-        [
-          particle.x,
-          particle.y,
-          particle.sizePixels,
-          particle.colorIndex,
-          particle.phase,
-        ],
-        index * 5,
-      );
-    });
-    this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.particleInstanceBuffer);
-    this.gl.bufferData(this.gl.ARRAY_BUFFER, data, this.gl.DYNAMIC_DRAW);
-    this.particleCount = particles.length;
+    const requiredFloats = particles.length * 5;
+    if (requiredFloats > this.particleData.length) {
+      this.particleData = new Float32Array(nextBufferCapacity(requiredFloats));
+    }
+
+    let offset = 0;
+    for (const layer of LEAF_DRAW_LAYERS) {
+      for (const particle of particles) {
+        if (particle.sizePixels !== layer) continue;
+        this.particleData[offset] = particle.x;
+        this.particleData[offset + 1] = particle.y;
+        this.particleData[offset + 2] = particle.sizePixels;
+        this.particleData[offset + 3] = particle.colorIndex;
+        this.particleData[offset + 4] = particle.phase;
+        offset += 5;
+      }
+    }
+
+    const gl = this.gl;
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.particleInstanceBuffer);
+    if (this.particleData.length !== this.particleBufferCapacity) {
+      gl.bufferData(gl.ARRAY_BUFFER, this.particleData.byteLength, gl.DYNAMIC_DRAW);
+      this.particleBufferCapacity = this.particleData.length;
+    }
+    if (offset > 0) gl.bufferSubData(gl.ARRAY_BUFFER, 0, this.particleData, 0, offset);
+    this.particleCount = offset / 5;
+  }
+
+  private cachePaletteColors() {
+    const palette = treePalettes[this.controls.palette];
+    this.trunkColors = flattenColors(palette.trunks);
+    this.leafColors = flattenColors(palette.leaves);
   }
 
   private applyWindUniforms(uniforms: WindUniforms, elapsedSeconds: number) {

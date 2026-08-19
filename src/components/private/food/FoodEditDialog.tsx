@@ -10,6 +10,7 @@ import {
 } from "@/lib/food/contracts";
 import { chinaDateTimeLocalToIso, toDateTimeLocalValue } from "@/lib/food/image-metadata";
 import { chineseLocationText } from "@/lib/food/locations";
+import { animatePrivateDialogClose } from "@/lib/motion";
 import type { FoodGroupViewModel, FoodLocation, FoodRating } from "@/types";
 
 interface FoodEditDialogProps {
@@ -61,9 +62,10 @@ export function FoodEditDialog({ group, onClose, onSaved }: FoodEditDialogProps)
     };
   }, []);
 
-  function requestClose() {
-    if (isSaving) return;
+  async function requestClose() {
+    if (isSaving || dialogRef.current?.dataset.closing) return;
     if (isDirty && !window.confirm("放弃尚未保存的修改吗？")) return;
+    await animatePrivateDialogClose(dialogRef.current);
     onClose();
   }
 
@@ -95,6 +97,7 @@ export function FoodEditDialog({ group, onClose, onSaved }: FoodEditDialogProps)
       const data = await response.json() as { ok?: boolean } | FoodApiErrorResponse;
       if (!response.ok || !data.ok) throw new Error(responseMessage(data));
       router.refresh();
+      await animatePrivateDialogClose(dialogRef.current);
       onSaved();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "修改失败，请稍后再试。");
@@ -109,10 +112,10 @@ export function FoodEditDialog({ group, onClose, onSaved }: FoodEditDialogProps)
       className="food-edit-dialog m-auto h-[min(92svh,47rem)] w-[min(94vw,46rem)] max-w-none overflow-hidden border-0 bg-[#f3eee6] p-0 text-[#302d29] shadow-2xl"
       onCancel={(event) => {
         event.preventDefault();
-        requestClose();
+        void requestClose();
       }}
       onClick={(event) => {
-        if (event.target === event.currentTarget) requestClose();
+        if (event.target === event.currentTarget) void requestClose();
       }}
     >
       <form onSubmit={submit} className="flex h-full min-h-0 flex-col">
@@ -121,7 +124,7 @@ export function FoodEditDialog({ group, onClose, onSaved }: FoodEditDialogProps)
             <p className="eyebrow">Edit food memory</p>
             <h2 id="food-edit-title" className="display-type mt-2 text-3xl sm:text-4xl">修改记录</h2>
           </div>
-          <button type="button" disabled={isSaving} onClick={requestClose} aria-label="关闭修改美食记录" className="grid size-11 shrink-0 place-items-center rounded-full border border-[#bcb3a8] bg-[#fffdf8] text-xl disabled:opacity-40">×</button>
+          <button type="button" disabled={isSaving} onClick={() => void requestClose()} aria-label="关闭修改美食记录" className="grid size-11 shrink-0 place-items-center rounded-full border border-[#bcb3a8] bg-[#fffdf8] text-xl disabled:opacity-40">×</button>
         </header>
 
         <div className="min-h-0 flex-1 space-y-7 overflow-y-auto px-5 py-6 sm:px-8">

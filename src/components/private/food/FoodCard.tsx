@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useCallback, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { FoodExpandedCard } from "@/components/private/food/FoodExpandedCard";
 import { foodLocationLabel, formatFoodDateTime } from "@/components/private/food/food-format";
 import type { FoodGroupViewModel, FoodImageViewModel } from "@/types";
@@ -35,6 +35,7 @@ export function FoodCard({
   const articleRef = useRef<HTMLElement | null>(null);
   const expandedContentRef = useRef<HTMLDivElement>(null);
   const pressTimerRef = useRef<number | null>(null);
+  const pressTargetRef = useRef<HTMLButtonElement | null>(null);
   const pressOriginRef = useRef({ x: 0, y: 0 });
   const [isFlipped, setIsFlipped] = useState(false);
   const [collapsedRowSpan, setCollapsedRowSpan] = useState(24);
@@ -89,11 +90,18 @@ export function FoodCard({
     return () => observer.disconnect();
   }, [displayRatio, isExpanded]);
 
+  useEffect(() => () => {
+    if (pressTimerRef.current !== null) window.clearTimeout(pressTimerRef.current);
+    pressTargetRef.current?.classList.remove("is-pressing");
+  }, []);
+
   function clearPressTimer() {
     if (pressTimerRef.current !== null) {
       window.clearTimeout(pressTimerRef.current);
       pressTimerRef.current = null;
     }
+    pressTargetRef.current?.classList.remove("is-pressing");
+    pressTargetRef.current = null;
   }
 
   function expandDetails() {
@@ -106,6 +114,8 @@ export function FoodCard({
     if (event.pointerType === "mouse" && event.button !== 0) return;
     pressOriginRef.current = { x: event.clientX, y: event.clientY };
     const trigger = event.currentTarget;
+    pressTargetRef.current = trigger;
+    trigger.classList.add("is-pressing");
     trigger.setPointerCapture(event.pointerId);
     clearPressTimer();
     pressTimerRef.current = window.setTimeout(() => {

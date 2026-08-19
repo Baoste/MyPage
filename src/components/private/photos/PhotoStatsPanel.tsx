@@ -38,7 +38,7 @@ export function PhotoStatsPanel({ statistics }: { statistics: PhotoStatistics })
     : null;
 
   return (
-    <section id="photo-statistics-region" aria-labelledby="photo-stats-title" className="food-stats-enter rounded-[1.75rem] border border-[#d4ccbf] bg-[#eee8de] px-5 py-8 shadow-[0_14px_42px_rgba(55,47,38,0.08)] sm:px-8 sm:py-10">
+    <section id="photo-statistics-region" aria-labelledby="photo-stats-title" className="rounded-[1.75rem] border border-[#d4ccbf] bg-[#eee8de] px-5 py-8 shadow-[0_14px_42px_rgba(55,47,38,0.08)] sm:px-8 sm:py-10">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="eyebrow">Our photo archive</p>
@@ -105,4 +105,3 @@ export function PhotoStatsPanel({ statistics }: { statistics: PhotoStatistics })
     </section>
   );
 }
-

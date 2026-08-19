@@ -186,6 +186,7 @@ export function ProceduralTree({ activity }: ProceduralTreeProps) {
     if (!canvas || !container) return;
     const renderCanvas = canvas;
     const renderContainer = container;
+    const motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
 
     let activeScene: PixelTreeScene | null = null;
 
@@ -200,6 +201,7 @@ export function ProceduralTree({ activity }: ProceduralTreeProps) {
         activeScene = new PixelTreeScene(renderCanvas, controlsRef.current, vitalityRef.current);
         sceneRef.current = activeScene;
         resizeScene();
+        activeScene.setReducedMotion(motionQuery.matches);
         activeScene.setVisible(!document.hidden);
         activeScene.start();
         setRenderMode("webgl");
@@ -227,18 +229,24 @@ export function ProceduralTree({ activity }: ProceduralTreeProps) {
       activeScene?.setVisible(!document.hidden);
     }
 
+    function handleMotionPreferenceChange(event: MediaQueryListEvent) {
+      activeScene?.setReducedMotion(event.matches);
+    }
+
     initializeScene();
     const resizeObserver = new ResizeObserver(resizeScene);
     resizeObserver.observe(renderContainer);
     renderCanvas.addEventListener("webglcontextlost", handleContextLost);
     renderCanvas.addEventListener("webglcontextrestored", handleContextRestored);
     document.addEventListener("visibilitychange", handleVisibilityChange);
+    motionQuery.addEventListener("change", handleMotionPreferenceChange);
 
     return () => {
       resizeObserver.disconnect();
       renderCanvas.removeEventListener("webglcontextlost", handleContextLost);
       renderCanvas.removeEventListener("webglcontextrestored", handleContextRestored);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
+      motionQuery.removeEventListener("change", handleMotionPreferenceChange);
       activeScene?.dispose();
       sceneRef.current = null;
     };

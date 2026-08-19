@@ -9,6 +9,11 @@
   --accent: #a64b2a;
   --private-paper: #f3eee6;
   --private-ink: #302d29;
+  --motion-fast: 160ms;
+  --motion-standard: 300ms;
+  --motion-layout: 420ms;
+  --motion-spring: cubic-bezier(0.22, 1, 0.36, 1);
+  --motion-exit: cubic-bezier(0.4, 0, 1, 1);
 }
 
 * {
@@ -124,8 +129,7 @@ input:focus-visible {
 }
 
 .tree-time-roll {
-  animation: tree-time-roll 360ms cubic-bezier(0.2, 0.75, 0.25, 1);
-  will-change: opacity, transform;
+  animation: tree-time-roll var(--motion-standard) var(--motion-spring);
 }
 
 .food-gallery {
@@ -153,24 +157,25 @@ input:focus-visible {
   isolation: isolate;
   overflow: hidden;
   padding: 0;
-  transition:
-    box-shadow 260ms ease,
-    transform 260ms cubic-bezier(0.22, 0.74, 0.2, 1);
+  transition: transform var(--motion-standard) var(--motion-spring);
 }
 
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .food-card-button:hover {
-    box-shadow: 0 14px 34px rgb(48 42 34 / 15%);
-    transform: translateY(-3px);
+    transform: translate3d(0, -2px, 0);
   }
+}
+
+.food-card-button.is-pressing {
+  transform: translate3d(0, 0, 0) scale(0.985);
+  transition-duration: 120ms;
 }
 
 .food-card-inner {
   border-radius: inherit;
   position: relative;
   transform-style: preserve-3d;
-  transition: transform 500ms cubic-bezier(0.22, 0.72, 0.2, 1);
-  will-change: transform;
+  transition: transform 460ms var(--motion-spring);
 }
 
 .food-card-inner.is-flipped {
@@ -179,6 +184,7 @@ input:focus-visible {
 
 .food-card-face {
   backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
   border-radius: inherit;
   inset: 0;
   overflow: hidden;
@@ -195,13 +201,13 @@ input:focus-visible {
 }
 
 .food-expanded-shell {
-  animation: food-expanded-enter 380ms cubic-bezier(0.22, 0.74, 0.2, 1);
+  animation: food-expanded-enter var(--motion-standard) var(--motion-spring);
   box-shadow: 0 24px 65px rgb(47 40 31 / 16%);
 }
 
 @keyframes food-expanded-enter {
   from {
-    opacity: 0.72;
+    opacity: 0.82;
   }
 
   to {
@@ -213,6 +219,53 @@ input:focus-visible {
 .food-upload-dialog::backdrop {
   backdrop-filter: blur(3px);
   background: rgb(26 25 22 / 62%);
+}
+
+.food-edit-dialog[open],
+.food-upload-dialog[open] {
+  animation: private-dialog-enter var(--motion-standard) var(--motion-spring);
+}
+
+.food-edit-dialog[open]::backdrop,
+.food-upload-dialog[open]::backdrop {
+  animation: private-backdrop-enter 220ms ease-out;
+}
+
+.food-edit-dialog[data-closing="true"]::backdrop,
+.food-upload-dialog[data-closing="true"]::backdrop {
+  animation: private-backdrop-exit 200ms var(--motion-exit) forwards;
+}
+
+@keyframes private-dialog-enter {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 16px, 0) scale(0.985);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes private-backdrop-enter {
+  from {
+    background-color: rgb(26 25 22 / 0%);
+  }
+
+  to {
+    background-color: rgb(26 25 22 / 62%);
+  }
+}
+
+@keyframes private-backdrop-exit {
+  from {
+    background-color: rgb(26 25 22 / 62%);
+  }
+
+  to {
+    background-color: rgb(26 25 22 / 0%);
+  }
 }
 
 .food-edit-dialog,
@@ -237,19 +290,54 @@ input:focus-visible {
   background: #ece5da;
 }
 
-.food-stats-enter {
-  animation: food-stats-enter 420ms cubic-bezier(0.2, 0.72, 0.2, 1);
+.food-stats-region {
+  display: grid;
+  grid-template-rows: 0fr;
+  visibility: hidden;
+  transition:
+    grid-template-rows var(--motion-layout) var(--motion-spring),
+    visibility 0s linear var(--motion-layout);
 }
 
-@keyframes food-stats-enter {
-  from {
-    opacity: 0;
-    transform: translateY(-12px);
-  }
+.food-stats-region.is-open {
+  grid-template-rows: 1fr;
+  visibility: visible;
+  transition:
+    grid-template-rows var(--motion-layout) var(--motion-spring),
+    visibility 0s linear 0s;
+}
 
-  to {
-    opacity: 1;
-    transform: translateY(0);
+.food-stats-clip {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.food-stats-content {
+  opacity: 0;
+  pointer-events: none;
+  transform: translate3d(0, -10px, 0);
+  transition:
+    opacity 220ms ease-out,
+    transform var(--motion-layout) var(--motion-spring);
+}
+
+.food-stats-region.is-open .food-stats-content {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translate3d(0, 0, 0);
+}
+
+.private-fab {
+  transition: transform var(--motion-fast) var(--motion-spring);
+}
+
+.private-fab:active:not(:disabled) {
+  transform: scale(0.94);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .private-fab:hover:not(:disabled) {
+    transform: translate3d(0, -2px, 0);
   }
 }
 
@@ -274,6 +362,7 @@ input:focus-visible {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     scroll-behavior: auto !important;
+    transition-delay: 0s !important;
     transition-duration: 0.01ms !important;
   }
 }

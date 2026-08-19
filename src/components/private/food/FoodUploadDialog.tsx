@@ -13,6 +13,7 @@ import type {
 } from "@/lib/food/contracts";
 import { FOOD_TIMEZONE } from "@/lib/food/contracts";
 import { chinaDateTimeLocalToIso, toDateTimeLocalValue } from "@/lib/food/image-metadata";
+import { animatePrivateDialogClose } from "@/lib/motion";
 import type { FoodLocation, FoodRating } from "@/types";
 
 type UploadPhase = "idle" | "initializing" | "uploading" | "finalizing" | "failed";
@@ -60,6 +61,11 @@ export function FoodUploadDialog({ onClose }: FoodUploadDialogProps) {
   const isBusy = phase === "initializing" || phase === "uploading" || phase === "finalizing";
   const isLocked = isBusy || draft !== null;
   const isDirty = Boolean(category || review || rating || images.length || location.cityName);
+
+  async function closeWithMotion() {
+    await animatePrivateDialogClose(dialogRef.current);
+    onClose();
+  }
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -194,7 +200,7 @@ export function FoodUploadDialog({ onClose }: FoodUploadDialogProps) {
     latestImagesRef.current.forEach((image) => URL.revokeObjectURL(image.previewUrl));
     latestImagesRef.current = [];
     router.refresh();
-    onClose();
+    await closeWithMotion();
   }
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
@@ -214,7 +220,7 @@ export function FoodUploadDialog({ onClose }: FoodUploadDialogProps) {
         : await initializeIntent();
       if (initialized.complete) {
         router.refresh();
-        onClose();
+        await closeWithMotion();
         return;
       }
 
@@ -251,7 +257,7 @@ export function FoodUploadDialog({ onClose }: FoodUploadDialogProps) {
       const initialized = await initializeIntent();
       if (initialized.complete || !initialized.draft) {
         router.refresh();
-        onClose();
+        await closeWithMotion();
         return;
       }
       const target = initialized.draft.targets.find((item) => item.clientId === clientId);
@@ -267,6 +273,7 @@ export function FoodUploadDialog({ onClose }: FoodUploadDialogProps) {
   }
 
   async function requestClose() {
+    if (dialogRef.current?.dataset.closing) return;
     if (isDirty && !window.confirm("放弃这次尚未保存的美食记录吗？")) return;
     activeRequestsRef.current.forEach((request) => request.abort());
     if (draft) {
@@ -284,7 +291,7 @@ export function FoodUploadDialog({ onClose }: FoodUploadDialogProps) {
     }
     latestImagesRef.current.forEach((image) => URL.revokeObjectURL(image.previewUrl));
     latestImagesRef.current = [];
-    onClose();
+    await closeWithMotion();
   }
 
   return (

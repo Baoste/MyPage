@@ -17,6 +17,7 @@ import {
   type PhotoUploadRequestInput,
   type PhotoUploadTarget,
 } from "@/lib/photo/contracts";
+import { animatePrivateDialogClose } from "@/lib/motion";
 import type { FoodLocation, PhotoImageMimeType } from "@/types";
 
 type UploadPhase = "idle" | "inspecting" | "initializing" | "uploading" | "finalizing" | "failed";
@@ -77,6 +78,11 @@ export function PhotoUploadDialog({ onClose }: { onClose: () => void }) {
   const isBusy = ["inspecting", "initializing", "uploading", "finalizing"].includes(phase);
   const isLocked = isBusy || draft !== null;
   const isDirty = Boolean(title || description || tagsText || selectedPhoto || location.cityName);
+
+  async function closeWithMotion() {
+    await animatePrivateDialogClose(dialogRef.current);
+    onClose();
+  }
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -219,7 +225,7 @@ export function PhotoUploadDialog({ onClose }: { onClose: () => void }) {
     if (latestPhotoRef.current) URL.revokeObjectURL(latestPhotoRef.current.previewUrl);
     latestPhotoRef.current = null;
     router.refresh();
-    onClose();
+    await closeWithMotion();
   }
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
@@ -237,7 +243,7 @@ export function PhotoUploadDialog({ onClose }: { onClose: () => void }) {
         : await initializeIntent(photo);
       if (initialized.complete) {
         router.refresh();
-        onClose();
+        await closeWithMotion();
         return;
       }
       setPhase("uploading");
@@ -251,6 +257,7 @@ export function PhotoUploadDialog({ onClose }: { onClose: () => void }) {
   }
 
   async function requestClose() {
+    if (dialogRef.current?.dataset.closing) return;
     if (isDirty && !window.confirm("放弃这张尚未保存的照片吗？")) return;
     activeRequestRef.current?.abort();
     if (draft) {
@@ -268,7 +275,7 @@ export function PhotoUploadDialog({ onClose }: { onClose: () => void }) {
     }
     if (latestPhotoRef.current) URL.revokeObjectURL(latestPhotoRef.current.previewUrl);
     latestPhotoRef.current = null;
-    onClose();
+    await closeWithMotion();
   }
 
   return (
@@ -365,4 +372,3 @@ export function PhotoUploadDialog({ onClose }: { onClose: () => void }) {
     </dialog>
   );
 }
-

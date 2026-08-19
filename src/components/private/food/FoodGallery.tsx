@@ -4,9 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { EmptyState } from "@/components/common/EmptyState";
 import { FoodCard } from "@/components/private/food/FoodCard";
+import { animatePrivateLayout } from "@/lib/motion";
 import type { FoodGroupViewModel } from "@/types";
-
-const LAYOUT_ANIMATION_MILLISECONDS = 480;
 
 export function FoodGallery({
   groups,
@@ -16,6 +15,7 @@ export function FoodGallery({
   mutationsEnabled: boolean;
 }) {
   const cardElementsRef = useRef(new Map<string, HTMLElement>());
+  const layoutAnimationsRef = useRef(new Map<HTMLElement, Animation>());
   const expandedImageIdRef = useRef<string | null>(null);
   const transitionVersionRef = useRef(0);
   const [expandedImageId, setExpandedImageId] = useState<string | null>(null);
@@ -27,58 +27,14 @@ export function FoodGallery({
   }, []);
 
   const animateLayoutTo = useCallback((nextImageId: string | null) => {
-    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const before = new Map<string, DOMRect>();
-    if (!reduceMotion) {
-      for (const [imageId, element] of cardElementsRef.current) {
-        element.getAnimations().forEach((animation) => animation.cancel());
-        before.set(imageId, element.getBoundingClientRect());
-      }
-    }
-
-    expandedImageIdRef.current = nextImageId;
-    flushSync(() => setExpandedImageId(nextImageId));
-    if (reduceMotion) return Promise.resolve();
-
-    return new Promise<void>((resolve) => window.requestAnimationFrame(() => {
-      const animations: Animation[] = [];
-      for (const [imageId, element] of cardElementsRef.current) {
-        const first = before.get(imageId);
-        if (!first) continue;
-        const last = element.getBoundingClientRect();
-        const deltaX = first.left - last.left;
-        const deltaY = first.top - last.top;
-        const scaleX = first.width / Math.max(1, last.width);
-        const scaleY = first.height / Math.max(1, last.height);
-        if (
-          Math.abs(deltaX) < 1 &&
-          Math.abs(deltaY) < 1 &&
-          Math.abs(scaleX - 1) < 0.01 &&
-          Math.abs(scaleY - 1) < 0.01
-        ) continue;
-
-        animations.push(element.animate(
-          [
-            {
-              transform: `translate(${deltaX}px, ${deltaY}px) scale(${scaleX}, ${scaleY})`,
-              transformOrigin: "top left",
-            },
-            { transform: "translate(0, 0) scale(1, 1)", transformOrigin: "top left" },
-          ],
-          {
-            duration: LAYOUT_ANIMATION_MILLISECONDS,
-            easing: "cubic-bezier(0.22, 0.74, 0.2, 1)",
-          },
-        ));
-      }
-
-      if (animations.length === 0) {
-        resolve();
-        return;
-      }
-
-      void Promise.allSettled(animations.map((animation) => animation.finished)).then(() => resolve());
-    }));
+    return animatePrivateLayout(
+      cardElementsRef.current,
+      layoutAnimationsRef.current,
+      () => {
+        expandedImageIdRef.current = nextImageId;
+        flushSync(() => setExpandedImageId(nextImageId));
+      },
+    );
   }, []);
 
   const changeExpandedCard = useCallback((nextImageId: string | null) => {
@@ -101,9 +57,11 @@ export function FoodGallery({
 
   useEffect(() => () => {
     transitionVersionRef.current += 1;
-    for (const element of cardElementsRef.current.values()) {
-      element.getAnimations().forEach((animation) => animation.cancel());
+    for (const [element, animation] of layoutAnimationsRef.current) {
+      animation.cancel();
+      element.style.willChange = "";
     }
+    layoutAnimationsRef.current.clear();
   }, []);
 
   if (groups.length === 0 || imageCount === 0) {

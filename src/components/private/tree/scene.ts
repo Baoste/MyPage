@@ -16,6 +16,7 @@ export class PixelTreeScene {
   private previousTimestamp = 0;
   private elapsedSeconds = 0;
   private isVisible = true;
+  private isReducedMotion = false;
   private isDisposed = false;
 
   constructor(
@@ -33,7 +34,7 @@ export class PixelTreeScene {
 
   resize(width: number, height: number, devicePixelRatio: number) {
     this.renderer.resize(width, height, devicePixelRatio);
-    if (this.controls.isPaused) this.renderOnce();
+    if (this.controls.isPaused || this.isReducedMotion) this.renderOnce();
   }
 
   setControls(controls: TreeControls) {
@@ -44,7 +45,7 @@ export class PixelTreeScene {
 
     if (pixelScaleChanged) this.renderer.refreshPixelScale();
 
-    if (controls.isPaused) {
+    if (controls.isPaused || this.isReducedMotion) {
       this.stop();
       this.currentDensity = getTreeDensity(controls, this.vitality);
       this.renderOnce();
@@ -55,7 +56,7 @@ export class PixelTreeScene {
 
   setVitality(vitality: number) {
     this.vitality = vitality;
-    if (this.controls.isPaused) {
+    if (this.controls.isPaused || this.isReducedMotion) {
       this.currentDensity = getTreeDensity(this.controls, vitality);
       this.renderOnce();
     }
@@ -68,7 +69,7 @@ export class PixelTreeScene {
     this.particles.reset(controls.seed);
     this.renderer.setTree(this.tree);
     this.currentDensity = getTreeDensity(controls, this.vitality);
-    if (controls.isPaused) this.renderOnce();
+    if (controls.isPaused || this.isReducedMotion) this.renderOnce();
   }
 
   setVisible(isVisible: boolean) {
@@ -77,10 +78,23 @@ export class PixelTreeScene {
     else this.stop();
   }
 
+  setReducedMotion(isReducedMotion: boolean) {
+    if (this.isReducedMotion === isReducedMotion) return;
+    this.isReducedMotion = isReducedMotion;
+    if (isReducedMotion) {
+      this.stop();
+      this.currentDensity = getTreeDensity(this.controls, this.vitality);
+      this.renderOnce();
+    } else {
+      this.start();
+    }
+  }
+
   start() {
     if (
       this.animationFrame !== null ||
       this.controls.isPaused ||
+      this.isReducedMotion ||
       !this.isVisible ||
       this.isDisposed
     ) {
