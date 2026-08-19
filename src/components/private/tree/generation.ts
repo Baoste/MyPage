@@ -362,15 +362,63 @@ export function generateTree(controls: TreeControls): TreeModel {
   if (leaves.length > 8_000) leaves.length = 8_000;
 
   const groundRandom = createSeededRandom(`${controls.seed}:ground-leaves`);
-  for (let index = 0; index < 165; index += 1) {
-    const distance = Math.pow(groundRandom(), 1.55) * 0.48;
-    const direction = groundRandom() > 0.5 ? 1 : -1;
+  const groundPileBaseY = groundY - 0.012;
+  const groundPileHalfWidth = 0.56;
+  const groundPileLayerHeight = 0.0068;
+  const baseLeafCount = 104;
+
+  // A nearly continuous bottom row makes every upper leaf read as supported by the ground.
+  for (let index = 0; index < baseLeafCount; index += 1) {
+    const progress = (index + between(groundRandom, 0.18, 0.82)) / baseLeafCount;
+    const x = (progress * 2 - 1) * groundPileHalfWidth;
+    const edgeDistance = Math.abs(x) / groundPileHalfWidth;
     const sizeRoll = groundRandom();
+    const sizePixels: TreeLeaf["sizePixels"] = edgeDistance > 0.82
+      ? sizeRoll > 0.58 ? 2 : 1
+      : sizeRoll > 0.54 ? 3 : 2;
+
     groundLeaves.push({
-      x: direction * distance + between(groundRandom, -0.025, 0.025),
-      y: groundY + between(groundRandom, -0.055, 0.035),
-      sizePixels: sizeRoll > 0.88 ? 3 : sizeRoll > 0.42 ? 2 : 1,
-      colorIndex: Math.min(5, Math.floor(groundRandom() * 6)),
+      x,
+      y: groundPileBaseY + between(groundRandom, -0.0009, 0.0009),
+      sizePixels,
+      colorIndex: Math.floor(groundRandom() * 4),
+      phase: groundRandom() * Math.PI * 2,
+    });
+  }
+
+  const groundHeaps = [
+    { center: -0.23, halfWidth: 0.18, height: 2 },
+    { center: -0.015, halfWidth: 0.24, height: 4 },
+    { center: 0.24, halfWidth: 0.17, height: 3 },
+  ] as const;
+
+  // Compact overlapping heaps add height only where a base layer already exists.
+  for (let index = baseLeafCount; index < 165; index += 1) {
+    const heapRoll = groundRandom();
+    const heap = heapRoll < 0.27
+      ? groundHeaps[0]
+      : heapRoll < 0.7
+        ? groundHeaps[1]
+        : groundHeaps[2];
+    const localX = (groundRandom() + groundRandom() - 1) * heap.halfWidth;
+    const normalizedDistance = Math.min(1, Math.abs(localX) / heap.halfWidth);
+    const maximumLayer = Math.max(
+      1,
+      Math.floor((1 - normalizedDistance ** 1.35) * heap.height),
+    );
+    const layer = 1 + Math.floor(groundRandom() ** 1.45 * maximumLayer);
+    const sizeRoll = groundRandom();
+    const sizePixels: TreeLeaf["sizePixels"] = layer >= 3
+      ? sizeRoll > 0.76 ? 2 : 1
+      : sizeRoll > 0.68 ? 3 : 2;
+
+    groundLeaves.push({
+      x: heap.center + localX,
+      y: groundPileBaseY
+        + layer * groundPileLayerHeight
+        + between(groundRandom, -0.0007, 0.0007),
+      sizePixels,
+      colorIndex: Math.min(5, Math.floor(groundRandom() * 4) + Math.min(2, layer)),
       phase: groundRandom() * Math.PI * 2,
     });
   }
