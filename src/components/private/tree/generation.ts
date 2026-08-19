@@ -94,18 +94,71 @@ export function generateTree(controls: TreeControls): TreeModel {
     branches.push({ start, end, startWidth, endWidth, colorIndex });
   }
 
-  // Wide, uneven roots keep the base from reading as a perfect procedural fork.
-  for (let rootIndex = 0; rootIndex < 9; rootIndex += 1) {
-    const direction = rootIndex % 2 === 0 ? -1 : 1;
-    const distance = between(random, 0.1, 0.31) * direction;
-    addBranch(
-      { x: between(random, -0.028, 0.028), y: groundY + between(random, 0.002, 0.025) },
-      { x: distance, y: groundY - between(random, 0.025, 0.085) },
-      between(random, 8, 15) * controls.trunkScale,
-      between(random, 1.5, 4.5) * controls.trunkScale,
-      rootIndex % 3,
-    );
+  interface RootProfile {
+    direction: -1 | 1;
+    length: number;
+    startHeight: number;
+    startWidth: number;
+    endWidth: number;
+    segments: 2 | 3;
+    colorIndex: number;
   }
+
+  const rootProfiles: RootProfile[] = [
+    { direction: -1, length: 0.275, startHeight: 0.075, startWidth: 13.5, endWidth: 1.8, segments: 3, colorIndex: 1 },
+    { direction: 1, length: 0.265, startHeight: 0.069, startWidth: 12.5, endWidth: 1.7, segments: 3, colorIndex: 1 },
+    { direction: -1, length: 0.175, startHeight: 0.037, startWidth: 7.5, endWidth: 1.25, segments: 2, colorIndex: 1 },
+    { direction: 1, length: 0.16, startHeight: 0.033, startWidth: 7, endWidth: 1.2, segments: 2, colorIndex: 1 },
+    { direction: -1, length: 0.09, startHeight: 0.019, startWidth: 5.2, endWidth: 1, segments: 2, colorIndex: 1 },
+  ];
+  const primaryRootLandings = { left: -0.28, right: 0.28 };
+
+  // Buttress roots leave the trunk high, then flatten into the ground instead of
+  // radiating downward like spokes. The trunk is drawn later and softens their starts.
+  rootProfiles.forEach((profile, rootIndex) => {
+    const length = profile.length * between(random, 0.94, 1.06);
+    const startHeight = profile.startHeight * between(random, 0.95, 1.05);
+    const terminalHeight = between(random, -0.005, 0.0025);
+    const points: TreePoint[] = [{
+      x: profile.direction * between(random, 0.006, 0.02),
+      y: groundY + startHeight,
+    }];
+
+    for (let segment = 1; segment <= profile.segments; segment += 1) {
+      const progress = segment / profile.segments;
+      const easedProgress = 1 - (1 - progress) ** 1.12;
+      const arch = Math.sin(progress * Math.PI) * startHeight * 0.03;
+      points.push({
+        x: profile.direction * length * easedProgress
+          + Math.sin(progress * Math.PI) * between(random, -0.006, 0.006),
+        y: groundY
+          + startHeight * (1 - progress) ** 1.85
+          + arch
+          + terminalHeight * progress,
+      });
+    }
+
+    const widthAt = (progress: number) => (
+      profile.endWidth
+      + (profile.startWidth - profile.endWidth) * (1 - progress) ** 1.35
+    ) * controls.trunkScale;
+
+    for (let segment = 0; segment < profile.segments; segment += 1) {
+      const endProgress = (segment + 1) / profile.segments;
+      addBranch(
+        points[segment],
+        points[segment + 1],
+        widthAt(segment / profile.segments),
+        widthAt(endProgress),
+        segment === profile.segments - 1
+          ? Math.max(0, profile.colorIndex - 1)
+          : profile.colorIndex,
+      );
+    }
+
+    if (rootIndex === 0) primaryRootLandings.left = points.at(-1)?.x ?? -0.28;
+    if (rootIndex === 1) primaryRootLandings.right = points.at(-1)?.x ?? 0.28;
+  });
 
   // Build the main trunk as a correlated random walk rather than a single split.
   const trunkSteps = controls.branchDepth + 4;
@@ -387,9 +440,17 @@ export function generateTree(controls: TreeControls): TreeModel {
   }
 
   const groundHeaps = [
-    { center: -0.23, halfWidth: 0.18, height: 2 },
+    {
+      center: clamp(primaryRootLandings.left, -0.32, -0.22),
+      halfWidth: 0.18,
+      height: 2,
+    },
     { center: -0.015, halfWidth: 0.24, height: 4 },
-    { center: 0.24, halfWidth: 0.17, height: 3 },
+    {
+      center: clamp(primaryRootLandings.right, 0.21, 0.31),
+      halfWidth: 0.17,
+      height: 3,
+    },
   ] as const;
 
   // Compact overlapping heaps add height only where a base layer already exists.
