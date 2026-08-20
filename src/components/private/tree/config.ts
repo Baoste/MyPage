@@ -37,7 +37,6 @@ export interface TreePalette {
 }
 
 export const TREE_CONTROL_STORAGE_KEY = "private-tree-controls:v2";
-export const TREE_REFRESH_STORAGE_KEY = "private-tree-refreshed-at:v1";
 
 export const defaultTreeControls: TreeControls = {
   autoActivity: true,

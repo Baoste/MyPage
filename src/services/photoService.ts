@@ -650,31 +650,54 @@ export async function getPhotoActivityStats(
 
   try {
     const client = createServerSupabaseClient();
-    let latestResult = await client
+    let latestPhotoResult = await client
       .from("photo_entries")
-      .select("created_at")
+      .select("occurred_at")
       .eq("status", "ready")
-      .order("created_at", { ascending: false })
+      .order("occurred_at", { ascending: false })
       .limit(1)
       .maybeSingle();
-    if (isMissingPhotoSchemaError(latestResult.error)) {
-      latestResult = await client
+    if (isMissingPhotoSchemaError(latestPhotoResult.error)) {
+      latestPhotoResult = await client
         .from("photo_entries")
-        .select("created_at")
-        .order("created_at", { ascending: false })
+        .select("photo_date")
+        .order("photo_date", { ascending: false })
         .limit(1)
         .maybeSingle();
     }
-    if (latestResult.error) {
-      console.error("Unable to calculate private photo activity.", {
-        latest: latestResult.error.code,
+
+    let latestFoodResult = await client
+      .from("food_entries")
+      .select("occurred_at")
+      .eq("status", "ready")
+      .order("occurred_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (isMissingPhotoSchemaError(latestFoodResult.error)) {
+      latestFoodResult = await client
+        .from("food_entries")
+        .select("food_date")
+        .order("food_date", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+    }
+
+    if (latestPhotoResult.error && latestFoodResult.error) {
+      console.error("Unable to calculate private media activity.", {
+        photo: latestPhotoResult.error.code,
+        food: latestFoodResult.error.code,
       });
       return { ...unavailablePhotoActivity };
     }
 
-    const latest = latestResult.data as { created_at?: unknown } | null;
-    const latestTimestamp = latest && typeof latest.created_at === "string"
-      ? new Date(latest.created_at)
+    const photoRow = latestPhotoResult.data as { occurred_at?: string; photo_date?: string } | null;
+    const foodRow = latestFoodResult.data as { occurred_at?: string; food_date?: string } | null;
+    const timestamps = [photoRow?.occurred_at, photoRow?.photo_date, foodRow?.occurred_at, foodRow?.food_date]
+      .filter((value): value is string => typeof value === "string")
+      .map((value) => new Date(value))
+      .filter((value) => Number.isFinite(value.getTime()));
+    const latestTimestamp = timestamps.length > 0
+      ? new Date(Math.max(...timestamps.map((value) => value.getTime())))
       : null;
     const daysSinceLastUpload = latestTimestamp && Number.isFinite(latestTimestamp.getTime())
       ? daysBetween(now, latestTimestamp)
