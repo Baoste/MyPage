@@ -110,12 +110,12 @@ export function PhotoCard({
 
   function handlePointerDown(event: React.PointerEvent<HTMLButtonElement>) {
     if (event.pointerType === "mouse" && event.button !== 0) return;
+    clearPressTimer();
     pressOriginRef.current = { x: event.clientX, y: event.clientY };
     const trigger = event.currentTarget;
     pressTargetRef.current = trigger;
     trigger.classList.add("is-pressing");
     trigger.setPointerCapture(event.pointerId);
-    clearPressTimer();
     pressTimerRef.current = window.setTimeout(() => {
       if (navigator.vibrate) navigator.vibrate(18);
       expandDetails();

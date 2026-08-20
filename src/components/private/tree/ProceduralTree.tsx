@@ -65,6 +65,7 @@ export function ProceduralTree({ activity }: ProceduralTreeProps) {
   const vitalityRef = useRef(activity.vitality);
   const [controls, setControls] = useState<TreeControls>(defaultTreeControls);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
   const [renderMode, setRenderMode] = useState<RenderMode>("loading");
   const [preferencesReady, setPreferencesReady] = useState(false);
   const [refreshStartedAt, setRefreshStartedAt] = useState<number | null>(null);
@@ -154,13 +155,15 @@ export function ProceduralTree({ activity }: ProceduralTreeProps) {
       window.localStorage.removeItem(TREE_CONTROL_STORAGE_KEY);
     }
 
-    if (!hasSavedPreferences && window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (!hasSavedPreferences && reduceMotion) {
       nextControls.isPaused = true;
     }
 
     const frame = window.requestAnimationFrame(() => {
       controlsRef.current = nextControls;
       setControls(nextControls);
+      setPrefersReducedMotion(reduceMotion);
       setPreferencesReady(true);
     });
     return () => window.cancelAnimationFrame(frame);
@@ -230,6 +233,7 @@ export function ProceduralTree({ activity }: ProceduralTreeProps) {
     }
 
     function handleMotionPreferenceChange(event: MediaQueryListEvent) {
+      setPrefersReducedMotion(event.matches);
       activeScene?.setReducedMotion(event.matches);
     }
 
@@ -308,6 +312,29 @@ export function ProceduralTree({ activity }: ProceduralTreeProps) {
         onReset={resetControls}
         onRandomize={() => changeControls({ seed: randomSeed() })}
       />
+
+      {renderMode === "webgl" ? (
+        <button
+          type="button"
+          aria-pressed={controls.isPaused || prefersReducedMotion}
+          aria-label={prefersReducedMotion
+            ? "动画已按系统的减弱动态效果设置暂停"
+            : controls.isPaused
+              ? "继续像素树动画"
+              : "暂停像素树动画"}
+          title={prefersReducedMotion ? "系统已启用减弱动态效果" : undefined}
+          disabled={prefersReducedMotion}
+          onClick={() => changeControls({ isPaused: !controls.isPaused })}
+          className="absolute right-4 top-4 z-20 flex min-h-11 items-center gap-2 border border-white/20 bg-[#111713d9] px-3 text-[0.68rem] font-semibold uppercase tracking-[0.1em] text-[#ecebdd] shadow-[0_10px_36px_#05080752] backdrop-blur-sm transition-transform duration-100 hover:border-white/35 hover:bg-[#182019e8] active:scale-[0.97] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#dbe6b3] disabled:cursor-default disabled:text-[#a8ad9f] md:right-6 md:top-6"
+        >
+          <span aria-hidden="true" className="grid size-4 place-items-center font-mono text-[#aabf72]">
+            {controls.isPaused || prefersReducedMotion ? "▶" : "Ⅱ"}
+          </span>
+          <span>
+            {prefersReducedMotion ? "减弱动态" : controls.isPaused ? "继续动画" : "暂停动画"}
+          </span>
+        </button>
+      ) : null}
 
       <TreeElapsedTimer />
 

@@ -290,41 +290,33 @@ input:focus-visible {
   background: #ece5da;
 }
 
+@keyframes private-stats-enter {
+  from {
+    opacity: 0;
+    transform: translate3d(0, -10px, 0);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
 .food-stats-region {
-  display: grid;
-  grid-template-rows: 0fr;
-  visibility: hidden;
-  transition:
-    grid-template-rows var(--motion-layout) var(--motion-spring),
-    visibility 0s linear var(--motion-layout);
+  display: none;
 }
 
 .food-stats-region.is-open {
-  grid-template-rows: 1fr;
-  visibility: visible;
-  transition:
-    grid-template-rows var(--motion-layout) var(--motion-spring),
-    visibility 0s linear 0s;
+  display: block;
 }
 
 .food-stats-clip {
-  min-height: 0;
   overflow: hidden;
 }
 
-.food-stats-content {
-  opacity: 0;
-  pointer-events: none;
-  transform: translate3d(0, -10px, 0);
-  transition:
-    opacity 220ms ease-out,
-    transform var(--motion-layout) var(--motion-spring);
-}
-
 .food-stats-region.is-open .food-stats-content {
-  opacity: 1;
-  pointer-events: auto;
-  transform: translate3d(0, 0, 0);
+  animation: private-stats-enter var(--motion-standard) var(--motion-spring);
+  transform-origin: top center;
 }
 
 .private-fab {

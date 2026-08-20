@@ -31,7 +31,7 @@ export function FoodExperience({
     if (next) {
       window.requestAnimationFrame(() => {
         statsRef.current?.scrollIntoView({
-          behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+          behavior: "auto",
           block: "start",
         });
       });
