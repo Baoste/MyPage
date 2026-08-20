@@ -327,10 +327,10 @@ export function FoodUploadDialog({ onClose }: FoodUploadDialogProps) {
           <button type="button" disabled={isBusy} onClick={() => void requestClose()} aria-label="关闭新增美食记录" className="grid size-11 shrink-0 place-items-center rounded-full border border-[#bcb3a8] bg-[#fffdf8] text-xl disabled:opacity-40">×</button>
         </header>
 
-        <div className="min-h-0 flex-1 space-y-7 overflow-y-auto px-5 py-6 sm:px-8">
+        <div className="food-upload-scroll min-h-0 flex-1 space-y-7 overflow-y-auto overscroll-contain px-5 py-6 sm:px-8">
           <FoodImagePicker images={images} disabled={isLocked} onChange={changeImages} onError={setMessage} onRetry={(id) => void retryImage(id)} />
 
-          <div className="grid gap-5 sm:grid-cols-[1fr_auto]">
+          <div className="grid gap-5 sm:grid-cols-[minmax(0,1fr)_auto]">
             <label className="block text-xs font-semibold text-[#5d554e]">
               分类
               <input value={category} onChange={(event) => setCategory(event.target.value)} disabled={isLocked} required maxLength={40} placeholder="例如：火锅、甜品、家常菜" className="mt-2 w-full rounded-xl border border-[#bdb3a7] bg-[#fbf8f2] px-3 py-2.5 text-sm font-normal text-[#302d29]" />

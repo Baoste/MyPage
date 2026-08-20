@@ -85,7 +85,7 @@ export function FoodImagePicker({
   }
 
   return (
-    <fieldset aria-disabled={disabled || isInspecting} className="min-w-0">
+    <fieldset aria-disabled={disabled || isInspecting} className="min-h-0 min-w-0">
       <div className="flex items-end justify-between gap-4">
         <div>
           <legend className="text-sm font-semibold text-[#39342f]">图片</legend>
@@ -106,7 +106,7 @@ export function FoodImagePicker({
       </div>
 
       {images.length > 0 ? (
-        <ol className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <ol className="mt-4 grid min-w-0 grid-cols-2 gap-3 sm:grid-cols-3">
           {images.map((image, index) => (
             <li key={image.clientId} className="min-w-0 rounded-2xl border border-[#d0c7bb] bg-[#f7f3ec] p-2">
               <div className="relative aspect-square overflow-hidden rounded-xl bg-[#ddd7ca]">

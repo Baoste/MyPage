@@ -1,10 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { EmptyState } from "@/components/common/EmptyState";
 import { FoodCard } from "@/components/private/food/FoodCard";
 import { FoodExpandedCard } from "@/components/private/food/FoodExpandedCard";
 import type { FoodGroupViewModel } from "@/types";
+
+const INITIAL_VISIBLE_IMAGES = 12;
+const IMAGES_PER_BATCH = 12;
 
 export function FoodGallery({
   groups,
@@ -14,10 +17,29 @@ export function FoodGallery({
   mutationsEnabled: boolean;
 }) {
   const [expandedImageId, setExpandedImageId] = useState<string | null>(null);
-  const imageCount = groups.reduce((total, group) => total + group.images.length, 0);
-  const expandedImage = groups
-    .flatMap((group) => group.images.map((image, imageIndex) => ({ group, image, imageIndex })))
-    .find(({ image }) => image.id === expandedImageId) ?? null;
+  const [visibleImageCount, setVisibleImageCount] = useState(INITIAL_VISIBLE_IMAGES);
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
+  const imageEntries = useMemo(
+    () => groups.flatMap((group) => group.images.map((image, imageIndex) => ({ group, image, imageIndex }))),
+    [groups],
+  );
+  const visibleEntries = imageEntries.slice(0, visibleImageCount);
+  const hasMore = visibleEntries.length < imageEntries.length;
+  const expandedImage = visibleEntries.find(({ image }) => image.id === expandedImageId) ?? null;
+
+  const loadMore = useCallback(() => {
+    setVisibleImageCount((current) => Math.min(current + IMAGES_PER_BATCH, imageEntries.length));
+  }, [imageEntries.length]);
+
+  useEffect(() => {
+    const sentinel = loadMoreRef.current;
+    if (!sentinel || !hasMore) return;
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) loadMore();
+    }, { rootMargin: "480px 0px" });
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasMore, loadMore]);
 
   useEffect(() => {
     if (!expandedImageId) return;
@@ -33,7 +55,7 @@ export function FoodGallery({
     };
   }, [expandedImageId]);
 
-  if (groups.length === 0 || imageCount === 0) {
+  if (imageEntries.length === 0) {
     return (
       <EmptyState
         title="还没有美食记录"
@@ -45,7 +67,7 @@ export function FoodGallery({
   return (
     <>
       <div className="food-gallery grid grid-cols-1 min-[360px]:grid-cols-2 md:grid-cols-3 xl:grid-cols-4">
-        {groups.flatMap((group) => group.images.map((image, imageIndex) => (
+        {visibleEntries.map(({ group, image, imageIndex }) => (
           <FoodCard
             key={image.id}
             group={group}
@@ -55,7 +77,13 @@ export function FoodGallery({
             onExpand={() => setExpandedImageId(image.id)}
             onElementChange={() => undefined}
           />
-        )))}
+        ))}
+      </div>
+
+      <div ref={loadMoreRef} className="flex min-h-16 items-center justify-center pt-8" aria-live="polite">
+        {hasMore ? (
+          <span className="food-gallery-loading text-xs text-[#81786e]">Loading more...</span>
+        ) : null}
       </div>
 
       {expandedImage ? (

@@ -304,6 +304,11 @@ input:focus-visible {
   border-radius: 1.75rem;
 }
 
+.food-upload-scroll {
+  overflow-anchor: none;
+  scrollbar-gutter: stable;
+}
+
 .food-edit-dialog input,
 .food-edit-dialog textarea,
 .food-upload-dialog input,
