@@ -303,11 +303,23 @@ input:focus-visible {
 }
 
 .food-stats-region {
-  display: none;
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  pointer-events: none;
+  transform: translate3d(0, -0.75rem, 0);
+  transition:
+    max-height var(--motion-layout) var(--motion-spring),
+    opacity var(--motion-standard) var(--motion-spring),
+    transform var(--motion-standard) var(--motion-spring);
+  will-change: max-height, opacity, transform;
 }
 
 .food-stats-region.is-open {
-  display: block;
+  max-height: 140rem;
+  opacity: 1;
+  pointer-events: auto;
+  transform: translate3d(0, 0, 0);
 }
 
 .food-stats-clip {

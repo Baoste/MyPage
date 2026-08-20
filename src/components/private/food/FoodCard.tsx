@@ -36,6 +36,7 @@ export function FoodCard({
   const expandedContentRef = useRef<HTMLDivElement>(null);
   const pressTimerRef = useRef<number | null>(null);
   const pressTargetRef = useRef<HTMLButtonElement | null>(null);
+  const suppressNextClickRef = useRef(false);
   const pressOriginRef = useRef({ x: 0, y: 0 });
   const [isFlipped, setIsFlipped] = useState(false);
   const [collapsedRowSpan, setCollapsedRowSpan] = useState(24);
@@ -113,6 +114,7 @@ export function FoodCard({
   function handlePointerDown(event: React.PointerEvent<HTMLButtonElement>) {
     if (event.pointerType === "mouse" && event.button !== 0) return;
     clearPressTimer();
+    suppressNextClickRef.current = false;
     pressOriginRef.current = { x: event.clientX, y: event.clientY };
     const trigger = event.currentTarget;
     pressTargetRef.current = trigger;
@@ -120,6 +122,7 @@ export function FoodCard({
     trigger.setPointerCapture(event.pointerId);
     pressTimerRef.current = window.setTimeout(() => {
       if (navigator.vibrate) navigator.vibrate(18);
+      suppressNextClickRef.current = true;
       expandDetails();
     }, LONG_PRESS_MILLISECONDS);
   }
@@ -133,6 +136,11 @@ export function FoodCard({
   }
 
   function handleClick() {
+    if (suppressNextClickRef.current) {
+      suppressNextClickRef.current = false;
+      clearPressTimer();
+      return;
+    }
     clearPressTimer();
     if (hasImageError) {
       void refreshImage();

@@ -39,6 +39,7 @@ export function PhotoExperience({
   return (
     <div className="pb-28">
       <div
+        id="photo-statistics-region"
         ref={statsRef}
         aria-hidden={!statsOpen}
         className={`food-stats-region scroll-mt-28 ${statsOpen ? "is-open" : ""}`}

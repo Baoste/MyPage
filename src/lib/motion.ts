@@ -115,7 +115,16 @@ export function animatePrivateDialogClose(dialog: HTMLDialogElement | null) {
       fill: "forwards",
     },
   );
-  const completion = animation.finished.catch(() => undefined).then(() => undefined);
+  const completion = animation.finished
+    .catch(() => undefined)
+    .then(() => {
+      if (dialog.dataset.closing === "true") {
+        delete dialog.dataset.closing;
+      }
+      if (closingDialogs.get(dialog) === completion) {
+        closingDialogs.delete(dialog);
+      }
+    });
   closingDialogs.set(dialog, completion);
   return completion;
 }

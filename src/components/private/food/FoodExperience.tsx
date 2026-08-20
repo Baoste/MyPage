@@ -41,6 +41,7 @@ export function FoodExperience({
   return (
     <div className="pb-28">
       <div
+        id="food-statistics-region"
         ref={statsRef}
         aria-hidden={!statsOpen}
         className={`food-stats-region scroll-mt-28 ${statsOpen ? "is-open" : ""}`}
