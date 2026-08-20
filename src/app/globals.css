@@ -302,11 +302,20 @@ input:focus-visible {
 .food-edit-dialog,
 .food-upload-dialog {
   border-radius: 1.75rem;
+  display: flex;
+  flex-direction: column;
 }
 
 .food-upload-scroll {
   overflow-anchor: none;
   scrollbar-gutter: stable;
+}
+
+.food-edit-dialog > form,
+.food-upload-dialog > form {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .food-edit-dialog input,
@@ -319,11 +328,13 @@ input:focus-visible {
 .food-edit-dialog header,
 .food-upload-dialog header {
   background: #f7f3ec;
+  flex-shrink: 0;
 }
 
 .food-edit-dialog footer,
 .food-upload-dialog footer {
   background: #ece5da;
+  flex-shrink: 0;
 }
 
 @keyframes private-stats-enter {
