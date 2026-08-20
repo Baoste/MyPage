@@ -39,6 +39,8 @@ export interface PhotoUploadTarget {
   photoId: string;
   storagePath: string;
   uploadUrl: string;
+  thumbnailStoragePath: string;
+  thumbnailUploadUrl: string;
 }
 
 export interface PhotoUploadIntentResponse {
@@ -225,4 +227,3 @@ export function photoDateInTimezone(occurredAt: string, timezone: string) {
     parts.find((part) => part.type === type)?.value ?? "";
   return `${value("year")}-${value("month")}-${value("day")}`;
 }
-

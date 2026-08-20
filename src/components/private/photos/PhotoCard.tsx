@@ -2,7 +2,6 @@
 
 import Image from "next/image";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { PhotoExpandedCard } from "@/components/private/photos/PhotoExpandedCard";
 import {
   formatPhotoDateTime,
   formatPhotoShortDate,
@@ -18,35 +17,29 @@ const FALLBACK_CARD_GAP = 18;
 interface PhotoCardProps {
   photo: PhotoViewModel;
   isExpanded: boolean;
-  mutationsEnabled: boolean;
   onExpand: () => void;
-  onCollapse: () => void;
   onElementChange: (photoId: string, element: HTMLElement | null) => void;
 }
 
 export function PhotoCard({
   photo,
   isExpanded,
-  mutationsEnabled,
   onExpand,
-  onCollapse,
   onElementChange,
 }: PhotoCardProps) {
   const articleRef = useRef<HTMLElement | null>(null);
-  const expandedContentRef = useRef<HTMLDivElement>(null);
   const pressTimerRef = useRef<number | null>(null);
   const pressTargetRef = useRef<HTMLButtonElement | null>(null);
   const suppressNextClickRef = useRef(false);
   const pressOriginRef = useRef({ x: 0, y: 0 });
   const [isFlipped, setIsFlipped] = useState(false);
   const [collapsedRowSpan, setCollapsedRowSpan] = useState(24);
-  const [expandedRowSpan, setExpandedRowSpan] = useState(64);
   const [dimensions, setDimensions] = useState(() => ({
     width: Math.max(1, photo.width),
     height: Math.max(1, photo.height),
   }));
-  const [imageUrl, setImageUrl] = useState(photo.imageUrl);
-  const [hasImageError, setHasImageError] = useState(!photo.imageUrl);
+  const [imageUrl, setImageUrl] = useState(photo.thumbnailUrl || photo.imageUrl);
+  const [hasImageError, setHasImageError] = useState(!(photo.thumbnailUrl || photo.imageUrl));
   const [isRefreshing, setIsRefreshing] = useState(false);
   const displayRatio = dimensions.height / dimensions.width;
 
@@ -72,22 +65,18 @@ export function PhotoCard({
       const cardGap = Number.isFinite(parsedCardGap) && parsedCardGap >= 0
         ? parsedCardGap
         : FALLBACK_CARD_GAP;
-      const targetHeight = isExpanded
-        ? expandedContentRef.current?.getBoundingClientRect().height ?? article.scrollHeight
-        : article.getBoundingClientRect().width * displayRatio;
+      const targetHeight = article.getBoundingClientRect().width * displayRatio;
       const nextRowSpan = Math.max(
         1,
         Math.ceil((targetHeight + cardGap + rowGap) / (rowHeight + rowGap)),
       );
-      if (isExpanded) setExpandedRowSpan(nextRowSpan);
-      else setCollapsedRowSpan(nextRowSpan);
+      setCollapsedRowSpan(nextRowSpan);
     };
     update();
     const observer = new ResizeObserver(update);
     observer.observe(article);
-    if (expandedContentRef.current) observer.observe(expandedContentRef.current);
     return () => observer.disconnect();
-  }, [displayRatio, isExpanded]);
+  }, [displayRatio]);
 
   useEffect(() => () => {
     if (pressTimerRef.current !== null) window.clearTimeout(pressTimerRef.current);
@@ -147,15 +136,6 @@ export function PhotoCard({
     setIsFlipped((current) => !current);
   }
 
-  function collapseDetails() {
-    onCollapse();
-    window.requestAnimationFrame(() => {
-      articleRef.current
-        ?.querySelector<HTMLButtonElement>(".photo-card-button")
-        ?.focus({ preventScroll: true });
-    });
-  }
-
   async function refreshImage() {
     if (isRefreshing) return;
     setIsRefreshing(true);
@@ -174,24 +154,6 @@ export function PhotoCard({
     }
   }
 
-  if (isExpanded) {
-    return (
-      <article
-        ref={setArticleRef}
-        className="photo-card food-card food-card-expanded relative col-span-full min-w-0 md:col-span-2"
-        style={{ gridRowEnd: `span ${expandedRowSpan}` }}
-      >
-        <div ref={expandedContentRef}>
-          <PhotoExpandedCard
-            photo={{ ...photo, imageUrl }}
-            mutationsEnabled={mutationsEnabled}
-            onClose={collapseDetails}
-          />
-        </div>
-      </article>
-    );
-  }
-
   return (
     <article
       ref={setArticleRef}
@@ -206,7 +168,7 @@ export function PhotoCard({
           type="button"
           aria-label={`${photo.title ?? "无题照片"}；点击翻转，长按展开详情`}
           aria-pressed={isFlipped}
-          aria-expanded="false"
+          aria-expanded={isExpanded}
           className="photo-card-button food-card-button absolute inset-0 block h-full w-full touch-pan-y text-left"
           onClick={handleClick}
           onPointerDown={handlePointerDown}

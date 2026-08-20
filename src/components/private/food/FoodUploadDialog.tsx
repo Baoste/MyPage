@@ -101,41 +101,41 @@ export function FoodUploadDialog({ onClose }: FoodUploadDialogProps) {
     setImages(nextImages);
   }
 
-  function uploadFile(image: SelectedFoodUploadImage, target: FoodUploadTarget) {
+  function uploadFile(clientId: string, file: File, uploadUrl: string, contentType: string) {
     return new Promise<void>((resolve, reject) => {
       const request = new XMLHttpRequest();
       activeRequestsRef.current.add(request);
-      updateImage(image.clientId, { status: "uploading", progress: 1, error: undefined });
-      request.open("PUT", target.uploadUrl);
-      request.setRequestHeader("Content-Type", image.mimeType);
+      updateImage(clientId, { status: "uploading", progress: 1, error: undefined });
+      request.open("PUT", uploadUrl);
+      request.setRequestHeader("Content-Type", contentType);
       request.upload.onprogress = (event) => {
         if (!event.lengthComputable) return;
-        updateImage(image.clientId, {
+        updateImage(clientId, {
           progress: Math.min(99, Math.max(1, Math.round((event.loaded / event.total) * 100))),
         });
       };
       request.onload = () => {
         activeRequestsRef.current.delete(request);
         if (request.status >= 200 && request.status < 300) {
-          updateImage(image.clientId, { status: "uploaded", progress: 100, error: undefined });
+          updateImage(clientId, { status: "uploaded", progress: 100, error: undefined });
           resolve();
         } else {
           const error = `上传失败（${request.status || "网络错误"}）`;
-          updateImage(image.clientId, { status: "error", progress: 0, error });
+          updateImage(clientId, { status: "error", progress: 0, error });
           reject(new Error(error));
         }
       };
       request.onerror = () => {
         activeRequestsRef.current.delete(request);
-        updateImage(image.clientId, { status: "error", progress: 0, error: "网络连接失败" });
+        updateImage(clientId, { status: "error", progress: 0, error: "网络连接失败" });
         reject(new Error("网络连接失败"));
       };
       request.onabort = () => {
         activeRequestsRef.current.delete(request);
-        updateImage(image.clientId, { status: "error", progress: 0, error: "上传已取消" });
+        updateImage(clientId, { status: "error", progress: 0, error: "上传已取消" });
         reject(new Error("上传已取消"));
       };
-      request.send(image.file);
+      request.send(file);
     });
   }
 
@@ -233,7 +233,14 @@ export function FoodUploadDialog({ onClose }: FoodUploadDialogProps) {
         const batch = pending.slice(index, index + 3);
         results.push(...await Promise.allSettled(batch.map((image) => {
           const target = targets.get(image.clientId);
-          return target ? uploadFile(image, target) : Promise.reject(new Error("缺少图片上传地址"));
+          if (!target) return Promise.reject(new Error("缺少图片上传地址"));
+          return (async () => {
+            updateImage(image.clientId, { status: "uploading", progress: 1, error: undefined });
+            await uploadFile(image.clientId, image.file, target.uploadUrl, image.mimeType);
+            if (!image.thumbnailFile) throw new Error("无法生成缩略图。");
+            await uploadFile(image.clientId, image.thumbnailFile, target.thumbnailUploadUrl, image.thumbnailFile.type);
+            updateImage(image.clientId, { status: "uploaded", progress: 100, error: undefined });
+          })();
         })));
       }
       if (results.some((result) => result.status === "rejected")) {
@@ -263,7 +270,11 @@ export function FoodUploadDialog({ onClose }: FoodUploadDialogProps) {
       const target = initialized.draft.targets.find((item) => item.clientId === clientId);
       if (!target) throw new Error("缺少图片上传地址。");
       setPhase("uploading");
-      await uploadFile(image, target);
+      updateImage(image.clientId, { status: "uploading", progress: 1, error: undefined });
+      await uploadFile(image.clientId, image.file, target.uploadUrl, image.mimeType);
+      if (!image.thumbnailFile) throw new Error("无法生成缩略图。");
+      await uploadFile(image.clientId, image.thumbnailFile, target.thumbnailUploadUrl, image.thumbnailFile.type);
+      updateImage(image.clientId, { status: "uploaded", progress: 100, error: undefined });
       setPhase("failed");
       setMessage("这张图片已上传。点击“完成保存”继续。 ");
     } catch (error) {

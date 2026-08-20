@@ -5,6 +5,7 @@ export type FoodUploadImageStatus = "ready" | "uploading" | "uploaded" | "error"
 export interface SelectedFoodUploadImage {
   clientId: string;
   file: File;
+  thumbnailFile: File | null;
   previewUrl: string;
   width: number;
   height: number;

@@ -14,9 +14,10 @@ import {
   deleteLocalPhotoFiles,
   getLocalPhotoFileInfo,
   isLocalPhotoStoragePath,
+  photoThumbnailStoragePath,
   readLocalPhotoFile,
   readLocalPhotoFileHeader,
-  writeLocalPhotoFile,
+  writeLocalPhotoFiles,
 } from "@/lib/photo/local-storage";
 import { calculatePhotoStatistics } from "@/lib/photo/statistics";
 import { isServerSupabaseConfigured } from "@/lib/supabase/config";
@@ -165,12 +166,24 @@ async function photoImageUrl(photoId: string, storagePath: string) {
     : getPrivateSignedUrl(storagePath);
 }
 
+async function photoThumbnailUrl(photoId: string, storagePath: string) {
+  if (!isLocalPhotoStoragePath(storagePath)) return getPrivateSignedUrl(storagePath);
+  const thumbnailPath = photoThumbnailStoragePath(storagePath);
+  return (await getLocalPhotoFileInfo(thumbnailPath))
+    ? `/api/private/photos/images/${encodeURIComponent(photoId)}/file?variant=thumbnail`
+    : `/api/private/photos/images/${encodeURIComponent(photoId)}/file`;
+}
+
 async function toViewModel(photo: PhotoEntry): Promise<PhotoViewModel> {
   try {
-    return { ...photo, imageUrl: await photoImageUrl(photo.id, photo.storagePath) };
+    return {
+      ...photo,
+      imageUrl: await photoImageUrl(photo.id, photo.storagePath),
+      thumbnailUrl: await photoThumbnailUrl(photo.id, photo.storagePath),
+    };
   } catch (error) {
     console.error("Unable to sign one photo.", { photoId: photo.id, error });
-    return { ...photo, imageUrl: "" };
+    return { ...photo, imageUrl: "", thumbnailUrl: "" };
   }
 }
 
@@ -235,8 +248,11 @@ async function selectPhoto(photoId: string, requestId?: string) {
 }
 
 async function deletePhotoMedia(storagePath: string) {
-  if (isLocalPhotoStoragePath(storagePath)) await deleteLocalPhotoFiles([storagePath]);
-  else await deletePrivateAssets([storagePath]);
+  if (isLocalPhotoStoragePath(storagePath)) {
+    await deleteLocalPhotoFiles([storagePath, photoThumbnailStoragePath(storagePath)]);
+  } else {
+    await deletePrivateAssets([storagePath]);
+  }
 }
 
 async function removeDraft(photo: PhotoEntryRow) {
@@ -282,6 +298,8 @@ function uploadTarget(input: PhotoUploadRequestInput, photo: PhotoEntryRow) {
     photoId: photo.id,
     storagePath: photo.storage_path,
     uploadUrl: `/api/private/photos/uploads/${encodeURIComponent(photo.id)}?requestId=${encodeURIComponent(input.requestId)}`,
+    thumbnailStoragePath: photoThumbnailStoragePath(photo.storage_path),
+    thumbnailUploadUrl: `/api/private/photos/uploads/${encodeURIComponent(photo.id)}?requestId=${encodeURIComponent(input.requestId)}&variant=thumbnail`,
   };
 }
 
@@ -385,6 +403,7 @@ export async function uploadPhotoImage(
   requestId: string,
   bytes: Uint8Array,
   contentType: string,
+  variant: "original" | "thumbnail" = "original",
 ) {
   await requirePrivateSession();
   assertConfigured();
@@ -397,9 +416,27 @@ export async function uploadPhotoImage(
   if (contentType !== photo.mime_type) {
     throw new PhotoServiceError("图片格式与选择时不一致。", 422);
   }
-  assertPhotoContents(photo, bytes);
+  if (variant === "original") {
+    assertPhotoContents(photo, bytes);
+  } else {
+    const dimensions = imageDimensionsFromBytes(bytes, photo.mime_type);
+    if (
+      !dimensions
+      || dimensions.width <= 0
+      || dimensions.height <= 0
+      || dimensions.width > photo.width
+      || dimensions.height > photo.height
+    ) {
+      throw new PhotoServiceError("缩略图不符合要求。", 422);
+    }
+  }
   try {
-    await writeLocalPhotoFile(photo.storage_path, bytes);
+    await writeLocalPhotoFiles(
+      variant === "original"
+        ? [photo.storage_path]
+        : [photoThumbnailStoragePath(photo.storage_path)],
+      bytes,
+    );
   } catch (error) {
     console.error("Unable to write a local photo.", { photoId, error });
     throw new PhotoServiceError("无法写入本地图片目录，请检查 PHOTO_STORAGE_ROOT。", 500);
@@ -422,7 +459,23 @@ export async function completePhotoUpload(photoId: string, requestId: string) {
     }
     const bytes = await readLocalPhotoFileHeader(photo.storage_path, MAXIMUM_IMAGE_HEADER_BYTES);
     if (!bytes) throw new PhotoServiceError("无法读取已上传图片。", 422);
+    const thumbnailPath = photoThumbnailStoragePath(photo.storage_path);
+    const thumbnailInfo = await getLocalPhotoFileInfo(thumbnailPath);
+    if (!thumbnailInfo) {
+      throw new PhotoServiceError("缩略图不存在或已上传失败。", 422);
+    }
     assertPhotoContents(photo, bytes, info.size);
+    const thumbnailBytes = await readLocalPhotoFileHeader(thumbnailPath, MAXIMUM_IMAGE_HEADER_BYTES);
+    if (!thumbnailBytes) throw new PhotoServiceError("无法读取缩略图。", 422);
+    const thumbnailDimensions = imageDimensionsFromBytes(thumbnailBytes, photo.mime_type);
+    if (
+      !thumbnailDimensions
+      || thumbnailDimensions.width > photo.width
+      || thumbnailDimensions.height > photo.height
+      || thumbnailInfo.size > info.size
+    ) {
+      throw new PhotoServiceError("缩略图不符合要求。", 422);
+    }
   } catch (error) {
     try {
       await removeDraft(photo);
@@ -532,7 +585,10 @@ export async function deletePhoto(photoId: string) {
   }
 }
 
-export async function readPhotoImageFile(photoId: string) {
+export async function readPhotoImageFile(
+  photoId: string,
+  variant: "original" | "thumbnail" = "original",
+) {
   await requirePrivateSession();
   assertConfigured();
   assertUuid(photoId, "照片标识");
@@ -549,12 +605,15 @@ export async function readPhotoImageFile(photoId: string) {
   if (!isLocalPhotoStoragePath(photo.storage_path)) {
     throw new PhotoServiceError("这张照片不属于本地文件。", 404);
   }
-  const info = await getLocalPhotoFileInfo(photo.storage_path);
+  const storagePath = variant === "thumbnail"
+    ? photoThumbnailStoragePath(photo.storage_path)
+    : photo.storage_path;
+  const info = await getLocalPhotoFileInfo(storagePath);
   if (!info) throw new PhotoServiceError("本地图片不存在。", 404);
-  if (info.size !== photo.byte_size) {
+  if (variant === "original" && info.size !== photo.byte_size) {
     throw new PhotoServiceError("本地图片大小与数据库记录不一致。", 409);
   }
-  return { bytes: await readLocalPhotoFile(photo.storage_path), mimeType: photo.mime_type };
+  return { bytes: await readLocalPhotoFile(storagePath), mimeType: photo.mime_type };
 }
 
 export async function refreshPhotoImageUrl(photoId: string) {
@@ -576,11 +635,11 @@ export async function refreshPhotoImageUrl(photoId: string) {
       .maybeSingle();
     if (legacy.error) throw new PhotoServiceError("无法刷新图片地址。", 500);
     if (!legacy.data) throw new PhotoServiceError("照片不存在。", 404);
-    return photoImageUrl(photoId, (legacy.data as { storage_path: string }).storage_path);
+    return photoThumbnailUrl(photoId, (legacy.data as { storage_path: string }).storage_path);
   }
   if (error) throw new PhotoServiceError("无法刷新图片地址。", 500);
   if (!data) throw new PhotoServiceError("照片不存在。", 404);
-  return photoImageUrl(photoId, (data as { storage_path: string }).storage_path);
+  return photoThumbnailUrl(photoId, (data as { storage_path: string }).storage_path);
 }
 
 export async function getPhotoActivityStats(

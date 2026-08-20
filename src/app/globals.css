@@ -205,6 +205,15 @@ input:focus-visible {
   box-shadow: 0 24px 65px rgb(47 40 31 / 16%);
 }
 
+.private-media-overlay {
+  animation: private-media-overlay-enter var(--motion-standard) var(--motion-spring);
+}
+
+.private-media-panel {
+  animation: private-media-panel-enter var(--motion-standard) var(--motion-spring);
+  will-change: transform, opacity;
+}
+
 @keyframes food-expanded-enter {
   from {
     opacity: 0.82;
@@ -212,6 +221,28 @@ input:focus-visible {
 
   to {
     opacity: 1;
+  }
+}
+
+@keyframes private-media-overlay-enter {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes private-media-panel-enter {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 16px, 0) scale(0.985);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
   }
 }
 

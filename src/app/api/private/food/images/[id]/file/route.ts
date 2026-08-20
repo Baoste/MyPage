@@ -11,9 +11,12 @@ export async function GET(
 ) {
   if (!(await getPrivateSession())) return foodApiError("请重新登录后再试。", 401);
   const { id } = await context.params;
+  const variant = request.nextUrl.searchParams.get("variant") === "thumbnail"
+    ? "thumbnail"
+    : "original";
   try {
-    const image = await readFoodImageFile(id);
-    const etag = `"food-${id}"`;
+    const image = await readFoodImageFile(id, variant);
+    const etag = `"food-${id}-${variant}"`;
     if (request.headers.get("if-none-match") === etag) {
       return new NextResponse(null, {
         status: 304,

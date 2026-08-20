@@ -2,7 +2,6 @@
 
 import Image from "next/image";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { FoodExpandedCard } from "@/components/private/food/FoodExpandedCard";
 import { foodLocationLabel, formatFoodDateTime } from "@/components/private/food/food-format";
 import type { FoodGroupViewModel, FoodImageViewModel } from "@/types";
 
@@ -16,9 +15,7 @@ interface FoodCardProps {
   image: FoodImageViewModel;
   imageIndex: number;
   isExpanded: boolean;
-  mutationsEnabled: boolean;
   onExpand: () => void;
-  onCollapse: () => void;
   onElementChange: (imageId: string, element: HTMLElement | null) => void;
 }
 
@@ -27,22 +24,18 @@ export function FoodCard({
   image,
   imageIndex,
   isExpanded,
-  mutationsEnabled,
   onExpand,
-  onCollapse,
   onElementChange,
 }: FoodCardProps) {
   const articleRef = useRef<HTMLElement | null>(null);
-  const expandedContentRef = useRef<HTMLDivElement>(null);
   const pressTimerRef = useRef<number | null>(null);
   const pressTargetRef = useRef<HTMLButtonElement | null>(null);
   const suppressNextClickRef = useRef(false);
   const pressOriginRef = useRef({ x: 0, y: 0 });
   const [isFlipped, setIsFlipped] = useState(false);
   const [collapsedRowSpan, setCollapsedRowSpan] = useState(24);
-  const [expandedRowSpan, setExpandedRowSpan] = useState(64);
-  const [imageUrl, setImageUrl] = useState(image.imageUrl);
-  const [hasImageError, setHasImageError] = useState(!image.imageUrl);
+  const [imageUrl, setImageUrl] = useState(image.thumbnailUrl || image.imageUrl);
+  const [hasImageError, setHasImageError] = useState(!(image.thumbnailUrl || image.imageUrl));
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const imageWidth = Math.max(1, image.width);
@@ -72,24 +65,19 @@ export function FoodCard({
       const cardGap = Number.isFinite(parsedCardGap) && parsedCardGap >= 0
         ? parsedCardGap
         : FALLBACK_CARD_GAP;
-      const targetHeight = isExpanded
-        ? expandedContentRef.current?.getBoundingClientRect().height ?? article.scrollHeight
-        : article.getBoundingClientRect().width * displayRatio;
+      const targetHeight = article.getBoundingClientRect().width * displayRatio;
       const nextRowSpan = Math.max(
         1,
         Math.ceil((targetHeight + cardGap + rowGap) / (rowHeight + rowGap)),
       );
-
-      if (isExpanded) setExpandedRowSpan(nextRowSpan);
-      else setCollapsedRowSpan(nextRowSpan);
+      setCollapsedRowSpan(nextRowSpan);
     };
 
     update();
     const observer = new ResizeObserver(update);
     observer.observe(article);
-    if (expandedContentRef.current) observer.observe(expandedContentRef.current);
     return () => observer.disconnect();
-  }, [displayRatio, isExpanded]);
+  }, [displayRatio]);
 
   useEffect(() => () => {
     if (pressTimerRef.current !== null) window.clearTimeout(pressTimerRef.current);
@@ -149,15 +137,6 @@ export function FoodCard({
     setIsFlipped((current) => !current);
   }
 
-  function collapseDetails() {
-    onCollapse();
-    window.requestAnimationFrame(() => {
-      articleRef.current
-        ?.querySelector<HTMLButtonElement>(".food-card-button")
-        ?.focus({ preventScroll: true });
-    });
-  }
-
   async function refreshImage() {
     if (isRefreshing) return;
     setIsRefreshing(true);
@@ -174,25 +153,6 @@ export function FoodCard({
     }
   }
 
-  if (isExpanded) {
-    return (
-      <article
-        ref={setArticleRef}
-        className="food-card food-card-expanded relative col-span-full min-w-0 md:col-span-2"
-        style={{ gridRowEnd: `span ${expandedRowSpan}` }}
-      >
-        <div ref={expandedContentRef}>
-          <FoodExpandedCard
-            group={group}
-            initialImageIndex={imageIndex}
-            mutationsEnabled={mutationsEnabled}
-            onClose={collapseDetails}
-          />
-        </div>
-      </article>
-    );
-  }
-
   return (
     <article
       ref={setArticleRef}
@@ -207,7 +167,7 @@ export function FoodCard({
           type="button"
           aria-label={`${group.category}，第 ${imageIndex + 1} 张，共 ${group.images.length} 张；点击翻转，长按展开详情`}
           aria-pressed={isFlipped}
-          aria-expanded="false"
+          aria-expanded={isExpanded}
           className="food-card-button absolute inset-0 block h-full w-full touch-pan-y text-left"
           onClick={handleClick}
           onPointerDown={handlePointerDown}

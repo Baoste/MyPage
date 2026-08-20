@@ -46,6 +46,8 @@ export interface FoodUploadTarget {
   imageId: string;
   storagePath: string;
   uploadUrl: string;
+  thumbnailStoragePath: string;
+  thumbnailUploadUrl: string;
 }
 
 export interface FoodUploadIntentResponse {

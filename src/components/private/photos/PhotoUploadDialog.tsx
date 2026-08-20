@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { FoodLocationPicker } from "@/components/private/food/FoodLocationPicker";
+import { createThumbnailFile } from "@/lib/image/thumbnail";
 import {
   chinaDateTimeLocalToIso,
   inspectFoodImage,
@@ -25,6 +26,7 @@ type UploadPhase = "idle" | "inspecting" | "initializing" | "uploading" | "final
 interface SelectedPhoto {
   clientId: string;
   file: File;
+  thumbnailFile: File | null;
   previewUrl: string;
   width: number;
   height: number;
@@ -114,9 +116,12 @@ export function PhotoUploadDialog({ onClose }: { onClose: () => void }) {
     setMessage("正在读取图片信息…");
     try {
       const metadata = await inspectFoodImage(file);
+      const thumbnailFile = await createThumbnailFile(file);
+      if (!thumbnailFile) throw new Error("无法生成缩略图。");
       const next: SelectedPhoto = {
         clientId: window.crypto.randomUUID(),
         file,
+        thumbnailFile,
         previewUrl: URL.createObjectURL(file),
         ...metadata,
       };
@@ -181,13 +186,13 @@ export function PhotoUploadDialog({ onClose }: { onClose: () => void }) {
     return { complete: false as const, draft: nextDraft };
   }
 
-  function uploadFile(photo: SelectedPhoto, target: PhotoUploadTarget) {
+  function uploadFile(file: File, uploadUrl: string, contentType: string) {
     return new Promise<void>((resolve, reject) => {
       const request = new XMLHttpRequest();
       activeRequestRef.current = request;
       setProgress(1);
-      request.open("PUT", target.uploadUrl);
-      request.setRequestHeader("Content-Type", photo.mimeType);
+      request.open("PUT", uploadUrl);
+      request.setRequestHeader("Content-Type", contentType);
       request.upload.onprogress = (event) => {
         if (!event.lengthComputable) return;
         setProgress(Math.min(99, Math.max(1, Math.round((event.loaded / event.total) * 100))));
@@ -207,7 +212,7 @@ export function PhotoUploadDialog({ onClose }: { onClose: () => void }) {
         activeRequestRef.current = null;
         reject(new Error("上传已取消。"));
       };
-      request.send(photo.file);
+      request.send(file);
     });
   }
 
@@ -248,7 +253,9 @@ export function PhotoUploadDialog({ onClose }: { onClose: () => void }) {
       }
       setPhase("uploading");
       setMessage("正在上传图片，请不要关闭页面…");
-      await uploadFile(photo, initialized.draft.target);
+      await uploadFile(photo.file, initialized.draft.target.uploadUrl, photo.mimeType);
+      if (!photo.thumbnailFile) throw new Error("无法生成缩略图。");
+      await uploadFile(photo.thumbnailFile, initialized.draft.target.thumbnailUploadUrl, photo.thumbnailFile.type);
       await finalizeUpload(initialized.draft);
     } catch (error) {
       setPhase("failed");

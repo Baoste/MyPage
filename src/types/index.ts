@@ -56,6 +56,7 @@ export interface PhotoEntry {
 
 export interface PhotoViewModel extends PhotoEntry {
   imageUrl: string;
+  thumbnailUrl: string;
 }
 
 export interface PhotoRankingItem {
@@ -133,6 +134,7 @@ export interface FoodImage {
 
 export interface FoodImageViewModel extends FoodImage {
   imageUrl: string;
+  thumbnailUrl: string;
 }
 
 export interface FoodGroup {

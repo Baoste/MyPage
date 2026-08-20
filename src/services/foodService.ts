@@ -13,9 +13,10 @@ import { imageDimensionsFromBytes, imageSignatureMatches } from "@/lib/food/imag
 import {
   deleteLocalFoodFiles,
   getLocalFoodFileInfo,
+  foodThumbnailStoragePath,
   readLocalFoodFile,
   readLocalFoodFileHeader,
-  writeLocalFoodFile,
+  writeLocalFoodFiles,
 } from "@/lib/food/local-storage";
 import { calculateFoodStatistics } from "@/lib/food/statistics";
 import { isServerSupabaseConfigured } from "@/lib/supabase/config";
@@ -161,10 +162,14 @@ async function mapWithConcurrency<T, R>(
 
 async function toImageViewModel(image: FoodImage): Promise<FoodImageViewModel> {
   try {
-    return { ...image, imageUrl: await foodImageUrl(image.id, image.storagePath) };
+    return {
+      ...image,
+      imageUrl: await foodImageUrl(image.id, image.storagePath),
+      thumbnailUrl: await foodThumbnailUrl(image.id, image.storagePath),
+    };
   } catch (error) {
     console.error("Unable to sign one food image.", { imageId: image.id, error });
-    return { ...image, imageUrl: "" };
+    return { ...image, imageUrl: "", thumbnailUrl: "" };
   }
 }
 
@@ -172,6 +177,14 @@ async function foodImageUrl(imageId: string, storagePath: string) {
   return await getLocalFoodFileInfo(storagePath)
     ? `/api/private/food/images/${encodeURIComponent(imageId)}/file`
     : getPrivateSignedUrl(storagePath);
+}
+
+async function foodThumbnailUrl(imageId: string, storagePath: string) {
+  if (!(await getLocalFoodFileInfo(storagePath))) return getPrivateSignedUrl(storagePath);
+  const thumbnailPath = foodThumbnailStoragePath(storagePath);
+  return (await getLocalFoodFileInfo(thumbnailPath))
+    ? `/api/private/food/images/${encodeURIComponent(imageId)}/file?variant=thumbnail`
+    : `/api/private/food/images/${encodeURIComponent(imageId)}/file`;
 }
 
 async function getLegacyFoodGroups(): Promise<FoodGroupViewModel[]> {
@@ -277,7 +290,7 @@ async function loadFoodGroups(): Promise<{
     schemaReady: true,
     groups: groups.map((group) => ({
       ...group,
-      images: group.images.map((image) => viewById.get(image.id) ?? { ...image, imageUrl: "" }),
+      images: group.images.map((image) => viewById.get(image.id) ?? { ...image, imageUrl: "", thumbnailUrl: "" }),
     })),
   };
 }
@@ -327,8 +340,11 @@ async function deleteFoodMedia(paths: string[]) {
   const localPaths: string[] = [];
   const remotePaths: string[] = [];
   for (const storagePath of uniquePaths) {
-    if (await getLocalFoodFileInfo(storagePath)) localPaths.push(storagePath);
-    else remotePaths.push(storagePath);
+    if (await getLocalFoodFileInfo(storagePath)) {
+      localPaths.push(storagePath, foodThumbnailStoragePath(storagePath));
+    } else {
+      remotePaths.push(storagePath);
+    }
   }
 
   await deleteLocalFoodFiles(localPaths);
@@ -376,6 +392,8 @@ function uploadTargets(
       imageId: image.id,
       storagePath: image.storage_path,
       uploadUrl: `/api/private/food/uploads/${encodeURIComponent(image.food_entry_id)}/${encodeURIComponent(image.id)}?requestId=${encodeURIComponent(input.requestId)}`,
+      thumbnailStoragePath: foodThumbnailStoragePath(image.storage_path),
+      thumbnailUploadUrl: `/api/private/food/uploads/${encodeURIComponent(image.food_entry_id)}/${encodeURIComponent(image.id)}?requestId=${encodeURIComponent(input.requestId)}&variant=thumbnail`,
     }));
 }
 
@@ -502,6 +520,7 @@ export async function uploadFoodImage(
   requestId: string,
   bytes: Uint8Array,
   contentType: string,
+  variant: "original" | "thumbnail" = "original",
 ) {
   await requirePrivateSession();
   assertConfigured();
@@ -528,10 +547,28 @@ export async function uploadFoodImage(
   if (contentType !== image.mime_type) {
     throw new FoodServiceError("图片格式与选择时不一致。", 422);
   }
-  assertFoodImageContents(image, bytes);
+  if (variant === "original") {
+    assertFoodImageContents(image, bytes);
+  } else {
+    const dimensions = imageDimensionsFromBytes(bytes, image.mime_type);
+    if (
+      !dimensions
+      || dimensions.width <= 0
+      || dimensions.height <= 0
+      || dimensions.width > image.width
+      || dimensions.height > image.height
+    ) {
+      throw new FoodServiceError("缩略图不符合要求。", 422);
+    }
+  }
 
   try {
-    await writeLocalFoodFile(image.storage_path, bytes);
+    await writeLocalFoodFiles(
+      variant === "original"
+        ? [image.storage_path]
+        : [foodThumbnailStoragePath(image.storage_path)],
+      bytes,
+    );
   } catch (error) {
     console.error("Unable to write a local food image.", { groupId, imageId, error });
     throw new FoodServiceError("无法写入本地图片目录，请检查 FOOD_STORAGE_ROOT。", 500);
@@ -546,6 +583,11 @@ async function verifyUploadedImages(groupId: string, images: FoodImageRow[]) {
       remoteImages.push(image);
       return;
     }
+    const thumbnailPath = foodThumbnailStoragePath(image.storage_path);
+    const thumbnailInfo = await getLocalFoodFileInfo(thumbnailPath);
+    if (!thumbnailInfo) {
+      throw new FoodServiceError("缩略图不存在或已上传失败。", 422);
+    }
     if (info.size !== image.byte_size) {
       throw new FoodServiceError("上传后的图片信息与选择时不一致。", 422);
     }
@@ -555,6 +597,20 @@ async function verifyUploadedImages(groupId: string, images: FoodImageRow[]) {
     );
     if (!bytes) throw new FoodServiceError("无法读取已上传图片。", 422);
     assertFoodImageContents(image, bytes, info.size);
+    const thumbnailBytes = await readLocalFoodFileHeader(
+      thumbnailPath,
+      MAXIMUM_IMAGE_HEADER_BYTES,
+    );
+    if (!thumbnailBytes) throw new FoodServiceError("无法读取缩略图。", 422);
+    const thumbnailDimensions = imageDimensionsFromBytes(thumbnailBytes, image.mime_type);
+    if (
+      !thumbnailDimensions
+      || thumbnailDimensions.width > image.width
+      || thumbnailDimensions.height > image.height
+      || thumbnailInfo.size > info.size
+    ) {
+      throw new FoodServiceError("缩略图不符合要求。", 422);
+    }
   });
   if (remoteImages.length === 0) return;
 
@@ -570,6 +626,12 @@ async function verifyUploadedImages(groupId: string, images: FoodImageRow[]) {
     const metadata = object?.metadata as { size?: number; mimetype?: string } | undefined;
     if (!object || metadata?.size !== image.byte_size || metadata?.mimetype !== image.mime_type) {
       throw new FoodServiceError("上传后的图片信息与选择时不一致。", 422);
+    }
+    const thumbnailName = foodThumbnailStoragePath(image.storage_path).slice(folder.length + 1);
+    const thumbnailObject = objects.get(thumbnailName);
+    const thumbnailMetadata = thumbnailObject?.metadata as { size?: number; mimetype?: string } | undefined;
+    if (!thumbnailObject || thumbnailMetadata?.mimetype !== image.mime_type) {
+      throw new FoodServiceError("缩略图不符合要求。", 422);
     }
     const signedUrl = await getPrivateSignedUrl(image.storage_path);
     const response = await fetch(signedUrl, {
@@ -745,7 +807,10 @@ export async function deleteFoodGroup(groupId: string) {
   }
 }
 
-export async function readFoodImageFile(imageId: string) {
+export async function readFoodImageFile(
+  imageId: string,
+  variant: "original" | "thumbnail" = "original",
+) {
   await requirePrivateSession();
   assertConfigured();
   assertUuid(imageId, "图片标识");
@@ -766,15 +831,18 @@ export async function readFoodImageFile(imageId: string) {
   if (!data) throw new FoodServiceError("图片不存在。", 404);
 
   const image = data as Pick<FoodImageRow, "storage_path" | "mime_type" | "byte_size">;
-  const info = await getLocalFoodFileInfo(image.storage_path);
+  const storagePath = variant === "thumbnail"
+    ? foodThumbnailStoragePath(image.storage_path)
+    : image.storage_path;
+  const info = await getLocalFoodFileInfo(storagePath);
   if (!info) throw new FoodServiceError("本地图片不存在。", 404);
-  if (info.size !== image.byte_size) {
+  if (variant === "original" && info.size !== image.byte_size) {
     throw new FoodServiceError("本地图片大小与数据库记录不一致。", 409);
   }
 
   try {
     return {
-      bytes: await readLocalFoodFile(image.storage_path),
+      bytes: await readLocalFoodFile(storagePath),
       mimeType: image.mime_type,
     };
   } catch (error) {
@@ -803,7 +871,7 @@ export async function refreshFoodImageUrl(imageId: string) {
         .maybeSingle();
       if (legacyError) throw new FoodServiceError("无法刷新图片地址。", 500);
       if (!legacyData) throw new FoodServiceError("图片不存在。", 404);
-      return foodImageUrl(
+      return foodThumbnailUrl(
         imageId,
         (legacyData as { storage_path: string }).storage_path,
       );
@@ -811,5 +879,5 @@ export async function refreshFoodImageUrl(imageId: string) {
     throw new FoodServiceError("无法刷新图片地址。", 500);
   }
   if (!data) throw new FoodServiceError("图片不存在。", 404);
-  return foodImageUrl(imageId, (data as { storage_path: string }).storage_path);
+  return foodThumbnailUrl(imageId, (data as { storage_path: string }).storage_path);
 }

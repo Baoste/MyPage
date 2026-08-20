@@ -6,7 +6,7 @@ import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 
 const UUID_PATH_PART = "[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}";
 const LOCAL_PHOTO_PATH_PATTERN = new RegExp(
-  `^photos\\/${UUID_PATH_PART}\\/${UUID_PATH_PART}\\.(?:jpg|png|webp)$`,
+  `^photos\\/${UUID_PATH_PART}\\/${UUID_PATH_PART}(?:\\.thumb)?\\.(?:jpg|png|webp)$`,
   "iu",
 );
 
@@ -24,6 +24,13 @@ export function photoStorageRoot() {
 
 export function isLocalPhotoStoragePath(storagePath: string) {
   return LOCAL_PHOTO_PATH_PATTERN.test(storagePath);
+}
+
+export function photoThumbnailStoragePath(storagePath: string) {
+  if (!isLocalPhotoStoragePath(storagePath)) {
+    throw new Error("Invalid local photo path.");
+  }
+  return storagePath.replace(/(\.(?:jpg|png|webp))$/iu, ".thumb$1");
 }
 
 function resolveLocalPhotoPath(storagePath: string) {
@@ -71,6 +78,13 @@ export async function writeLocalPhotoFile(storagePath: string, bytes: Uint8Array
   }
 }
 
+export async function writeLocalPhotoFiles(
+  storagePaths: string[],
+  bytes: Uint8Array,
+) {
+  await Promise.all(storagePaths.map((storagePath) => writeLocalPhotoFile(storagePath, bytes)));
+}
+
 export async function readLocalPhotoFile(storagePath: string) {
   return readFile(resolveLocalPhotoPath(storagePath));
 }
@@ -99,4 +113,3 @@ export async function deleteLocalPhotoFiles(storagePaths: string[]) {
   }
   for (const directory of emptiedDirectories) await rmdir(directory).catch(() => undefined);
 }
-

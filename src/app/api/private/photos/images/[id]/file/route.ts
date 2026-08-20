@@ -11,9 +11,12 @@ export async function GET(
 ) {
   if (!(await getPrivateSession())) return photoApiError("请重新登录后再试。", 401);
   const { id } = await context.params;
+  const variant = request.nextUrl.searchParams.get("variant") === "thumbnail"
+    ? "thumbnail"
+    : "original";
   try {
-    const image = await readPhotoImageFile(id);
-    const etag = `"photo-${id}"`;
+    const image = await readPhotoImageFile(id, variant);
+    const etag = `"photo-${id}-${variant}"`;
     if (request.headers.get("if-none-match") === etag) {
       return new NextResponse(null, {
         status: 304,
@@ -34,4 +37,3 @@ export async function GET(
     return photoServiceError(error);
   }
 }
-

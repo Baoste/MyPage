@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { useRef, useState } from "react";
 import type { SelectedFoodUploadImage } from "@/components/private/food/food-upload-types";
+import { createThumbnailFile } from "@/lib/image/thumbnail";
 import { FOOD_UPLOAD_LIMITS } from "@/lib/food/contracts";
 import { inspectFoodImage } from "@/lib/food/image-metadata";
 
@@ -46,9 +47,12 @@ export function FoodImagePicker({
           throw new Error(`${file.name} 超过单张 10MB 的限制。`);
         }
         const metadata = await inspectFoodImage(file);
+        const thumbnailFile = await createThumbnailFile(file);
+        if (!thumbnailFile) throw new Error(`${file.name} 无法生成缩略图。`);
         additions.push({
           clientId: window.crypto.randomUUID(),
           file,
+          thumbnailFile,
           previewUrl: URL.createObjectURL(file),
           ...metadata,
           status: "ready",

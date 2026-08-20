@@ -1,10 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { flushSync } from "react-dom";
+import { useEffect, useState } from "react";
 import { EmptyState } from "@/components/common/EmptyState";
 import { PhotoCard } from "@/components/private/photos/PhotoCard";
-import { animatePrivateLayout } from "@/lib/motion";
+import { PhotoExpandedCard } from "@/components/private/photos/PhotoExpandedCard";
 import type { PhotoViewModel } from "@/types";
 
 export function PhotoGallery({
@@ -14,69 +13,59 @@ export function PhotoGallery({
   photos: PhotoViewModel[];
   mutationsEnabled: boolean;
 }) {
-  const cardElementsRef = useRef(new Map<string, HTMLElement>());
-  const layoutAnimationsRef = useRef(new Map<HTMLElement, Animation>());
-  const expandedPhotoIdRef = useRef<string | null>(null);
-  const transitionVersionRef = useRef(0);
   const [expandedPhotoId, setExpandedPhotoId] = useState<string | null>(null);
 
-  const registerCardElement = useCallback((photoId: string, element: HTMLElement | null) => {
-    if (element) cardElementsRef.current.set(photoId, element);
-    else cardElementsRef.current.delete(photoId);
-  }, []);
+  const expandedPhoto = photos.find((photo) => photo.id === expandedPhotoId) ?? null;
 
-  const animateLayoutTo = useCallback((nextPhotoId: string | null) => {
-    return animatePrivateLayout(
-      cardElementsRef.current,
-      layoutAnimationsRef.current,
-      () => {
-        expandedPhotoIdRef.current = nextPhotoId;
-        flushSync(() => setExpandedPhotoId(nextPhotoId));
-      },
-    );
-  }, []);
-
-  const changeExpandedPhoto = useCallback((nextPhotoId: string | null) => {
-    if (nextPhotoId === expandedPhotoIdRef.current) return;
-    const transitionVersion = transitionVersionRef.current + 1;
-    transitionVersionRef.current = transitionVersion;
-    const currentPhotoId = expandedPhotoIdRef.current;
-    if (currentPhotoId && nextPhotoId) {
-      void animateLayoutTo(null).then(() => {
-        if (transitionVersionRef.current !== transitionVersion) return;
-        return animateLayoutTo(nextPhotoId);
-      });
-      return;
-    }
-    void animateLayoutTo(nextPhotoId);
-  }, [animateLayoutTo]);
-
-  useEffect(() => () => {
-    transitionVersionRef.current += 1;
-    for (const [element, animation] of layoutAnimationsRef.current) {
-      animation.cancel();
-      element.style.willChange = "";
-    }
-    layoutAnimationsRef.current.clear();
-  }, []);
+  useEffect(() => {
+    if (!expandedPhotoId) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setExpandedPhotoId(null);
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [expandedPhotoId]);
 
   if (photos.length === 0) {
     return <EmptyState title="还没有照片" message="点击右下角的加号，保存第一张日常照片。" />;
   }
 
   return (
-    <div className="photo-gallery food-gallery grid grid-cols-1 min-[360px]:grid-cols-2 md:grid-cols-3 xl:grid-cols-4">
-      {photos.map((photo) => (
-        <PhotoCard
-          key={photo.id}
-          photo={photo}
-          isExpanded={expandedPhotoId === photo.id}
-          mutationsEnabled={mutationsEnabled}
-          onExpand={() => changeExpandedPhoto(photo.id)}
-          onCollapse={() => changeExpandedPhoto(null)}
-          onElementChange={registerCardElement}
-        />
-      ))}
-    </div>
+    <>
+      <div className="photo-gallery food-gallery grid grid-cols-1 min-[360px]:grid-cols-2 md:grid-cols-3 xl:grid-cols-4">
+        {photos.map((photo) => (
+          <PhotoCard
+            key={photo.id}
+            photo={photo}
+            isExpanded={expandedPhotoId === photo.id}
+            onExpand={() => setExpandedPhotoId(photo.id)}
+            onElementChange={() => undefined}
+          />
+        ))}
+      </div>
+
+      {expandedPhoto ? (
+        <div className="private-media-overlay fixed inset-0 z-50 grid place-items-center p-4 sm:p-6">
+          <button
+            type="button"
+            aria-label="关闭照片详情"
+            className="absolute inset-0 bg-[#14120f]/52 backdrop-blur-md"
+            onClick={() => setExpandedPhotoId(null)}
+          />
+          <div className="private-media-panel relative z-10 w-[min(96vw,72rem)] max-h-[92svh] overflow-auto">
+            <PhotoExpandedCard
+              photo={expandedPhoto}
+              mutationsEnabled={mutationsEnabled}
+              onClose={() => setExpandedPhotoId(null)}
+            />
+          </div>
+        </div>
+      ) : null}
+    </>
   );
 }

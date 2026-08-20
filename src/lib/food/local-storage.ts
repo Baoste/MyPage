@@ -6,7 +6,7 @@ import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 
 const UUID_PATH_PART = "[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}";
 const LOCAL_FOOD_PATH_PATTERN = new RegExp(
-  `^food\\/${UUID_PATH_PART}\\/${UUID_PATH_PART}\\.(?:jpg|png|webp)$`,
+  `^food\\/${UUID_PATH_PART}\\/${UUID_PATH_PART}(?:\\.thumb)?\\.(?:jpg|png|webp)$`,
   "iu",
 );
 
@@ -23,6 +23,13 @@ export function foodStorageRoot() {
 
 export function isLocalFoodStoragePath(storagePath: string) {
   return LOCAL_FOOD_PATH_PATTERN.test(storagePath);
+}
+
+export function foodThumbnailStoragePath(storagePath: string) {
+  if (!isLocalFoodStoragePath(storagePath)) {
+    throw new Error("Invalid local food image path.");
+  }
+  return storagePath.replace(/(\.(?:jpg|png|webp))$/iu, ".thumb$1");
 }
 
 function resolveLocalFoodPath(storagePath: string) {
@@ -74,6 +81,13 @@ export async function writeLocalFoodFile(storagePath: string, bytes: Uint8Array)
   } finally {
     await rm(temporaryPath, { force: true }).catch(() => undefined);
   }
+}
+
+export async function writeLocalFoodFiles(
+  storagePaths: string[],
+  bytes: Uint8Array,
+) {
+  await Promise.all(storagePaths.map((storagePath) => writeLocalFoodFile(storagePath, bytes)));
 }
 
 export async function readLocalFoodFile(storagePath: string) {

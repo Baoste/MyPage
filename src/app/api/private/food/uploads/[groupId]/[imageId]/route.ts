@@ -17,6 +17,9 @@ export async function PUT(
   if (authorizationError) return authorizationError;
 
   const requestId = request.nextUrl.searchParams.get("requestId");
+  const variant = request.nextUrl.searchParams.get("variant") === "thumbnail"
+    ? "thumbnail"
+    : "original";
   const contentType = request.headers.get("content-type")?.split(";", 1)[0]?.trim().toLowerCase();
   if (!requestId || !contentType) return foodApiError("上传标识或图片格式不完整。", 400);
 
@@ -25,11 +28,8 @@ export async function PUT(
   const { groupId, imageId } = await context.params;
 
   try {
-    await uploadFoodImage(groupId, imageId, requestId, body.bytes, contentType);
-    return NextResponse.json(
-      { ok: true },
-      { headers: { "Cache-Control": "no-store" } },
-    );
+    await uploadFoodImage(groupId, imageId, requestId, body.bytes, contentType, variant);
+    return NextResponse.json({ ok: true }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     return foodServiceError(error);
   }
