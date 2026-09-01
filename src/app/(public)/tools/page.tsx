@@ -1,15 +1,14 @@
 import type { Metadata } from "next";
-import { ToolsWorkspace } from "@/components/tools/ToolsWorkspace";
-import { getToolModuleState } from "@/lib/tools/module-store";
+import { ToolsCatalog } from "@/components/tools/ToolsCatalog";
+import { listToolModules } from "@/lib/tools/module-store";
 
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Tools",
-  description: "故事创作与剧情编排工具。",
+  description: "本站独立工具模块目录。",
 };
 
 export default function ToolsPage() {
-  const moduleState = getToolModuleState("story-editor");
-  return <ToolsWorkspace initiallyAvailable={moduleState.available} />;
+  return <ToolsCatalog modules={listToolModules()} />;
 }

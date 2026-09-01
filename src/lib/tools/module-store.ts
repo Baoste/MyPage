@@ -7,11 +7,26 @@ import path from "node:path";
 
 const TOOL_MODULES = {
   "story-editor": {
+    title: "剧情卡工作台",
+    author: "张紫轩",
+    category: "故事设计",
+    description: "整理世界观、地点、角色与事件，并在时间轴中编排完整剧情。",
     deletePassword: "8812345",
   },
 } as const;
 
 export type ToolModuleId = keyof typeof TOOL_MODULES;
+
+export interface ToolModuleSummary {
+  id: ToolModuleId;
+  title: string;
+  author: string;
+  category: string;
+  description: string;
+  href: string;
+  viewHref: string;
+  available: boolean;
+}
 
 interface StoredModuleData {
   updatedAt: string;
@@ -67,6 +82,28 @@ export function getToolModuleState(id: ToolModuleId) {
   const entry = path.join(process.cwd(), "tool-modules", id, "index.html");
   const deleted = isToolModuleDeleted(id);
   return { available: !deleted && existsSync(entry), deleted };
+}
+
+export function getToolModuleSummary(idValue: string): ToolModuleSummary | null {
+  if (!(idValue in TOOL_MODULES)) return null;
+  const id = idValue as ToolModuleId;
+  const config = TOOL_MODULES[id];
+  return {
+    id,
+    title: config.title,
+    author: config.author,
+    category: config.category,
+    description: config.description,
+    href: `/tools/${id}`,
+    viewHref: `/tools/modules/${id}`,
+    available: getToolModuleState(id).available,
+  };
+}
+
+export function listToolModules() {
+  return (Object.keys(TOOL_MODULES) as ToolModuleId[])
+    .map(getToolModuleSummary)
+    .filter((module): module is ToolModuleSummary => Boolean(module?.available));
 }
 
 export async function readToolModuleEntry(idValue: string) {

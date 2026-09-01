@@ -1,10 +1,12 @@
 "use client";
 
 import { useRef, useState } from "react";
+import Link from "next/link";
+import type { ToolModuleSummary } from "@/lib/tools/module-store";
 
-export function ToolsWorkspace({ initiallyAvailable }: { initiallyAvailable: boolean }) {
+export function ToolsWorkspace({ module }: { module: ToolModuleSummary }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
-  const [available, setAvailable] = useState(initiallyAvailable);
+  const [available, setAvailable] = useState(module.available);
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
@@ -20,7 +22,7 @@ export function ToolsWorkspace({ initiallyAvailable }: { initiallyAvailable: boo
     setIsDeleting(true);
     setMessage("");
     try {
-      const response = await fetch("/api/tools/modules/story-editor/delete", {
+      const response = await fetch(`/api/tools/modules/${module.id}/delete`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ password }),
@@ -47,12 +49,13 @@ export function ToolsWorkspace({ initiallyAvailable }: { initiallyAvailable: boo
 
   return (
     <div className="container-shell py-8 md:py-12">
-      <header className="mb-5 flex flex-col gap-5 border-b border-[#cfcbc0] pb-5 sm:flex-row sm:items-end sm:justify-between">
+      <Link href="/tools" className="eyebrow inline-block text-[#545b55]">← 返回工具目录</Link>
+      <header className="mb-5 mt-7 flex flex-col gap-5 border-b border-[#cfcbc0] pb-5 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="eyebrow">Tools · Story workspace</p>
-          <h1 className="display-type mt-2 text-4xl leading-none md:text-5xl">剧情卡工作台</h1>
+          <p className="eyebrow">{module.category} · 作者 {module.author}</p>
+          <h1 className="display-type mt-2 text-4xl leading-none md:text-5xl">{module.title}</h1>
           <p className="mt-3 max-w-2xl text-sm leading-6 text-[#696a62]">
-            世界观、角色、事件与时间轴统一保存在本站服务器，不再连接 Firebase。
+            {module.description} 数据统一保存在本站服务器。
           </p>
         </div>
         {available ? (
@@ -69,8 +72,8 @@ export function ToolsWorkspace({ initiallyAvailable }: { initiallyAvailable: boo
       {available ? (
         <div className="overflow-hidden rounded-[1.5rem] border border-[#c9c4b9] bg-white shadow-[0_18px_55px_rgba(57,50,41,0.1)]">
           <iframe
-            src="/tools/modules/story-editor"
-            title="剧情卡工作台"
+            src={module.viewHref}
+            title={module.title}
             className="block h-[max(42rem,calc(100svh-11rem))] w-full border-0"
           />
         </div>
@@ -78,9 +81,9 @@ export function ToolsWorkspace({ initiallyAvailable }: { initiallyAvailable: boo
         <section className="grid min-h-[32rem] place-items-center border border-dashed border-[#c8c1b5] px-6 text-center">
           <div>
             <span aria-hidden="true" className="mx-auto block size-3 rotate-45 bg-[#a64b2a]" />
-            <h2 className="display-type mt-6 text-3xl">模块已删除</h2>
+            <h2 className="display-type mt-6 text-3xl">{module.title}已删除</h2>
             <p className="mt-3 max-w-md text-sm leading-6 text-[#696a62]">
-              故事编辑器已经停用，相关数据已从独立存储目录清理。
+              这个工具已经停用，相关数据已从独立存储目录清理。返回目录后将不再显示此卡片。
             </p>
           </div>
         </section>
@@ -102,7 +105,7 @@ export function ToolsWorkspace({ initiallyAvailable }: { initiallyAvailable: boo
           }}
         >
           <p className="eyebrow text-[#8f4025]">Irreversible action</p>
-          <h2 id="delete-tool-title" className="display-type mt-3 text-3xl">删除故事编辑器？</h2>
+          <h2 id="delete-tool-title" className="display-type mt-3 text-3xl">删除{module.title}？</h2>
           <p className="mt-4 text-sm leading-6 text-[#65665f]">
             这会清空全部故事数据、停用模块，并在服务器允许时删除编辑器代码目录。此操作无法撤销。
           </p>

@@ -487,9 +487,11 @@ Browser
 
 ## Tools 故事编辑器
 
-公开导航的 `/tools` 在站内加载 `tool-modules/story-editor/index.html`，原编辑器的 Firebase SDK 与配置已经移除。故事数据经同源 API 原子写入 `TOOLS_STORAGE_ROOT/story-editor/data.json`；多个页面每 3 秒检查一次更新，不需要数据库 Migration。
+完整的模块注册信息、存储路径和删除边界见 [`docs/Tools.md`](docs/Tools.md)。
 
-编辑器代码、数据和宿主页面彼此分离。Tools 页的“删除模块”使用项目指定的明文口令进行服务端比较，客户端构建不包含口令；接口同时执行同源校验和按 IP 限流。口令正确后会先清空独立数据目录并写入停用标记，再尝试只删除 `tool-modules/story-editor/`。在源码目录可写的 Node/CVM 部署中代码目录会被物理删除；在只读或不可变部署中，停用标记仍会立即阻止 Tools 页面、受控编辑器路由和数据 API 访问，下一次部署时再从构建源移除代码即可。
+公开导航的 `/tools` 是模块卡片目录；每张卡片从服务端模块注册表读取标题、署名、分类和说明，点击后才进入 `/tools/{module}` 详情页。当前“剧情卡工作台”署名为张紫轩，其独立代码位于 `tool-modules/story-editor/index.html`，原编辑器的 Firebase SDK 与配置已经移除。故事数据经同源 API 原子写入 `TOOLS_STORAGE_ROOT/story-editor/data.json`；多个页面每 3 秒检查一次更新，不需要数据库 Migration。
+
+编辑器代码、数据、目录卡片和宿主页面彼此分离。模块详情页的“删除模块”使用项目指定的明文口令进行服务端比较，客户端构建不包含口令；接口同时执行同源校验和按 IP 限流。口令正确后会先清空独立数据目录并写入停用标记，再尝试只删除 `tool-modules/story-editor/`，目录页也会自动移除对应卡片。在源码目录可写的 Node/CVM 部署中代码目录会被物理删除；在只读或不可变部署中，停用标记仍会立即阻止详情页、受控编辑器路由和数据 API 访问，下一次部署时再从构建源移除代码即可。
 
 ## 部署
 
