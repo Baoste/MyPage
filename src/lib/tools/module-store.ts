@@ -5,7 +5,15 @@ import { existsSync } from "node:fs";
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-const TOOL_MODULES = {
+interface ToolModuleDefinition {
+  title: string;
+  author: string;
+  category: string;
+  description: string;
+  deletePassword: string;
+}
+
+const TOOL_MODULES: Record<string, ToolModuleDefinition> = {
   "story-editor": {
     title: "剧情卡工作台",
     author: "张紫轩",
@@ -13,9 +21,9 @@ const TOOL_MODULES = {
     description: "整理世界观、地点、角色与事件，并在时间轴中编排完整剧情。",
     deletePassword: "8812345",
   },
-} as const;
+};
 
-export type ToolModuleId = keyof typeof TOOL_MODULES;
+export type ToolModuleId = string;
 
 export interface ToolModuleSummary {
   id: ToolModuleId;
@@ -42,7 +50,7 @@ export class ToolModuleError extends Error {
 
 function moduleConfig(id: string) {
   if (!(id in TOOL_MODULES)) throw new ToolModuleError("工具模块不存在。", 404);
-  return TOOL_MODULES[id as ToolModuleId];
+  return TOOL_MODULES[id];
 }
 
 function storageRoot() {
@@ -86,7 +94,7 @@ export function getToolModuleState(id: ToolModuleId) {
 
 export function getToolModuleSummary(idValue: string): ToolModuleSummary | null {
   if (!(idValue in TOOL_MODULES)) return null;
-  const id = idValue as ToolModuleId;
+  const id = idValue;
   const config = TOOL_MODULES[id];
   return {
     id,
@@ -101,7 +109,7 @@ export function getToolModuleSummary(idValue: string): ToolModuleSummary | null 
 }
 
 export function listToolModules() {
-  return (Object.keys(TOOL_MODULES) as ToolModuleId[])
+  return Object.keys(TOOL_MODULES)
     .map(getToolModuleSummary)
     .filter((module): module is ToolModuleSummary => Boolean(module?.available));
 }

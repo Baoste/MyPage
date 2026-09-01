@@ -162,3 +162,126 @@ TOOLS_STORAGE_ROOT=/data/mypage/tools
 
 不要把模块文件放回 `public/`，否则只读部署中即使目录页隐藏，旧静态 URL 仍可能直接访问文件。
 
+## 9. Linux 手动删除与注册信息清理
+
+下面的流程用于腾讯云 CVM 或其他可写的 Linux Node.js 服务器。执行前应先确认实际项目目录、`TOOLS_STORAGE_ROOT` 和服务名称，不要直接复制示例路径到不同环境。
+
+以下示例假设：
+
+```text
+项目目录=/var/www/mypage
+TOOLS_STORAGE_ROOT=/data/mypage/tools
+systemd 服务名=mypage
+```
+
+### 9.1 停止服务并核对路径
+
+先停止正在读写模块的 Node.js 进程：
+
+```bash
+sudo systemctl stop mypage
+```
+
+设置本次操作使用的两个明确路径：
+
+```bash
+TOOLS_PROJECT_DIR=/var/www/mypage
+TOOLS_DATA_ROOT=/data/mypage/tools
+```
+
+分别核对项目和数据目录：
+
+```bash
+realpath "$TOOLS_PROJECT_DIR"
+realpath "$TOOLS_DATA_ROOT"
+ls -la "$TOOLS_PROJECT_DIR/tool-modules/story-editor"
+ls -la "$TOOLS_DATA_ROOT/story-editor"
+```
+
+只有在输出与预期绝对路径完全一致时才继续。`TOOLS_PROJECT_DIR` 和 `TOOLS_DATA_ROOT` 不能是空值、`/`、用户主目录或项目的上级大目录。
+
+### 9.2 写入停用标记
+
+先写入停用标记，避免删除中途重启后模块重新出现：
+
+```bash
+mkdir -p "$TOOLS_DATA_ROOT/.deleted"
+printf '{"deletedAt":"manual"}\n' > "$TOOLS_DATA_ROOT/.deleted/story-editor.json"
+```
+
+### 9.3 删除独立数据和模块代码
+
+再次打印两个精确目标：
+
+```bash
+realpath -m "$TOOLS_DATA_ROOT/story-editor"
+realpath -m "$TOOLS_PROJECT_DIR/tool-modules/story-editor"
+```
+
+确认无误后，只删除这两个明确目录：
+
+```bash
+rm -rf -- "$TOOLS_DATA_ROOT/story-editor"
+rm -rf -- "$TOOLS_PROJECT_DIR/tool-modules/story-editor"
+```
+
+不要删除整个 `TOOLS_DATA_ROOT`、`tool-modules/`、项目根目录或使用通配符。
+
+### 9.4 清除注册信息
+
+打开：
+
+```text
+/var/www/mypage/src/lib/tools/module-store.ts
+```
+
+从 `TOOL_MODULES` 中删除完整的 `story-editor` 项：
+
+```ts
+"story-editor": {
+  title: "剧情卡工作台",
+  author: "张紫轩",
+  category: "故事设计",
+  description: "整理世界观、地点、角色与事件，并在时间轴中编排完整剧情。",
+  deletePassword: "8812345",
+},
+```
+
+如果它是最后一个模块，注册表应保留为空对象，不要删除 `TOOL_MODULES` 本身：
+
+```ts
+const TOOL_MODULES: Record<string, ToolModuleDefinition> = {};
+```
+
+这样通用 Tools 目录仍可正常工作，并显示“暂时没有可用工具”；标题、署名、简介和删除口令则不再存在于注册表中。
+
+### 9.5 构建并重新启动
+
+在项目目录执行完整检查：
+
+```bash
+cd "$TOOLS_PROJECT_DIR"
+npm run lint
+npm run typecheck
+npm run build
+sudo systemctl start mypage
+```
+
+确认以下结果：
+
+- `/tools` 不再显示“剧情卡工作台”卡片；
+- `/tools/story-editor` 返回 404；
+- `/tools/modules/story-editor` 返回 404；
+- `/api/tools/modules/story-editor/data` 返回 404；
+- `tool-modules/story-editor/` 不存在；
+- `TOOLS_STORAGE_ROOT/story-editor/` 不存在。
+
+### 9.6 最后清除停用标记
+
+注册信息已经从新构建中移除、服务也已成功重启后，停用标记不再是必需文件。确认目标路径后可以删除：
+
+```bash
+rm -f -- "$TOOLS_DATA_ROOT/.deleted/story-editor.json"
+```
+
+如果服务器可能回滚到仍包含旧注册表的构建，建议继续保留该停用标记；否则回滚后模块可能重新启用。
