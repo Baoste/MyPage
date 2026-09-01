@@ -31,13 +31,13 @@ export function SafeImage({
 
   if (!src || hasError) {
     return (
-      <div className={frameClass} role="img" aria-label={`${alt} — image unavailable`}>
+      <div className={frameClass} role="img" aria-label={`${alt} — 图片暂不可用`}>
         <div
           aria-hidden="true"
           className="absolute inset-0 bg-[linear-gradient(145deg,transparent_48%,rgba(32,34,30,0.1)_49%,rgba(32,34,30,0.1)_51%,transparent_52%)]"
         />
         <span className="absolute bottom-4 left-4 text-[0.66rem] font-semibold uppercase tracking-[0.16em] text-[#6c695f]">
-          Image pending
+          图片待上传
         </span>
       </div>
     );

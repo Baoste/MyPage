@@ -12,7 +12,7 @@ export function ProjectCard({ project, index }: ProjectCardProps) {
   return (
     <article className="group min-w-0 border-t border-[#bdb8ac] pt-3">
       <div className="mb-3 flex items-center justify-between text-[0.66rem] font-semibold uppercase tracking-[0.15em] text-[#77766e]">
-        <span>Project {String(index + 1).padStart(2, "0")}</span>
+        <span>作品 {String(index + 1).padStart(2, "0")}</span>
         {project.projectDate ? (
           <time dateTime={project.projectDate}>
             {formatDate(project.projectDate, { year: "numeric", month: "short" })}
@@ -22,7 +22,7 @@ export function ProjectCard({ project, index }: ProjectCardProps) {
 
       <SafeImage
         src={project.coverUrl}
-        alt={`${project.title} cover`}
+        alt={`${project.title}封面`}
         sizes="(min-width: 1024px) 30vw, (min-width: 768px) 45vw, 100vw"
       />
 
@@ -33,7 +33,7 @@ export function ProjectCard({ project, index }: ProjectCardProps) {
             {project.description}
           </p>
         ) : null}
-        <ul className="mt-4 flex flex-wrap gap-x-3 gap-y-1" aria-label="Project tags">
+        <ul className="mt-4 flex flex-wrap gap-x-3 gap-y-1" aria-label="作品标签">
           {project.tags.map((tag) => (
             <li key={tag} className="text-[0.68rem] uppercase tracking-[0.12em] text-[#77766e]">
               {tag}
@@ -44,12 +44,12 @@ export function ProjectCard({ project, index }: ProjectCardProps) {
           <div className="mt-5 flex gap-4 text-xs font-semibold uppercase tracking-[0.1em]">
             {project.projectUrl ? (
               <Link href={project.projectUrl} target="_blank" rel="noreferrer">
-                Visit ↗
+                查看项目 ↗
               </Link>
             ) : null}
             {project.githubUrl ? (
               <Link href={project.githubUrl} target="_blank" rel="noreferrer">
-                Source ↗
+                查看源码 ↗
               </Link>
             ) : null}
           </div>

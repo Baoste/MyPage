@@ -6,8 +6,8 @@ export function ProjectGallery({ projects }: { projects: ProjectViewModel[] }) {
   if (projects.length === 0) {
     return (
       <EmptyState
-        title="No projects yet."
-        message="Published work will appear here when it is ready."
+        title="暂时还没有作品"
+        message="准备完成后，已发布的作品会显示在这里。"
       />
     );
   }

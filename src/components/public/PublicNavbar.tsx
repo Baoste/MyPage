@@ -34,7 +34,7 @@ export function PublicNavbar() {
           {siteConfig.name}
         </Link>
 
-        <nav className="hidden items-center gap-8 md:flex" aria-label="Public navigation">
+        <nav className="hidden items-center gap-8 md:flex" aria-label="主导航">
           {publicNavigation.map((item) => (
             <Link
               key={item.href}
@@ -56,7 +56,7 @@ export function PublicNavbar() {
           className="focus-ring flex size-10 items-center justify-center border border-[#bdb8ac] md:hidden"
           aria-expanded={isOpen}
           aria-controls="mobile-navigation"
-          aria-label={isOpen ? "Close menu" : "Open menu"}
+          aria-label={isOpen ? "关闭菜单" : "打开菜单"}
           onClick={() => setIsOpen((current) => !current)}
         >
           <span aria-hidden="true" className="text-lg leading-none">
@@ -68,7 +68,7 @@ export function PublicNavbar() {
       {isOpen ? (
         <nav
           id="mobile-navigation"
-          aria-label="Mobile navigation"
+          aria-label="移动端导航"
           className="container-shell border-t border-[#cfcbc0] py-3 md:hidden"
         >
           {publicNavigation.map((item) => (

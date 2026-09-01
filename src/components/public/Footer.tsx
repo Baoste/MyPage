@@ -7,7 +7,7 @@ export function Footer() {
       <div className="container-shell flex flex-col gap-5 text-xs text-[#696a62] sm:flex-row sm:items-center sm:justify-between">
         <p>© {new Date().getFullYear()} {siteConfig.name}</p>
         <div className="flex items-center gap-5">
-          {siteConfig.email ? <Link href={`mailto:${siteConfig.email}`}>Email</Link> : null}
+          {siteConfig.email ? <Link href={`mailto:${siteConfig.email}`}>邮箱</Link> : null}
           {siteConfig.github ? (
             <Link href={siteConfig.github} target="_blank" rel="noreferrer">
               GitHub

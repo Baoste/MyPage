@@ -1,19 +1,19 @@
 export const siteConfig = {
   name: "Your Name",
-  title: "Portfolio",
+  title: "个人作品集",
   description:
-    "A considered collection of product work, writing, and professional experience.",
+    "这里收录了我在产品、写作与职业经历中的思考和实践。",
   email: "hello@example.com",
   github: "https://github.com/your-name",
   url: process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000",
-  locale: "en_US",
+  locale: "zh_CN",
 } as const;
 
 export const publicNavigation = [
-  { label: "Home", href: "/" },
-  { label: "Works", href: "/#works" },
-  { label: "Articles", href: "/articles" },
-  { label: "Resume", href: "/resume" },
+  { label: "首页", href: "/" },
+  { label: "作品", href: "/#works" },
+  { label: "文章", href: "/articles" },
+  { label: "简历", href: "/resume" },
 ] as const;
 
 export const privateNavigation = [
