@@ -8,6 +8,7 @@ import type { FoodGroupViewModel, FoodStatistics } from "@/types";
 
 interface FoodExperienceProps {
   groups: FoodGroupViewModel[];
+  nextCursor: string | null;
   statistics: FoodStatistics;
   uploadEnabled: boolean;
   mutationsEnabled: boolean;
@@ -16,6 +17,7 @@ interface FoodExperienceProps {
 
 export function FoodExperience({
   groups,
+  nextCursor,
   statistics,
   uploadEnabled,
   mutationsEnabled,
@@ -59,7 +61,11 @@ export function FoodExperience({
             {uploadDisabledReason ?? "当前暂时不能上传美食记录。"}
           </p>
         ) : null}
-        <FoodGallery groups={groups} mutationsEnabled={mutationsEnabled} />
+        <FoodGallery
+          groups={groups}
+          nextCursor={nextCursor}
+          mutationsEnabled={mutationsEnabled}
+        />
       </div>
 
       <div className="pointer-events-none fixed inset-x-0 bottom-[max(1rem,env(safe-area-inset-bottom))] z-30 flex items-end justify-between px-4 sm:px-6">

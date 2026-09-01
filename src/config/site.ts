@@ -14,6 +14,7 @@ export const publicNavigation = [
   { label: "作品", href: "/#works" },
   { label: "文章", href: "/articles" },
   { label: "简历", href: "/resume" },
+  { label: "Tools", href: "/tools" },
 ] as const;
 
 export const privateNavigation = [

@@ -35,10 +35,16 @@ const nextConfig: NextConfig = {
     "82.156.118.238",
   ],
   async headers() {
-    return [{
-      source: "/(.*)",
-      headers: securityHeaders,
-    }];
+    return [
+      {
+        source: "/(.*)",
+        headers: securityHeaders,
+      },
+      {
+        source: "/tools/modules/:path*",
+        headers: [{ key: "X-Frame-Options", value: "SAMEORIGIN" }],
+      },
+    ];
   },
 };
 

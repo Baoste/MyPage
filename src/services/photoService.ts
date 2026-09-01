@@ -19,7 +19,10 @@ import {
   readLocalPhotoFileHeader,
   writeLocalPhotoFiles,
 } from "@/lib/photo/local-storage";
-import { calculatePhotoStatistics } from "@/lib/photo/statistics";
+import {
+  calculatePhotoStatistics,
+  type PhotoStatisticsSource,
+} from "@/lib/photo/statistics";
 import { isServerSupabaseConfigured } from "@/lib/supabase/config";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { deletePrivateAssets, getPrivateSignedUrl } from "@/lib/supabase/storage";
@@ -35,13 +38,21 @@ import type {
   PhotoEntry,
   PhotoEntryRow,
   PhotoImageMimeType,
+  PhotoPage,
   PhotoViewModel,
 } from "@/types";
 
 const STALE_DRAFT_MILLISECONDS = 24 * 60 * 60 * 1_000;
 const MAXIMUM_IMAGE_HEADER_BYTES = 1024 * 1024;
 const MAXIMUM_COMMENT_CHARACTERS = 1000;
+const PHOTOS_PER_PAGE = 12;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
+
+interface PhotoCursor {
+  occurredAt: string;
+  createdAt: string;
+  id: string;
+}
 
 interface LegacyPhotoRow {
   id: string;
@@ -60,6 +71,47 @@ export class PhotoServiceError extends Error {
     super(message);
     this.name = "PhotoServiceError";
   }
+}
+
+function normalizedCursorDate(value: unknown) {
+  if (typeof value !== "string") throw new PhotoServiceError("分页游标无效。", 400);
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) throw new PhotoServiceError("分页游标无效。", 400);
+  return date.toISOString();
+}
+
+function decodePhotoCursor(value?: string | null): PhotoCursor | null {
+  if (!value) return null;
+  if (value.length > 512 || !/^[A-Za-z0-9_-]+$/u.test(value)) {
+    throw new PhotoServiceError("分页游标无效。", 400);
+  }
+  try {
+    const parsed = JSON.parse(Buffer.from(value, "base64url").toString("utf8")) as {
+      occurredAt?: unknown;
+      createdAt?: unknown;
+      id?: unknown;
+    };
+    if (typeof parsed.id !== "string" || !UUID_PATTERN.test(parsed.id)) {
+      throw new PhotoServiceError("分页游标无效。", 400);
+    }
+    return {
+      occurredAt: normalizedCursorDate(parsed.occurredAt),
+      createdAt: normalizedCursorDate(parsed.createdAt),
+      id: parsed.id.toLowerCase(),
+    };
+  } catch (error) {
+    if (error instanceof PhotoServiceError) throw error;
+    throw new PhotoServiceError("分页游标无效。", 400);
+  }
+}
+
+function encodePhotoCursor(row: PhotoEntryRow) {
+  const cursor: PhotoCursor = {
+    occurredAt: new Date(row.occurred_at).toISOString(),
+    createdAt: new Date(row.created_at).toISOString(),
+    id: row.id,
+  };
+  return Buffer.from(JSON.stringify(cursor), "utf8").toString("base64url");
 }
 
 function assertConfigured() {
@@ -230,7 +282,8 @@ async function loadPhotoEntries(): Promise<{
     .select("*,uploader:private_users!photo_entries_owner_user_id_fkey(id,username)")
     .eq("status", "ready")
     .order("occurred_at", { ascending: false })
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false });
   if (error) {
     if (isMissingPhotoSchemaError(error)) {
       return { photos: await getLegacyPhotoEntries(), schemaReady: false };
@@ -241,13 +294,124 @@ async function loadPhotoEntries(): Promise<{
   return { photos: await mapWithConcurrency(photos, 6, toViewModel), schemaReady: true };
 }
 
+async function loadPhotoPage(cursorValue?: string | null): Promise<PhotoPage & {
+  schemaReady: boolean;
+}> {
+  await requirePrivateSession();
+  if (!isServerSupabaseConfigured()) {
+    return { photos: [], nextCursor: null, schemaReady: false };
+  }
+
+  const cursor = decodePhotoCursor(cursorValue);
+  const client = createServerSupabaseClient();
+  let query = client
+    .from("photo_entries")
+    .select("*,uploader:private_users!photo_entries_owner_user_id_fkey(id,username)")
+    .eq("status", "ready")
+    .order("occurred_at", { ascending: false })
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
+    .limit(PHOTOS_PER_PAGE + 1);
+
+  if (cursor) {
+    query = query.or([
+      `occurred_at.lt.${cursor.occurredAt}`,
+      `and(occurred_at.eq.${cursor.occurredAt},created_at.lt.${cursor.createdAt})`,
+      `and(occurred_at.eq.${cursor.occurredAt},created_at.eq.${cursor.createdAt},id.lt.${cursor.id})`,
+    ].join(","));
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    if (isMissingPhotoSchemaError(error)) {
+      return {
+        photos: await getLegacyPhotoEntries(),
+        nextCursor: null,
+        schemaReady: false,
+      };
+    }
+    throw new PhotoServiceError("暂时无法读取更多照片。", 500);
+  }
+
+  const fetchedRows = (data ?? []) as PhotoEntryRow[];
+  const rows = fetchedRows.slice(0, PHOTOS_PER_PAGE);
+  const nextCursor = fetchedRows.length > PHOTOS_PER_PAGE && rows.length > 0
+    ? encodePhotoCursor(rows[rows.length - 1])
+    : null;
+  const photos = rows.map(mapPhoto);
+  return {
+    photos: await mapWithConcurrency(photos, 6, toViewModel),
+    nextCursor,
+    schemaReady: true,
+  };
+}
+
+function photoStatisticsSources(photos: PhotoViewModel[]): PhotoStatisticsSource[] {
+  return photos.map((photo) => ({
+    id: photo.id,
+    title: photo.title,
+    description: photo.description,
+    occurredAt: photo.occurredAt,
+    location: photo.location,
+    tags: photo.tags,
+  }));
+}
+
+async function loadPhotoStatistics() {
+  const client = createServerSupabaseClient();
+  const { data, error } = await client
+    .from("photo_entries")
+    .select("id,title,description,tags,occurred_at,location_country_code,location_country_name,location_region_code,location_region_name,location_city_code,location_city_name")
+    .eq("status", "ready");
+  if (error) throw new Error("Unable to load photo statistics.");
+
+  type StatisticsRow = Pick<
+    PhotoEntryRow,
+    | "id"
+    | "title"
+    | "description"
+    | "tags"
+    | "occurred_at"
+    | "location_country_code"
+    | "location_country_name"
+    | "location_region_code"
+    | "location_region_name"
+    | "location_city_code"
+    | "location_city_name"
+  >;
+  const sources = ((data ?? []) as StatisticsRow[]).map((row): PhotoStatisticsSource => ({
+    id: row.id,
+    title: row.title ?? undefined,
+    description: row.description ?? undefined,
+    occurredAt: row.occurred_at,
+    location: {
+      countryCode: row.location_country_code,
+      countryName: row.location_country_name,
+      regionCode: row.location_region_code ?? undefined,
+      regionName: row.location_region_name ?? undefined,
+      cityCode: row.location_city_code ?? undefined,
+      cityName: row.location_city_name,
+    },
+    tags: row.tags ?? [],
+  }));
+  return calculatePhotoStatistics(sources);
+}
+
 export async function getPhotoEntries(): Promise<PhotoViewModel[]> {
   return (await loadPhotoEntries()).photos;
 }
 
+export async function getPhotoPage(cursor?: string | null): Promise<PhotoPage> {
+  const { photos, nextCursor } = await loadPhotoPage(cursor);
+  return { photos, nextCursor };
+}
+
 export async function getPhotoPageData() {
-  const { photos, schemaReady } = await loadPhotoEntries();
-  return { photos, statistics: calculatePhotoStatistics(photos), schemaReady };
+  const { photos, nextCursor, schemaReady } = await loadPhotoPage();
+  const statistics = schemaReady
+    ? await loadPhotoStatistics()
+    : calculatePhotoStatistics(photoStatisticsSources(photos));
+  return { photos, nextCursor, statistics, schemaReady };
 }
 
 function validatedCommentContent(value: unknown) {

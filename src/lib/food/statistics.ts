@@ -1,9 +1,16 @@
 import type {
-  FoodGroupViewModel,
+  FoodGroup,
   FoodRankingItem,
   FoodStatistics,
 } from "@/types";
 import { FOOD_TIMEZONE } from "@/lib/food/contracts";
+
+export interface FoodStatisticsSource extends Pick<
+  FoodGroup,
+  "id" | "category" | "rating" | "occurredAt" | "timezone" | "location"
+> {
+  imageCount: number;
+}
 
 function localDateParts(value: string | number, timezone: string) {
   const parts = new Intl.DateTimeFormat("en-US", {
@@ -48,11 +55,11 @@ function ranking(
 }
 
 export function calculateFoodStatistics(
-  groups: FoodGroupViewModel[],
+  groups: FoodStatisticsSource[],
   nowMilliseconds = Date.now(),
 ): FoodStatistics {
   const groupCount = groups.length;
-  const imageCount = groups.reduce((total, group) => total + group.images.length, 0);
+  const imageCount = groups.reduce((total, group) => total + group.imageCount, 0);
   const ratedGroups = groups.filter((group) => group.rating !== undefined);
   const ratingsTotal = ratedGroups.reduce((total, group) => total + (group.rating ?? 0), 0);
   const firstGroup = [...groups].sort(
@@ -144,7 +151,7 @@ export function calculateFoodStatistics(
       ) / 86_400_000))
       : null,
     recentYearGroupCount: recentGroups.length,
-    recentYearImageCount: recentGroups.reduce((total, group) => total + group.images.length, 0),
+    recentYearImageCount: recentGroups.reduce((total, group) => total + group.imageCount, 0),
     categoryRanking,
     countryRanking,
     cityRanking,

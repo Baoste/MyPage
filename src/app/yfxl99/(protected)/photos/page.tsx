@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export default async function PhotosPage() {
-  const { photos, statistics, schemaReady } = await getPhotoPageData();
+  const { photos, nextCursor, statistics, schemaReady } = await getPhotoPageData();
   const supabaseConfigured = isServerSupabaseConfigured();
   const uploadEnabled = supabaseConfigured && schemaReady;
   const uploadDisabledReason = !supabaseConfigured
@@ -18,6 +18,7 @@ export default async function PhotosPage() {
   return (
     <PhotoExperience
       photos={photos}
+      nextCursor={nextCursor}
       statistics={statistics}
       uploadEnabled={uploadEnabled}
       mutationsEnabled={uploadEnabled}

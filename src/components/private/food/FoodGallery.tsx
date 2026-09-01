@@ -4,44 +4,91 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { EmptyState } from "@/components/common/EmptyState";
 import { FoodCard } from "@/components/private/food/FoodCard";
 import { FoodExpandedCard } from "@/components/private/food/FoodExpandedCard";
-import type { FoodGroupViewModel } from "@/types";
+import type { FoodGroupPage, FoodGroupViewModel } from "@/types";
 
-const INITIAL_VISIBLE_IMAGES = 12;
-const IMAGES_PER_BATCH = 12;
+type FoodGroupsApiResponse = ({ ok: true } & FoodGroupPage) | {
+  ok: false;
+  message?: string;
+};
 
 export function FoodGallery({
   groups,
+  nextCursor,
   mutationsEnabled,
 }: {
   groups: FoodGroupViewModel[];
+  nextCursor: string | null;
   mutationsEnabled: boolean;
 }) {
   const [expandedImageId, setExpandedImageId] = useState<string | null>(null);
-  const [visibleImageCount, setVisibleImageCount] = useState(INITIAL_VISIBLE_IMAGES);
+  const [loadedGroups, setLoadedGroups] = useState(groups);
+  const [cursor, setCursor] = useState(nextCursor);
+  const [isLoading, setIsLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
+  const loadingRef = useRef(false);
+  const requestControllerRef = useRef<AbortController | null>(null);
   const imageEntries = useMemo(
-    () => groups.flatMap((group) => group.images.map((image, imageIndex) => ({ group, image, imageIndex }))),
-    [groups],
+    () => loadedGroups.flatMap((group) => group.images.map((image, imageIndex) => ({ group, image, imageIndex }))),
+    [loadedGroups],
   );
-  const visibleEntries = imageEntries.slice(0, visibleImageCount);
-  const hasMore = visibleEntries.length < imageEntries.length;
-  const expandedImage = visibleEntries.find(({ image }) => image.id === expandedImageId) ?? null;
+  const hasMore = cursor !== null;
+  const expandedImage = imageEntries.find(({ image }) => image.id === expandedImageId) ?? null;
 
-  const loadMore = useCallback(() => {
-    setVisibleImageCount((current) => Math.min(current + IMAGES_PER_BATCH, imageEntries.length));
-  }, [imageEntries.length]);
+  const loadMore = useCallback(async () => {
+    if (!cursor || loadingRef.current) return;
+
+    loadingRef.current = true;
+    setIsLoading(true);
+    setLoadError(null);
+    const controller = new AbortController();
+    requestControllerRef.current = controller;
+    try {
+      const response = await fetch(
+        `/api/private/food/groups?cursor=${encodeURIComponent(cursor)}`,
+        { cache: "no-store", signal: controller.signal },
+      );
+      const data = await response.json() as FoodGroupsApiResponse;
+      if (!response.ok || data.ok !== true) {
+        throw new Error(data.ok === false && data.message
+          ? data.message
+          : "Unable to load more images.");
+      }
+      if (!Array.isArray(data.groups) || (data.nextCursor !== null && typeof data.nextCursor !== "string")) {
+        throw new Error("The gallery returned an invalid page.");
+      }
+
+      setLoadedGroups((current) => {
+        const existingIds = new Set(current.map((group) => group.id));
+        return [
+          ...current,
+          ...data.groups.filter((group) => !existingIds.has(group.id)),
+        ];
+      });
+      setCursor(data.nextCursor);
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
+      setLoadError(error instanceof Error ? error.message : "Unable to load more images.");
+    } finally {
+      if (requestControllerRef.current === controller) requestControllerRef.current = null;
+      loadingRef.current = false;
+      setIsLoading(false);
+    }
+  }, [cursor]);
 
   useEffect(() => {
     const sentinel = loadMoreRef.current;
-    if (!sentinel || !hasMore) return;
+    if (!sentinel || !hasMore || isLoading || loadError) return;
     const observer = new IntersectionObserver(([entry]) => {
       if (!entry.isIntersecting) return;
       observer.unobserve(entry.target);
-      loadMore();
+      void loadMore();
     }, { rootMargin: "480px 0px" });
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [hasMore, loadMore, visibleImageCount]);
+  }, [hasMore, isLoading, loadError, loadMore]);
+
+  useEffect(() => () => requestControllerRef.current?.abort(), []);
 
   useEffect(() => {
     if (!expandedImageId) return;
@@ -57,7 +104,7 @@ export function FoodGallery({
     };
   }, [expandedImageId]);
 
-  if (imageEntries.length === 0) {
+  if (imageEntries.length === 0 && !hasMore) {
     return (
       <EmptyState
         title="还没有美食记录"
@@ -69,7 +116,7 @@ export function FoodGallery({
   return (
     <>
       <div className="food-gallery grid grid-cols-1 min-[360px]:grid-cols-2 md:grid-cols-3 xl:grid-cols-4">
-        {visibleEntries.map(({ group, image, imageIndex }) => (
+        {imageEntries.map(({ group, image, imageIndex }) => (
           <FoodCard
             key={image.id}
             group={group}
@@ -86,14 +133,15 @@ export function FoodGallery({
         {hasMore ? (
           <button
             type="button"
-            onClick={loadMore}
-            aria-label="Load more images"
-            className="group grid size-11 cursor-pointer place-items-center rounded-full border border-[#c9c0b4] bg-[#f1ece4] text-[#a64b2a] shadow-[0_5px_16px_rgba(66,54,43,0.08)] transition-[transform,border-color,box-shadow] duration-[90ms] ease-out hover:scale-105 hover:border-[#a64b2a] hover:shadow-[0_7px_20px_rgba(88,44,27,0.13)] active:scale-95 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#a64b2a] motion-reduce:transform-none motion-reduce:transition-none"
+            onClick={() => void loadMore()}
+            aria-label={loadError ? "Retry loading images" : "Load more images"}
+            title={loadError ? "Retry" : "Load more"}
+            className={`group grid size-11 cursor-pointer place-items-center rounded-full border bg-[#f1ece4] text-[#a64b2a] shadow-[0_5px_16px_rgba(66,54,43,0.08)] transition-[transform,border-color,box-shadow] duration-[90ms] ease-out hover:scale-105 hover:border-[#a64b2a] hover:shadow-[0_7px_20px_rgba(88,44,27,0.13)] active:scale-95 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#a64b2a] motion-reduce:transform-none motion-reduce:transition-none ${loadError ? "border-[#a64b2a]" : "border-[#c9c0b4]"}`}
           >
             <svg
               viewBox="0 0 24 24"
               aria-hidden="true"
-              className="size-5 animate-[spin_900ms_linear_infinite] motion-reduce:animate-none"
+              className={`size-5 motion-reduce:animate-none ${loadError ? "" : "animate-[spin_900ms_linear_infinite]"}`}
             >
               <circle
                 cx="12"
@@ -114,6 +162,13 @@ export function FoodGallery({
             </svg>
           </button>
         ) : null}
+        <span className="sr-only">
+          {loadError
+            ? "Unable to load more images. Activate the button to retry."
+            : isLoading
+              ? "Loading more images."
+              : ""}
+        </span>
       </div>
 
       {expandedImage ? (

@@ -1,5 +1,10 @@
 import { PHOTO_TIMEZONE } from "@/lib/photo/contracts";
-import type { PhotoRankingItem, PhotoStatistics, PhotoViewModel } from "@/types";
+import type { PhotoEntry, PhotoRankingItem, PhotoStatistics } from "@/types";
+
+export type PhotoStatisticsSource = Pick<
+  PhotoEntry,
+  "id" | "title" | "description" | "occurredAt" | "location" | "tags"
+>;
 
 const DAY_MILLISECONDS = 24 * 60 * 60 * 1_000;
 
@@ -37,7 +42,7 @@ function ranking(values: Array<{ key: string; label: string }>, total: number) {
 }
 
 export function calculatePhotoStatistics(
-  photos: PhotoViewModel[],
+  photos: PhotoStatisticsSource[],
   now = new Date(),
 ): PhotoStatistics {
   const validCountries = photos.filter((photo) => photo.location.countryCode !== "ZZ");

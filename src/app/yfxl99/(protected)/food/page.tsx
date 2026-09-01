@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export default async function FoodPage() {
-  const { groups, statistics, schemaReady } = await getFoodPageData();
+  const { groups, nextCursor, statistics, schemaReady } = await getFoodPageData();
   const supabaseConfigured = isServerSupabaseConfigured();
   const uploadEnabled = supabaseConfigured && schemaReady;
   const uploadDisabledReason = !supabaseConfigured
@@ -18,6 +18,7 @@ export default async function FoodPage() {
   return (
     <FoodExperience
       groups={groups}
+      nextCursor={nextCursor}
       statistics={statistics}
       uploadEnabled={uploadEnabled}
       mutationsEnabled={uploadEnabled}

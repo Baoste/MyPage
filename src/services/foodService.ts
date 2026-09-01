@@ -18,7 +18,10 @@ import {
   readLocalFoodFileHeader,
   writeLocalFoodFiles,
 } from "@/lib/food/local-storage";
-import { calculateFoodStatistics } from "@/lib/food/statistics";
+import {
+  calculateFoodStatistics,
+  type FoodStatisticsSource,
+} from "@/lib/food/statistics";
 import { isServerSupabaseConfigured } from "@/lib/supabase/config";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import {
@@ -30,6 +33,7 @@ import type {
   FoodComment,
   FoodCommentRow,
   FoodGroup,
+  FoodGroupPage,
   FoodGroupRow,
   FoodGroupViewModel,
   FoodImage,
@@ -41,7 +45,14 @@ import type {
 const STALE_DRAFT_MILLISECONDS = 24 * 60 * 60 * 1_000;
 const MAXIMUM_IMAGE_HEADER_BYTES = 1024 * 1024;
 const MAXIMUM_COMMENT_CHARACTERS = 1000;
+const FOOD_GROUPS_PER_PAGE = 6;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+interface FoodGroupCursor {
+  occurredAt: string;
+  createdAt: string;
+  id: string;
+}
 
 type UploadImageRow = Pick<
   FoodImageRow,
@@ -74,6 +85,47 @@ export class FoodServiceError extends Error {
     super(message);
     this.name = "FoodServiceError";
   }
+}
+
+function normalizedCursorDate(value: unknown) {
+  if (typeof value !== "string") throw new FoodServiceError("分页游标无效。", 400);
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) throw new FoodServiceError("分页游标无效。", 400);
+  return date.toISOString();
+}
+
+function decodeFoodGroupCursor(value?: string | null): FoodGroupCursor | null {
+  if (!value) return null;
+  if (value.length > 512 || !/^[A-Za-z0-9_-]+$/u.test(value)) {
+    throw new FoodServiceError("分页游标无效。", 400);
+  }
+  try {
+    const parsed = JSON.parse(Buffer.from(value, "base64url").toString("utf8")) as {
+      occurredAt?: unknown;
+      createdAt?: unknown;
+      id?: unknown;
+    };
+    if (typeof parsed.id !== "string" || !UUID_PATTERN.test(parsed.id)) {
+      throw new FoodServiceError("分页游标无效。", 400);
+    }
+    return {
+      occurredAt: normalizedCursorDate(parsed.occurredAt),
+      createdAt: normalizedCursorDate(parsed.createdAt),
+      id: parsed.id.toLowerCase(),
+    };
+  } catch (error) {
+    if (error instanceof FoodServiceError) throw error;
+    throw new FoodServiceError("分页游标无效。", 400);
+  }
+}
+
+function encodeFoodGroupCursor(row: FoodGroupRow) {
+  const cursor: FoodGroupCursor = {
+    occurredAt: new Date(row.occurred_at).toISOString(),
+    createdAt: new Date(row.created_at).toISOString(),
+    id: row.id,
+  };
+  return Buffer.from(JSON.stringify(cursor), "utf8").toString("base64url");
 }
 
 function assertConfigured() {
@@ -257,29 +309,9 @@ async function getLegacyFoodGroups(): Promise<FoodGroupViewModel[]> {
   return groups.map((group, index) => ({ ...group, images: [signedImages[index]] }));
 }
 
-async function loadFoodGroups(): Promise<{
-  groups: FoodGroupViewModel[];
-  schemaReady: boolean;
-}> {
-  await requirePrivateSession();
-  if (!isServerSupabaseConfigured()) return { groups: [], schemaReady: false };
-
+async function hydrateFoodGroups(rows: FoodGroupRow[]): Promise<FoodGroupViewModel[]> {
+  if (rows.length === 0) return [];
   const client = createServerSupabaseClient();
-  const { data: groupData, error: groupError } = await client
-    .from("food_entries")
-    .select("*,uploader:private_users!food_entries_owner_user_id_fkey(id,username)")
-    .eq("status", "ready")
-    .order("occurred_at", { ascending: false })
-    .order("created_at", { ascending: false });
-  if (groupError) {
-    if (isMissingFoodSchemaError(groupError)) {
-      return { groups: await getLegacyFoodGroups(), schemaReady: false };
-    }
-    throw new Error("Unable to load food groups.");
-  }
-
-  const rows = (groupData ?? []) as FoodGroupRow[];
-  if (rows.length === 0) return { groups: [], schemaReady: true };
   const { data: imageData, error: imageError } = await client
     .from("food_images")
     .select("*")
@@ -304,22 +336,169 @@ async function loadFoodGroups(): Promise<{
   const allImages = groups.flatMap((group) => group.images);
   const viewImages = await mapWithConcurrency(allImages, 6, toImageViewModel);
   const viewById = new Map(viewImages.map((image) => [image.id, image]));
+  return groups.map((group) => ({
+    ...group,
+    images: group.images.map((image) => viewById.get(image.id) ?? { ...image, imageUrl: "", thumbnailUrl: "" }),
+  }));
+}
+
+async function loadFoodGroups(): Promise<{
+  groups: FoodGroupViewModel[];
+  schemaReady: boolean;
+}> {
+  await requirePrivateSession();
+  if (!isServerSupabaseConfigured()) return { groups: [], schemaReady: false };
+
+  const client = createServerSupabaseClient();
+  const { data: groupData, error: groupError } = await client
+    .from("food_entries")
+    .select("*,uploader:private_users!food_entries_owner_user_id_fkey(id,username)")
+    .eq("status", "ready")
+    .order("occurred_at", { ascending: false })
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false });
+  if (groupError) {
+    if (isMissingFoodSchemaError(groupError)) {
+      return { groups: await getLegacyFoodGroups(), schemaReady: false };
+    }
+    throw new Error("Unable to load food groups.");
+  }
+
   return {
+    groups: await hydrateFoodGroups((groupData ?? []) as FoodGroupRow[]),
     schemaReady: true,
-    groups: groups.map((group) => ({
-      ...group,
-      images: group.images.map((image) => viewById.get(image.id) ?? { ...image, imageUrl: "", thumbnailUrl: "" }),
-    })),
   };
+}
+
+async function loadFoodGroupPage(cursorValue?: string | null): Promise<FoodGroupPage & {
+  schemaReady: boolean;
+}> {
+  await requirePrivateSession();
+  if (!isServerSupabaseConfigured()) {
+    return { groups: [], nextCursor: null, schemaReady: false };
+  }
+
+  const cursor = decodeFoodGroupCursor(cursorValue);
+  const client = createServerSupabaseClient();
+  let query = client
+    .from("food_entries")
+    .select("*,uploader:private_users!food_entries_owner_user_id_fkey(id,username)")
+    .eq("status", "ready")
+    .order("occurred_at", { ascending: false })
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
+    .limit(FOOD_GROUPS_PER_PAGE + 1);
+
+  if (cursor) {
+    query = query.or([
+      `occurred_at.lt.${cursor.occurredAt}`,
+      `and(occurred_at.eq.${cursor.occurredAt},created_at.lt.${cursor.createdAt})`,
+      `and(occurred_at.eq.${cursor.occurredAt},created_at.eq.${cursor.createdAt},id.lt.${cursor.id})`,
+    ].join(","));
+  }
+
+  const { data: groupData, error: groupError } = await query;
+  if (groupError) {
+    if (isMissingFoodSchemaError(groupError)) {
+      const groups = await getLegacyFoodGroups();
+      return { groups, nextCursor: null, schemaReady: false };
+    }
+    throw new FoodServiceError("暂时无法读取更多美食记录。", 500);
+  }
+
+  const fetchedRows = (groupData ?? []) as FoodGroupRow[];
+  const rows = fetchedRows.slice(0, FOOD_GROUPS_PER_PAGE);
+  const nextCursor = fetchedRows.length > FOOD_GROUPS_PER_PAGE && rows.length > 0
+    ? encodeFoodGroupCursor(rows[rows.length - 1])
+    : null;
+  return {
+    groups: await hydrateFoodGroups(rows),
+    nextCursor,
+    schemaReady: true,
+  };
+}
+
+function foodStatisticsSources(groups: FoodGroupViewModel[]): FoodStatisticsSource[] {
+  return groups.map((group) => ({
+    id: group.id,
+    category: group.category,
+    rating: group.rating,
+    occurredAt: group.occurredAt,
+    timezone: group.timezone,
+    location: group.location,
+    imageCount: group.images.length,
+  }));
+}
+
+async function loadFoodStatistics() {
+  const client = createServerSupabaseClient();
+  const { data: groupData, error: groupError } = await client
+    .from("food_entries")
+    .select("id,category,rating,occurred_at,timezone,location_country_code,location_country_name,location_region_code,location_region_name,location_city_code,location_city_name")
+    .eq("status", "ready");
+  if (groupError) throw new Error("Unable to load food statistics groups.");
+
+  const { data: imageData, error: imageError } = await client
+    .from("food_images")
+    .select("food_entry_id,food_entries!inner(status)")
+    .eq("food_entries.status", "ready");
+  if (imageError) throw new Error("Unable to load food statistics images.");
+
+  const imageCounts = new Map<string, number>();
+  for (const row of (imageData ?? []) as Array<{ food_entry_id: string }>) {
+    imageCounts.set(row.food_entry_id, (imageCounts.get(row.food_entry_id) ?? 0) + 1);
+  }
+
+  type StatisticsRow = Pick<
+    FoodGroupRow,
+    | "id"
+    | "category"
+    | "rating"
+    | "occurred_at"
+    | "timezone"
+    | "location_country_code"
+    | "location_country_name"
+    | "location_region_code"
+    | "location_region_name"
+    | "location_city_code"
+    | "location_city_name"
+  >;
+  const sources = ((groupData ?? []) as StatisticsRow[]).map((row): FoodStatisticsSource => ({
+    id: row.id,
+    category: row.category,
+    rating: row.rating && row.rating >= 1 && row.rating <= 5
+      ? (row.rating as FoodRating)
+      : undefined,
+    occurredAt: row.occurred_at,
+    timezone: row.timezone,
+    location: {
+      countryCode: row.location_country_code,
+      countryName: row.location_country_name,
+      regionCode: row.location_region_code ?? undefined,
+      regionName: row.location_region_name ?? undefined,
+      cityCode: row.location_city_code ?? undefined,
+      cityName: row.location_city_name,
+    },
+    imageCount: imageCounts.get(row.id) ?? 0,
+  }));
+  return calculateFoodStatistics(sources);
 }
 
 export async function getFoodGroups(): Promise<FoodGroupViewModel[]> {
   return (await loadFoodGroups()).groups;
 }
 
+export async function getFoodGroupPage(cursor?: string | null): Promise<FoodGroupPage> {
+  const { groups, nextCursor } = await loadFoodGroupPage(cursor);
+  return { groups, nextCursor };
+}
+
 export async function getFoodPageData() {
-  const { groups, schemaReady } = await loadFoodGroups();
-  return { groups, statistics: calculateFoodStatistics(groups), schemaReady };
+  const { groups, nextCursor, schemaReady } = await loadFoodGroupPage();
+  const statistics = schemaReady
+    ? await loadFoodStatistics()
+    : calculateFoodStatistics(foodStatisticsSources(groups));
+  return { groups, nextCursor, statistics, schemaReady };
 }
 
 function validatedCommentContent(value: unknown) {

@@ -8,12 +8,14 @@ import type { PhotoStatistics, PhotoViewModel } from "@/types";
 
 export function PhotoExperience({
   photos,
+  nextCursor,
   statistics,
   uploadEnabled,
   mutationsEnabled,
   uploadDisabledReason,
 }: {
   photos: PhotoViewModel[];
+  nextCursor: string | null;
   statistics: PhotoStatistics;
   uploadEnabled: boolean;
   mutationsEnabled: boolean;
@@ -57,7 +59,11 @@ export function PhotoExperience({
             {uploadDisabledReason ?? "当前暂时不能上传照片。"}
           </p>
         ) : null}
-        <PhotoGallery photos={photos} mutationsEnabled={mutationsEnabled} />
+        <PhotoGallery
+          photos={photos}
+          nextCursor={nextCursor}
+          mutationsEnabled={mutationsEnabled}
+        />
       </div>
 
       <div className="pointer-events-none fixed inset-x-0 bottom-[max(1rem,env(safe-area-inset-bottom))] z-30 flex items-end justify-between px-4 sm:px-6">

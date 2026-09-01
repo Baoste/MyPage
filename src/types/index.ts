@@ -65,6 +65,11 @@ export interface PhotoViewModel extends PhotoEntry {
   thumbnailUrl: string;
 }
 
+export interface PhotoPage {
+  photos: PhotoViewModel[];
+  nextCursor: string | null;
+}
+
 export interface PhotoRankingItem {
   key: string;
   label: string;
@@ -175,6 +180,11 @@ export interface FoodGroup {
 
 export interface FoodGroupViewModel extends Omit<FoodGroup, "images"> {
   images: FoodImageViewModel[];
+}
+
+export interface FoodGroupPage {
+  groups: FoodGroupViewModel[];
+  nextCursor: string | null;
 }
 
 export interface FoodRankingItem {

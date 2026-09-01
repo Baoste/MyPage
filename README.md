@@ -6,7 +6,7 @@
 
 | 区域 | 实现 |
 | --- | --- |
-| Public | 首页 Hero、3/2/1 列作品 Gallery、文章列表、Markdown 文章详情、Resume 页面、响应式导航 |
+| Public | 首页 Hero、3/2/1 列作品 Gallery、文章列表、Markdown 文章详情、Resume、可移除的 Tools 故事编辑器、响应式导航 |
 | Private | `/yfxl99` 登录、照片活跃度驱动的 WebGL2 程序化像素树 Welcome、支持上传/翻面/长按原位展开/统计/修改删除/账号评论的 Photos、支持多图和账号评论的 Food 画廊、独立导航、Logout、Loading/Empty/Error 状态 |
 | Authentication | 账号 + bcrypt 密码、一次性邀请码注册、HS256 签名 Session、统一 Proxy/Auth Guard、HttpOnly Cookie、7 天过期、同源校验、简单登录限流 |
 | Data | `projects`、账号/邀请、Photo/Food 记录与评论 Service Layer；未配置 Supabase 时仅公开作品使用本地 Mock |
@@ -104,6 +104,7 @@ npm start
 | `PRIVATE_MEDIA_SIGNED_URL_TTL_SECONDS` | Photo/旧 Food 私密 URL 有效期，默认 `300` | Server only |
 | `FOOD_STORAGE_ROOT` | 新 Food 图片的持久化根目录；默认 `.data/private-media` | Server only |
 | `PHOTO_STORAGE_ROOT` | 新 Photo 图片的持久化根目录；空值时回退到 `FOOD_STORAGE_ROOT`，再回退到 `.data/private-media` | Server only |
+| `TOOLS_STORAGE_ROOT` | Tools 模块数据根目录；默认 `.data/tools`，生产环境应指向持久磁盘 | Server only |
 
 生成 Session Secret：
 
@@ -484,6 +485,12 @@ Browser
 
 当前限流器按实例内存和请求 IP 工作，适合第一阶段与单实例部署；多实例、高流量公网部署应换成 Upstash/Redis 等共享存储限流器。反向代理必须可信地覆盖 `X-Forwarded-For`。
 
+## Tools 故事编辑器
+
+公开导航的 `/tools` 在站内加载 `tool-modules/story-editor/index.html`，原编辑器的 Firebase SDK 与配置已经移除。故事数据经同源 API 原子写入 `TOOLS_STORAGE_ROOT/story-editor/data.json`；多个页面每 3 秒检查一次更新，不需要数据库 Migration。
+
+编辑器代码、数据和宿主页面彼此分离。Tools 页的“删除模块”使用项目指定的明文口令进行服务端比较，客户端构建不包含口令；接口同时执行同源校验和按 IP 限流。口令正确后会先清空独立数据目录并写入停用标记，再尝试只删除 `tool-modules/story-editor/`。在源码目录可写的 Node/CVM 部署中代码目录会被物理删除；在只读或不可变部署中，停用标记仍会立即阻止 Tools 页面、受控编辑器路由和数据 API 访问，下一次部署时再从构建源移除代码即可。
+
 ## 部署
 
 ### Vercel
@@ -494,7 +501,7 @@ Browser
 
 1. 将一块持久云硬盘挂载到固定位置，例如 `/data`；
 2. 创建 `/data/mypage`，确保运行 Node.js 的系统用户拥有读写权限；
-3. 在生产环境设置 `PHOTO_STORAGE_ROOT=/data/mypage` 与 `FOOD_STORAGE_ROOT=/data/mypage`；两类图片可以共用根目录，各自存入 `photos/` 与 `food/`；
+3. 在生产环境设置 `PHOTO_STORAGE_ROOT=/data/mypage`、`FOOD_STORAGE_ROOT=/data/mypage` 与 `TOOLS_STORAGE_ROOT=/data/mypage/tools`；媒体与 Tools 数据分别写入各自子目录；
 4. 如果使用 Docker，把宿主机持久目录挂载到容器内相同的配置路径；
 5. 配置 Supabase 和 Session 环境变量，按顺序执行六份 Migration，并创建第一个邀请码；
 6. 使用 HTTPS 反向代理运行 `npm start`，并定期备份 `/data/mypage`。
@@ -510,7 +517,7 @@ npm start
 ```
 
 生产环境应置于 HTTPS 反向代理后。`NODE_ENV=production` 时 Session Cookie 使用 `Secure` 和 `__Host-` 前缀，因此 HTTPS 是必需的。
-Node 进程还必须对 `PHOTO_STORAGE_ROOT` 和 `FOOD_STORAGE_ROOT` 拥有持续读写权限。不要把生产路径设在源码目录、`.next`、系统临时目录或容器未挂载的可写层中。
+Node 进程还必须对 `PHOTO_STORAGE_ROOT`、`FOOD_STORAGE_ROOT` 和 `TOOLS_STORAGE_ROOT` 拥有持续读写权限。不要把生产路径设在源码目录、`.next`、系统临时目录或容器未挂载的可写层中。若希望删除按钮同时物理删除编辑器代码，Node 进程还需对部署目录中的 `tool-modules/story-editor/` 有删除权限；否则会采用上面的停用标记降级路径。
 
 ## 验收清单
 
@@ -518,6 +525,7 @@ Node 进程还必须对 `PHOTO_STORAGE_ROOT` 和 `FOOD_STORAGE_ROOT` 拥有持�
 - [ ] 按顺序执行六份 migration，确认 `private_users`、`private_invites`、升级后的 `photo_entries`、`food_entries`、`food_images`、`food_comments`、`photo_comments` 与两个 Buckets
 - [ ] 确认 `private-diary` 为 Private，所有私密表匿名查询失败
 - [ ] 将 `PHOTO_STORAGE_ROOT` / `FOOD_STORAGE_ROOT` 指向持久磁盘，确认 Node 进程可读写并配置目录备份
+- [ ] 将 `TOOLS_STORAGE_ROOT` 指向持久磁盘，并确认 Tools 删除后的停用标记可持续保存
 - [ ] 用 `npm run generate-invite` 生成高熵邀请码，只把摘要写入 `private_invites`
 - [x] `npm run lint`
 - [x] `npm run typecheck`
@@ -553,7 +561,7 @@ Supabase、生产 Secret 和持久磁盘步骤需要项目所有者在自己的 
 - `npm run build`：通过；首页、Articles、Resume 静态生成，两个 Markdown 详情 SSG，私密页面/API 动态渲染，Proxy 生效。
 - 历史共享密码版曾完成 Production 冒烟；切换到账号版后，生产构建已通过，但注册、邀请码消耗和上传署名仍需在执行第四份 Migration 的目标环境中按上方验收清单复核。
 - Rate Limit：同一客户端连续 6 次错误请求状态为 `401, 401, 401, 401, 401, 429`。
-- 静态安全扫描：源码没有指定明文密码；扫描 19 个 `.next/static` 浏览器文件，未发现明文密码或 server-only 环境变量名。
+- 静态安全扫描：账号密码与 Session Secret 不存在于源码；Tools 删除口令按需求仅存在于 server-only 注册表，扫描 `.next/static` 浏览器文件未发现该口令或 server-only 环境变量名。
 - 视觉抽查：使用 production build 检查了 1440px 桌面和 500px 小屏布局，导航、排版与响应式断点正常。
 - 像素树浏览器验收：登录后在 Chrome WebGL2 环境检查 1440×960 与 390×844；100% 手动密度下确认大树冠、缩短的裸露树干和 3px/2px/1px 叶片层次，shader 无运行时错误，桌面/手机均无页面溢出；控制面板可滚动、收起，树参数与 localStorage 持久化正常。面板入口现已改为默认完全隐藏，只能在 Console 输入 `open_tree_control_panel` 临时打开。
 - 树形平衡验收：使用 production build 在 1440×960 Chrome WebGL2 中复核默认 seed；主干保持接近竖直，左右侧枝同高度成对展开，同时仍保留非镜像的自然差异，无运行时错误和页面溢出。
