@@ -71,7 +71,7 @@ export function FoodExpandedCard({
         }}
       >
         <div className="grid md:grid-cols-[minmax(0,1.25fr)_minmax(18rem,0.75fr)]">
-          <div className="relative aspect-[4/3] overflow-hidden bg-[#dcd5c9] sm:aspect-[16/10] md:aspect-auto md:min-h-[31rem] md:self-start">
+          <div className="relative aspect-[4/3] overflow-hidden bg-[#dcd5c9] sm:aspect-[16/10] md:aspect-auto md:min-h-[31rem]">
             {image?.imageUrl ? (
               <Image
                 unoptimized
@@ -135,14 +135,6 @@ export function FoodExpandedCard({
               <p className="mt-2 whitespace-pre-wrap text-sm leading-7 text-[#514b43]">{group.review || "这次还没有留下点评。"}</p>
             </div>
 
-            <PrivateCommentSection
-              key={group.id}
-              endpoint={`/api/private/food/groups/${group.id}/comments`}
-              sectionId={`food-comments-${group.id}`}
-              ariaLabel="美食评论"
-              placeholder="说说这顿饭，或留一句给同行的人…"
-            />
-
             {group.images.length > 1 ? (
               <div className="mt-6 flex gap-2 overflow-x-auto pb-1" aria-label="同组图片">
                 {group.images.map((item, index) => (
@@ -172,6 +164,14 @@ export function FoodExpandedCard({
           </div>
         </div>
       </section>
+
+      <PrivateCommentSection
+        key={group.id}
+        endpoint={`/api/private/food/groups/${group.id}/comments`}
+        sectionId={`food-comments-${group.id}`}
+        ariaLabel="美食评论"
+        placeholder="说说这顿饭，或留一句给同行的人…"
+      />
 
       {editOpen ? (
         <FoodEditDialog

@@ -106,24 +106,38 @@ export function PrivateCommentSection({
   }
 
   return (
-    <div className="mt-6 border-t border-[#ded6ca] pt-5">
-      <button
-        type="button"
-        aria-expanded={commentsOpen}
-        aria-controls={sectionId}
-        onClick={toggleComments}
-        className="inline-flex min-h-10 items-center gap-3 rounded-full border border-[#cfc5b8] bg-[#fffdf8] px-4 text-xs font-semibold tracking-[0.08em] text-[#4e4841] transition-colors hover:border-[#a99d8f] hover:bg-[#eee8de]"
-      >
-        <span>{commentsOpen ? "收起评论" : "评论"}</span>
-        {commentsStatus === "ready" ? (
-          <span className="min-w-5 rounded-full bg-[#30352e] px-1.5 py-0.5 text-center text-[0.58rem] tabular-nums text-white">
-            {comments.length}
-          </span>
-        ) : null}
-      </button>
+    <section
+      id={sectionId}
+      aria-labelledby={`${sectionId}-title`}
+      className="mt-4 rounded-[1.75rem] border border-[#d7d0c4] bg-[#f7f3ec] px-5 py-5 text-[#302d29] shadow-[0_18px_48px_rgba(47,40,31,0.1)] sm:px-7 sm:py-6"
+    >
+      <div className="flex items-center justify-between gap-5">
+        <div className="min-w-0">
+          <p className="text-[0.58rem] font-semibold uppercase tracking-[0.17em] text-[#877e73]">Conversation</p>
+          <div className="mt-1.5 flex items-center gap-3">
+            <h3 id={`${sectionId}-title`} className="display-type text-2xl leading-none text-[#292621]">
+              {ariaLabel}
+            </h3>
+            {commentsStatus === "ready" ? (
+              <span className="min-w-5 rounded-full bg-[#30352e] px-1.5 py-0.5 text-center text-[0.58rem] tabular-nums text-white">
+                {comments.length}
+              </span>
+            ) : null}
+          </div>
+        </div>
+        <button
+          type="button"
+          aria-expanded={commentsOpen}
+          aria-controls={`${sectionId}-body`}
+          onClick={toggleComments}
+          className="inline-flex min-h-10 shrink-0 items-center rounded-full border border-[#cfc5b8] bg-[#fffdf8] px-4 text-xs font-semibold tracking-[0.08em] text-[#4e4841] transition-colors hover:border-[#a99d8f] hover:bg-[#eee8de]"
+        >
+          {commentsOpen ? "收起" : "展开"}
+        </button>
+      </div>
 
       {commentsOpen ? (
-        <section id={sectionId} aria-label={ariaLabel} className="mt-5">
+        <div id={`${sectionId}-body`} className="mt-6 border-t border-[#ded6ca] pt-6">
           {commentsStatus === "loading" ? (
             <p className="py-4 text-xs text-[#776f65]">正在读取评论…</p>
           ) : null}
@@ -198,8 +212,8 @@ export function PrivateCommentSection({
           >
             {commentFeedback}
           </p>
-        </section>
+        </div>
       ) : null}
-    </div>
+    </section>
   );
 }

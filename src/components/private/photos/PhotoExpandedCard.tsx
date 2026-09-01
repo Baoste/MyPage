@@ -58,7 +58,7 @@ export function PhotoExpandedCard({
         }}
       >
         <div className="grid md:grid-cols-[minmax(0,1.25fr)_minmax(18rem,0.75fr)]">
-          <div className="relative min-h-[18rem] overflow-hidden bg-[#dcd5c9] sm:min-h-[28rem] md:min-h-[34rem] md:self-start">
+          <div className="relative min-h-[18rem] overflow-hidden bg-[#dcd5c9] sm:min-h-[28rem] md:min-h-[34rem]">
             {photo.imageUrl ? (
               <Image
                 unoptimized
@@ -121,14 +121,6 @@ export function PhotoExpandedCard({
               </p>
             </div>
 
-            <PrivateCommentSection
-              key={photo.id}
-              endpoint={`/api/private/photos/entries/${photo.id}/comments`}
-              sectionId={`photo-comments-${photo.id}`}
-              ariaLabel="照片评论"
-              placeholder="说说这张照片，或留一句给同行的人…"
-            />
-
             {photo.tags.length ? (
               <ul className="mt-6 flex flex-wrap gap-2" aria-label="照片标签">
                 {photo.tags.map((tag) => (
@@ -167,6 +159,14 @@ export function PhotoExpandedCard({
           </div>
         </div>
       </section>
+
+      <PrivateCommentSection
+        key={photo.id}
+        endpoint={`/api/private/photos/entries/${photo.id}/comments`}
+        sectionId={`photo-comments-${photo.id}`}
+        ariaLabel="照片评论"
+        placeholder="说说这张照片，或留一句给同行的人…"
+      />
 
       {editOpen ? (
         <PhotoEditDialog
