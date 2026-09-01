@@ -71,7 +71,7 @@ export function FoodExpandedCard({
         }}
       >
         <div className="grid md:grid-cols-[minmax(0,1.25fr)_minmax(18rem,0.75fr)]">
-          <div className="relative aspect-[4/3] overflow-hidden bg-[#dcd5c9] sm:aspect-[16/10] md:aspect-auto md:min-h-[31rem]">
+          <div className="relative aspect-[4/3] overflow-hidden bg-[#dcd5c9] sm:aspect-[16/10] md:aspect-auto md:min-h-[31rem] md:self-start">
             {image?.imageUrl ? (
               <Image
                 unoptimized

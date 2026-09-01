@@ -58,7 +58,7 @@ export function PhotoExpandedCard({
         }}
       >
         <div className="grid md:grid-cols-[minmax(0,1.25fr)_minmax(18rem,0.75fr)]">
-          <div className="relative min-h-[18rem] overflow-hidden bg-[#dcd5c9] sm:min-h-[28rem] md:min-h-[34rem]">
+          <div className="relative min-h-[18rem] overflow-hidden bg-[#dcd5c9] sm:min-h-[28rem] md:min-h-[34rem] md:self-start">
             {photo.imageUrl ? (
               <Image
                 unoptimized
