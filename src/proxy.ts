@@ -6,6 +6,7 @@ import {
 
 const publicPrivateApiRoutes = new Set([
   "/api/private/login",
+  "/api/private/register",
   "/api/private/logout",
 ]);
 

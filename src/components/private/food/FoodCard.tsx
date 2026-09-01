@@ -213,6 +213,9 @@ export function FoodCard({
               <span className="block space-y-1.5 pr-10 text-[0.66rem] leading-5 text-[#dfe2d8] sm:text-xs">
                 <span className="block line-clamp-2">{foodLocationLabel(group)}</span>
                 <span className="block">{formatFoodDateTime(group)}</span>
+                {group.uploadedBy ? (
+                  <span className="block text-[#b9c0b2]">上传者 · @{group.uploadedBy.username}</span>
+                ) : null}
               </span>
             </span>
           </span>

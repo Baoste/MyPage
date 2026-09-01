@@ -14,7 +14,7 @@ export default async function PrivateHomePage() {
           <div>
             <p className="eyebrow text-[#777067]">Private · Personal</p>
             <p className="mt-5 max-w-xs text-sm leading-6 text-[#716a62]">
-              A small place for the moments that are not meant for the public site.
+              使用账号和密码登录。第一次来，请用邀请码注册一个只属于你的账号。
             </p>
           </div>
           <div className="max-w-xl">
@@ -30,7 +30,7 @@ export default async function PrivateHomePage() {
 
   return (
     <div className="flex min-h-svh flex-col">
-      <PrivateNavbar />
+      <PrivateNavbar username={session.username} />
       <WelcomeHome activity={activity} />
     </div>
   );

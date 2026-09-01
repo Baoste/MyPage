@@ -70,7 +70,7 @@ function assertUuid(value: string, label: string) {
 }
 
 function isMissingPhotoSchemaError(error: { code?: string } | null) {
-  return Boolean(error?.code && ["42703", "42P01", "PGRST204", "PGRST205"].includes(error.code));
+  return Boolean(error?.code && ["42703", "42P01", "PGRST200", "PGRST204", "PGRST205"].includes(error.code));
 }
 
 function legacyOccurredAt(photoDate: string) {
@@ -109,6 +109,7 @@ function mapPhoto(row: PhotoEntryRow): PhotoEntry {
     mimeType: row.mime_type,
     byteSize: row.byte_size,
     capturedAt: row.captured_at ?? undefined,
+    uploadedBy: row.uploader ?? undefined,
     legacyRecord: row.legacy_record,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -209,7 +210,7 @@ async function loadPhotoEntries(): Promise<{
   const client = createServerSupabaseClient();
   const { data, error } = await client
     .from("photo_entries")
-    .select("*")
+    .select("*,uploader:private_users!photo_entries_owner_user_id_fkey(id,username)")
     .eq("status", "ready")
     .order("occurred_at", { ascending: false })
     .order("created_at", { ascending: false });
@@ -238,10 +239,11 @@ export async function getPhotoEntryById(id: string): Promise<PhotoViewModel | nu
   return photos.find((photo) => photo.id === id) ?? null;
 }
 
-async function selectPhoto(photoId: string, requestId?: string) {
+async function selectPhoto(photoId: string, requestId?: string, ownerUserId?: string) {
   const client = createServerSupabaseClient();
   let query = client.from("photo_entries").select("*").eq("id", photoId);
   if (requestId) query = query.eq("upload_request_id", requestId);
+  if (ownerUserId) query = query.eq("owner_user_id", ownerUserId);
   const { data, error } = await query.maybeSingle();
   if (error) throw new PhotoServiceError("无法读取照片记录。", 500);
   return data as PhotoEntryRow | null;
@@ -304,7 +306,7 @@ function uploadTarget(input: PhotoUploadRequestInput, photo: PhotoEntryRow) {
 }
 
 export async function initializePhotoUpload(input: PhotoUploadRequestInput) {
-  await requirePrivateSession();
+  const session = await requirePrivateSession();
   assertConfigured();
   void cleanupStaleDrafts().catch((error) => {
     console.error("Unable to run photo draft cleanup.", error);
@@ -315,6 +317,7 @@ export async function initializePhotoUpload(input: PhotoUploadRequestInput) {
     .from("photo_entries")
     .select("*")
     .eq("upload_request_id", input.requestId)
+    .eq("owner_user_id", session.userId)
     .maybeSingle();
   if (existingError) {
     if (isMissingPhotoSchemaError(existingError)) {
@@ -364,6 +367,7 @@ export async function initializePhotoUpload(input: PhotoUploadRequestInput) {
     captured_at: input.capturedAt ?? input.occurredAt,
     status: "draft",
     upload_request_id: input.requestId,
+    owner_user_id: session.userId,
     legacy_record: false,
   }).select("*").single();
   if (error || !data) {
@@ -405,11 +409,11 @@ export async function uploadPhotoImage(
   contentType: string,
   variant: "original" | "thumbnail" = "original",
 ) {
-  await requirePrivateSession();
+  const session = await requirePrivateSession();
   assertConfigured();
   assertUuid(photoId, "照片标识");
   assertUuid(requestId, "上传请求标识");
-  const photo = await selectPhoto(photoId, requestId);
+  const photo = await selectPhoto(photoId, requestId, session.userId);
   if (!photo || photo.status !== "draft") {
     throw new PhotoServiceError("上传草稿不存在或已经过期。", 404);
   }
@@ -444,11 +448,11 @@ export async function uploadPhotoImage(
 }
 
 export async function completePhotoUpload(photoId: string, requestId: string) {
-  await requirePrivateSession();
+  const session = await requirePrivateSession();
   assertConfigured();
   assertUuid(photoId, "照片标识");
   assertUuid(requestId, "上传请求标识");
-  const photo = await selectPhoto(photoId, requestId);
+  const photo = await selectPhoto(photoId, requestId, session.userId);
   if (!photo) throw new PhotoServiceError("上传草稿不存在或已经过期。", 404);
   if (photo.status === "ready") return { photoId };
 
@@ -498,11 +502,11 @@ export async function completePhotoUpload(photoId: string, requestId: string) {
 }
 
 export async function cancelPhotoUpload(photoId: string, requestId: string) {
-  await requirePrivateSession();
+  const session = await requirePrivateSession();
   assertConfigured();
   assertUuid(photoId, "照片标识");
   assertUuid(requestId, "上传请求标识");
-  const photo = await selectPhoto(photoId, requestId);
+  const photo = await selectPhoto(photoId, requestId, session.userId);
   if (!photo || photo.status === "ready") return;
   await removeDraft(photo);
 }

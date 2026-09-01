@@ -223,6 +223,9 @@ export function PhotoCard({
               <span className="block space-y-1.5 pr-10 text-[0.66rem] leading-5 text-[#dfe2d8] sm:text-xs">
                 <span className="block line-clamp-2">{photoLocationLabel(photo)}</span>
                 <span className="block">{formatPhotoDateTime(photo)}</span>
+                {photo.uploadedBy ? (
+                  <span className="block text-[#b9c0b2]">上传者 · @{photo.uploadedBy.username}</span>
+                ) : null}
                 {photo.tags.length ? (
                   <span className="block truncate">{photo.tags.map((tag) => `#${tag}`).join(" ")}</span>
                 ) : null}

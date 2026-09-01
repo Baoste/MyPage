@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  authenticatePrivateAccount,
-  PrivateAccountError,
-} from "@/lib/auth/account";
+import { PrivateAccountError, registerPrivateAccount } from "@/lib/auth/account";
 import { clearLoginAttempts, consumeLoginAttempt } from "@/lib/auth/rate-limit";
 import { hasValidRequestOrigin, requestClientKey } from "@/lib/auth/request";
 import {
@@ -34,40 +31,36 @@ export async function POST(request: NextRequest) {
   } catch {
     return json("Invalid request.", 400);
   }
-
-  if (typeof body !== "object" || body === null) {
-    return json("Invalid request.", 400);
-  }
-  const { username, password } = body as { username?: unknown; password?: unknown };
+  if (typeof body !== "object" || body === null) return json("Invalid request.", 400);
+  const { username, password, invitationCode } = body as {
+    username?: unknown;
+    password?: unknown;
+    invitationCode?: unknown;
+  };
   if (
     typeof username !== "string"
     || username.length > 128
     || typeof password !== "string"
-    || password.length === 0
     || password.length > 256
+    || typeof invitationCode !== "string"
+    || invitationCode.length > 256
   ) return json("Invalid request.", 400);
 
-  const clientKey = `login:${requestClientKey(request)}`;
+  const clientKey = `register:${requestClientKey(request)}`;
   const rateLimit = consumeLoginAttempt(clientKey);
   if (!rateLimit.allowed) {
-    const response = json("Too many attempts. Please try again later.", 429);
+    const response = json("尝试次数过多，请稍后再试。", 429);
     response.headers.set("Retry-After", String(rateLimit.retryAfterSeconds));
     return response;
   }
-
-  if (!isSessionConfigured()) {
-    return json("Private space is unavailable right now.", 503);
-  }
+  if (!isSessionConfigured()) return json("账号服务暂时不可用。", 503);
 
   let account;
   try {
-    account = await authenticatePrivateAccount(username, password);
+    account = await registerPrivateAccount(username, password, invitationCode);
   } catch (error) {
     if (error instanceof PrivateAccountError) return json(error.message, error.status);
-    return json("Private space is unavailable right now.", 503);
-  }
-  if (!account) {
-    return json("账号或密码不正确。", 401);
+    return json("暂时无法创建账号。", 503);
   }
 
   clearLoginAttempts(clientKey);

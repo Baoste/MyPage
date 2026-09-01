@@ -32,6 +32,11 @@ export interface ArticleDocument extends Article {
   content: string;
 }
 
+export interface PrivateAccountSummary {
+  id: string;
+  username: string;
+}
+
 export type PhotoImageMimeType = "image/jpeg" | "image/png" | "image/webp";
 
 export interface PhotoEntry {
@@ -49,6 +54,7 @@ export interface PhotoEntry {
   mimeType: PhotoImageMimeType;
   byteSize: number;
   capturedAt?: string;
+  uploadedBy?: PrivateAccountSummary;
   legacyRecord: boolean;
   createdAt: string;
   updatedAt: string;
@@ -146,6 +152,7 @@ export interface FoodGroup {
   timezone: string;
   location: FoodLocation;
   images: FoodImage[];
+  uploadedBy?: PrivateAccountSummary;
   legacyRecord: boolean;
   createdAt: string;
   updatedAt: string;
@@ -233,6 +240,8 @@ export interface PhotoEntryRow {
   captured_at: string | null;
   status: "draft" | "ready";
   upload_request_id: string | null;
+  owner_user_id: string | null;
+  uploader?: PrivateAccountSummary | null;
   legacy_record: boolean;
   created_at: string;
   updated_at: string;
@@ -260,6 +269,8 @@ export interface FoodGroupRow {
   location_city_name: string;
   status: "draft" | "ready";
   upload_request_id: string | null;
+  owner_user_id: string | null;
+  uploader?: PrivateAccountSummary | null;
   legacy_record: boolean;
   created_at: string;
   updated_at: string;

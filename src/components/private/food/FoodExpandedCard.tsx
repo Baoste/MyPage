@@ -121,6 +121,12 @@ export function FoodExpandedCard({
                 <dt className="text-[0.58rem] font-semibold uppercase tracking-[0.16em] text-[#837a70]">时间</dt>
                 <dd className="mt-1.5 leading-6 text-[#39352f]">{formatFoodDateTime(group)}</dd>
               </div>
+              {group.uploadedBy ? (
+                <div className="rounded-2xl bg-[#eee8de] px-4 py-3.5">
+                  <dt className="text-[0.58rem] font-semibold uppercase tracking-[0.16em] text-[#837a70]">上传账号</dt>
+                  <dd className="mt-1.5 leading-6 text-[#39352f]">@{group.uploadedBy.username}</dd>
+                </div>
+              ) : null}
             </dl>
 
             <div className="mt-6">

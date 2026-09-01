@@ -1,6 +1,6 @@
 # Personal Portfolio
 
-一个基于 Next.js App Router 的长期维护型个人网站骨架。公开区域用于作品、文章和简历；`/yfxl99` 是使用共享密码保护的私密照片与美食记录。项目不是静态 UI Demo：数据库、可配置的 Photo/Food 本地文件目录、Supabase Storage 兼容层、RLS、密码哈希和签名 Session 均已接入实际代码路径。
+一个基于 Next.js App Router 的长期维护型个人网站骨架。公开区域用于作品、文章和简历；`/yfxl99` 是仅限受邀账号访问的私密照片与美食记录。项目不是静态 UI Demo：数据库、可配置的 Photo/Food 本地文件目录、Supabase Storage 兼容层、RLS、账号密码和签名 Session 均已接入实际代码路径。
 
 ## 已实现内容
 
@@ -8,13 +8,13 @@
 | --- | --- |
 | Public | 首页 Hero、3/2/1 列作品 Gallery、文章列表、Markdown 文章详情、Resume 页面、响应式导航 |
 | Private | `/yfxl99` 登录、照片活跃度驱动的 WebGL2 程序化像素树 Welcome、支持上传/翻面/长按原位展开/统计/修改删除的 Photos、支持多图的 Food 画廊、独立导航、Logout、Loading/Empty/Error 状态 |
-| Authentication | bcrypt 密码哈希校验、HS256 签名 Session、统一 Proxy/Auth Guard、HttpOnly Cookie、7 天过期、同源校验、简单登录限流 |
-| Data | `projects`、`photo_entries`、`food_entries`、`food_images` Service Layer；未配置 Supabase 时仅公开作品使用本地 Mock |
+| Authentication | 账号 + bcrypt 密码、一次性邀请码注册、HS256 签名 Session、统一 Proxy/Auth Guard、HttpOnly Cookie、7 天过期、同源校验、简单登录限流 |
+| Data | `projects`、`private_users`、`private_invites`、`photo_entries`、`food_entries`、`food_images` Service Layer；未配置 Supabase 时仅公开作品使用本地 Mock |
 | Storage | 新 Photo/Food 图片分别写入 `PHOTO_STORAGE_ROOT` / `FOOD_STORAGE_ROOT` 持久磁盘并经鉴权接口读取；已有图片继续兼容 Supabase Storage |
 | Database | 完整 migration、索引、约束、updated_at trigger、RLS、Storage policies、可选 seed |
 | Quality | TypeScript strict、Server/Client 边界、响应式、键盘焦点、语义 HTML、SEO、robots、sitemap、安全 Header |
 
-没有实现通用 Admin Dashboard、注册、多用户或 Supabase Auth；Photos 和 Food 页面各自包含私密上传流程。
+没有实现通用 Admin Dashboard 或 Supabase Auth；受邀用户在 `/yfxl99` 注册，Photos 和 Food 页面各自包含私密上传流程，新上传记录会展示上传账号。
 
 ## 技术栈
 
@@ -36,11 +36,11 @@
 ```text
 content/articles/                 Markdown 文章
 public/resume/                    Resume PDF
-scripts/                          密码哈希脚本
+scripts/                          安全邀请码生成脚本
 src/
 ├── app/
 │   ├── (public)/                 公开页面与 Layout
-│   ├── api/private/              Login / Logout API
+│   ├── api/private/              Register / Login / Logout 与私密媒体 API
 │   ├── yfxl99/                   私密入口与受保护路由组
 │   ├── robots.ts                 robots.txt
 │   └── sitemap.ts                公开 Sitemap
@@ -51,7 +51,7 @@ src/
 ├── config/site.ts                个人资料与导航
 ├── data/                         可替换 Mock / Resume 数据
 ├── lib/
-│   ├── auth/                     密码、Session、限流、请求校验
+│   ├── auth/                     账号、密码、Session、限流、请求校验
 │   ├── food/                     Food 校验、EXIF、地区、统计、本地存储、上传限流
 │   ├── photo/                    Photos 校验、统计、本地存储
 │   ├── tree/                     照片活跃度纯函数
@@ -88,7 +88,7 @@ npm run build
 npm start
 ```
 
-没有配置 Supabase 时，公开首页显示 `src/data/projects.ts` 的少量 Mock；文章和 Resume 正常工作；私密 Gallery 显示 Empty State；Welcome 像素树的自动叶片密度为 0%，但树干、控制面板和页面内容仍正常显示。登录仍必须配置密码哈希与 Session Secret。
+没有配置 Supabase 时，公开首页显示 `src/data/projects.ts` 的少量 Mock，文章和 Resume 正常工作；账号注册、登录和私密 Gallery 不可用。私密空间需要 Supabase 数据库、service-role key 与 Session Secret。
 
 ## 环境变量
 
@@ -100,19 +100,10 @@ npm start
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase Project URL | Public |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | 公开项目读取使用的 anon key | Public |
 | `SUPABASE_SERVICE_ROLE_KEY` | 私密 DB、Photo/旧 Food Storage 与 Signed URL | Server only |
-| `PRIVATE_SITE_PASSWORD_HASH` | bcrypt hash，不是明文密码 | Server only |
 | `SESSION_SECRET` | Session 签名密钥，至少 32 字符 | Server only |
 | `PRIVATE_MEDIA_SIGNED_URL_TTL_SECONDS` | Photo/旧 Food 私密 URL 有效期，默认 `300` | Server only |
 | `FOOD_STORAGE_ROOT` | 新 Food 图片的持久化根目录；默认 `.data/private-media` | Server only |
 | `PHOTO_STORAGE_ROOT` | 新 Photo 图片的持久化根目录；空值时回退到 `FOOD_STORAGE_ROOT`，再回退到 `.data/private-media` | Server only |
-
-Next.js 会对 `.env.local` 执行变量展开，因此 bcrypt Hash 中的每个 `$` 必须写成 `\$`。例如：
-
-```env
-PRIVATE_SITE_PASSWORD_HASH='\$2b\$12\$这里替换成完整Hash，并转义其中其余美元符号'
-```
-
-反斜杠仅用于本地 env 文件；在 Vercel 等部署平台的环境变量输入框中，应粘贴脚本输出的原始 Hash，不添加反斜杠。
 
 生成 Session Secret：
 
@@ -122,23 +113,22 @@ node -e "console.log(require('node:crypto').randomBytes(48).toString('base64url'
 
 绝对不要创建 `NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY`，也不要把任何真实 Secret 放入前端配置、源码或 Git。
 
-## 生成密码 Hash
+## 创建邀请码
 
-先安装依赖，再运行：
-
-```bash
-npm run hash-password
-```
-
-脚本会在交互式终端隐藏输入。首次部署可输入 `CODEX.md` 指定的初始密码。写入 `.env.local` 时，将输出 Hash 的每个 `$` 替换为 `\$`；写入 Vercel 等部署平台时直接使用原始输出。不要保存或提交明文密码。
-
-也可传入参数，但该方式可能进入 Shell 历史，不推荐：
+先执行账号 Migration，再生成一个高熵邀请码：
 
 ```bash
-npm run hash-password -- "your-password"
+npm run generate-invite
 ```
 
-修改私密密码时，重新生成 hash、更新部署环境变量并重新部署。若还要让全部已有 Session 立即失效，同时轮换 `SESSION_SECRET`；否则已签发 Session 最长仍可使用 7 天。
+脚本输出一份原始邀请码和对应 SHA-256 摘要。只把摘要写入数据库：
+
+```sql
+insert into public.private_invites (code_digest, label, max_uses, expires_at)
+values ('<脚本输出的摘要>', '首次邀请', 1, now() + interval '7 days');
+```
+
+把原始邀请码安全地发给受邀者，不要发送摘要，也不要自行使用短码。受邀者在 `/yfxl99` 输入账号、密码和邀请码；注册成功后邀请码会在同一数据库事务内消耗，并自动登录。数据库仅保存 bcrypt 密码哈希和邀请码摘要，不保存两者的原文。
 
 ## Supabase 配置
 
@@ -161,6 +151,7 @@ npx supabase db push
 1. `supabase/migrations/202608180001_initial_schema.sql`
 2. `supabase/migrations/202608180002_food_groups_and_images.sql`
 3. `supabase/migrations/202608190001_photo_local_gallery.sql`
+4. `supabase/migrations/202609010001_private_accounts_and_ownership.sql`
 
 第一份 Migration 创建：
 
@@ -185,7 +176,14 @@ npx supabase db push
 - 增加 `draft / ready` 发布状态和幂等 `upload_request_id`；
 - 为本地 `photos/{photoId}/{photoId}.{ext}` 路径、尺寸、大小和类型建立约束与索引。
 
-代码部署早于第二/第三份 Migration 时，Food/Photos 页面都会安全回退到旧字段继续浏览，并显示 Migration 提示、禁用写操作。执行对应 Migration 后刷新页面即可自动切换到完整模式；若只执行了部分 SQL，页面会拒绝读取不完整结构，避免把 draft 数据误显示出来。
+第四份 Migration 增加受邀账号和上传署名：
+
+- 新建 `private_users` 与 `private_invites`，只保存 bcrypt 密码哈希和高熵邀请码的 SHA-256 摘要；
+- 新建只允许 service-role 调用的事务注册函数，在并发注册时原子地创建账号并消耗邀请码；
+- 为 `photo_entries` 与 `food_entries` 增加可为空的 `owner_user_id`；
+- 历史记录保留且不伪造上传者，新上传草稿自动写入当前账号。
+
+代码部署早于第二/第三份 Migration 时，Food/Photos 页面都会安全回退到旧字段继续浏览，并显示 Migration 提示、禁用写操作。账号版代码部署前必须先执行第四份 Migration 并创建至少一个邀请码，否则原共享密码将停止工作，注册/登录会返回服务不可用。执行 Migration 后再部署代码，旧的共享密码 Session 会自然失效。
 
 可选开发数据：在 SQL Editor 执行 `supabase/seed.sql`。它只写入一个公开 Project，不写无对应图片对象的私密记录。
 
@@ -204,7 +202,7 @@ Dashboard 中必须确认 `private-diary` 的 Public 开关关闭。两个 Bucke
 
 - anon/authenticated 只可 `SELECT projects WHERE is_published = true`；
 - anon/authenticated 不能写 `projects`；
-- `photo_entries`、`food_entries` 与 `food_images` 没有 anon/authenticated policy，因此不能匿名 CRUD；
+- `private_users`、`private_invites`、`photo_entries`、`food_entries` 与 `food_images` 没有 anon/authenticated policy，因此不能匿名 CRUD；
 - `public-assets` 允许匿名读取；
 - `private-diary` 没有公开读取 policy；
 - 私密数据仅由 Next.js server 的 service-role client 在 Session 验证后访问。
@@ -454,7 +452,9 @@ public/resume/resume.pdf
 
 ```text
 Browser
-  → POST /api/private/login
+  → POST /api/private/register（账号 + 密码 + 邀请码，仅首次）
+  → 原子创建账号并消耗邀请码，自动登录
+  → POST /api/private/login（后续使用账号 + 密码）
   → bcrypt hash verification + rate limit
   → signed HttpOnly/SameSite=Lax cookie
   → protected Server Component
@@ -478,7 +478,7 @@ Browser
 2. 创建 `/data/mypage`，确保运行 Node.js 的系统用户拥有读写权限；
 3. 在生产环境设置 `PHOTO_STORAGE_ROOT=/data/mypage` 与 `FOOD_STORAGE_ROOT=/data/mypage`；两类图片可以共用根目录，各自存入 `photos/` 与 `food/`；
 4. 如果使用 Docker，把宿主机持久目录挂载到容器内相同的配置路径；
-5. 配置 Supabase、密码和 Session 环境变量，按顺序执行三份 Migration；
+5. 配置 Supabase 和 Session 环境变量，按顺序执行四份 Migration，并创建第一个邀请码；
 6. 使用 HTTPS 反向代理运行 `npm start`，并定期备份 `/data/mypage`。
 
 以后更换磁盘位置只需修改两个存储根目录并把原目录内容完整复制到新目录；数据库内的 `photos/...` 与 `food/...` 相对路径不需要修改。
@@ -497,10 +497,10 @@ Node 进程还必须对 `PHOTO_STORAGE_ROOT` 和 `FOOD_STORAGE_ROOT` 拥有持�
 ## 验收清单
 
 - [ ] 将 `.env.example` 复制为 `.env.local` 并填写真实值
-- [ ] 按顺序执行三份 migration，确认 `projects`、升级后的 `photo_entries`、`food_entries`、`food_images` 与两个 Buckets
-- [ ] 确认 `private-diary` 为 Private，三张私密表匿名查询失败
+- [ ] 按顺序执行四份 migration，确认 `private_users`、`private_invites`、升级后的 `photo_entries`、`food_entries`、`food_images` 与两个 Buckets
+- [ ] 确认 `private-diary` 为 Private，所有私密表匿名查询失败
 - [ ] 将 `PHOTO_STORAGE_ROOT` / `FOOD_STORAGE_ROOT` 指向持久磁盘，确认 Node 进程可读写并配置目录备份
-- [ ] 为 `CODEX.md` 指定的初始密码生成 hash
+- [ ] 用 `npm run generate-invite` 生成高熵邀请码，只把摘要写入 `private_invites`
 - [x] `npm run lint`
 - [x] `npm run typecheck`
 - [x] `npm run build`
@@ -508,7 +508,8 @@ Node 进程还必须对 `PHOTO_STORAGE_ROOT` 和 `FOOD_STORAGE_ROOT` 拥有持�
 - [x] Food API 未登录返回 401、跨站写入返回 403、超大 JSON 返回 413
 - [x] Food 桌面/手机瀑布流、翻面、长按原位展开、统计、图片选择和上传弹窗通过 Chrome 验收
 - [x] Photos 画廊保持原图比例，长按原位展开、关闭复位、顺序切换和移动端布局通过 Chrome 验收
-- [x] 正确/错误密码、限流和 Logout 行为符合预期
+- [ ] 邀请码注册、重复邀请码拒绝、账号密码登录、限流和 Logout 行为符合预期
+- [ ] 新上传 Photo/Food 显示当前账号，历史记录保持无署名
 - [x] 浏览器源码与静态 Bundle 中不存在明文密码或 Server Secrets
 
 Supabase、生产 Secret 和持久磁盘步骤需要项目所有者在自己的 Dashboard 与部署环境中完成；Food/Photos 的增量 Migration 与两个存储根目录都不能遗漏。
@@ -531,7 +532,7 @@ Supabase、生产 Secret 和持久磁盘步骤需要项目所有者在自己的 
 - `npm run lint`：通过，0 error / 0 warning。
 - `npm run typecheck`：通过，TypeScript strict 无错误。
 - `npm run build`：通过；首页、Articles、Resume 静态生成，两个 Markdown 详情 SSG，私密页面/API 动态渲染，Proxy 生效。
-- Production 冒烟：公开页面均为 `200`；未登录 Photos/Food 为 `307 → /yfxl99`；未来私密 API 默认 `401`；错误密码 `401`；正确密码 `200`；有效 Session 可访问；Logout 后重新 `307`。
+- 历史共享密码版曾完成 Production 冒烟；切换到账号版后，生产构建已通过，但注册、邀请码消耗和上传署名仍需在执行第四份 Migration 的目标环境中按上方验收清单复核。
 - Rate Limit：同一客户端连续 6 次错误请求状态为 `401, 401, 401, 401, 401, 429`。
 - 静态安全扫描：源码没有指定明文密码；扫描 19 个 `.next/static` 浏览器文件，未发现明文密码或 server-only 环境变量名。
 - 视觉抽查：使用 production build 检查了 1440px 桌面和 500px 小屏布局，导航、排版与响应式断点正常。

@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import { privateNavigation } from "@/config/site";
 
-export function PrivateNavbar() {
+export function PrivateNavbar({ username }: { username: string }) {
   const pathname = usePathname();
   const router = useRouter();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -43,11 +43,17 @@ export function PrivateNavbar() {
               );
             })}
           </nav>
+          <span
+            className="border-l border-[#bcb4a9] pl-4 text-[0.68rem] font-semibold tracking-[0.08em] text-[#6d6257] sm:pl-6"
+            title={`当前账号：${username}`}
+          >
+            @{username}
+          </span>
           <button
             type="button"
             onClick={logout}
             disabled={isLoggingOut}
-            className="border-l border-[#bcb4a9] pl-4 text-[0.68rem] font-semibold uppercase tracking-[0.12em] text-[#777067] disabled:opacity-50 sm:pl-6"
+            className="text-[0.68rem] font-semibold uppercase tracking-[0.12em] text-[#777067] disabled:opacity-50"
           >
             {isLoggingOut ? "Leaving…" : "Logout"}
           </button>

@@ -84,7 +84,7 @@ function assertUuid(value: string, label: string) {
 }
 
 function isMissingFoodSchemaError(error: { code?: string } | null) {
-  return Boolean(error?.code && ["42703", "42P01", "PGRST204", "PGRST205"].includes(error.code));
+  return Boolean(error?.code && ["42703", "42P01", "PGRST200", "PGRST204", "PGRST205"].includes(error.code));
 }
 
 function legacyFoodOccurredAt(foodDate: string) {
@@ -136,6 +136,7 @@ function mapGroup(row: FoodGroupRow, images: FoodImage[]): FoodGroup {
       cityName: row.location_city_name,
     },
     images,
+    uploadedBy: row.uploader ?? undefined,
     legacyRecord: row.legacy_record,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -249,7 +250,7 @@ async function loadFoodGroups(): Promise<{
   const client = createServerSupabaseClient();
   const { data: groupData, error: groupError } = await client
     .from("food_entries")
-    .select("*")
+    .select("*,uploader:private_users!food_entries_owner_user_id_fkey(id,username)")
     .eq("status", "ready")
     .order("occurred_at", { ascending: false })
     .order("created_at", { ascending: false });
@@ -304,10 +305,11 @@ export async function getFoodPageData() {
   return { groups, statistics: calculateFoodStatistics(groups), schemaReady };
 }
 
-async function selectDraft(groupId: string, requestId?: string) {
+async function selectDraft(groupId: string, requestId?: string, ownerUserId?: string) {
   const client = createServerSupabaseClient();
   let query = client.from("food_entries").select("*").eq("id", groupId);
   if (requestId) query = query.eq("upload_request_id", requestId);
+  if (ownerUserId) query = query.eq("owner_user_id", ownerUserId);
   const { data, error } = await query.maybeSingle();
   if (error) throw new FoodServiceError("无法读取上传草稿。", 500);
   return data as FoodGroupRow | null;
@@ -398,7 +400,7 @@ function uploadTargets(
 }
 
 export async function initializeFoodUpload(input: FoodUploadRequestInput) {
-  await requirePrivateSession();
+  const session = await requirePrivateSession();
   assertConfigured();
   void cleanupStaleDrafts().catch((error) => {
     console.error("Unable to run food draft cleanup.", error);
@@ -409,6 +411,7 @@ export async function initializeFoodUpload(input: FoodUploadRequestInput) {
     .from("food_entries")
     .select("*")
     .eq("upload_request_id", input.requestId)
+    .eq("owner_user_id", session.userId)
     .maybeSingle();
   if (existingError) {
     if (isMissingFoodSchemaError(existingError)) {
@@ -474,6 +477,7 @@ export async function initializeFoodUpload(input: FoodUploadRequestInput) {
     location_city_name: input.location.cityName,
     status: "draft",
     upload_request_id: input.requestId,
+    owner_user_id: session.userId,
     legacy_record: false,
   });
   if (groupError) throw new FoodServiceError("无法创建上传草稿。", 500);
@@ -522,13 +526,13 @@ export async function uploadFoodImage(
   contentType: string,
   variant: "original" | "thumbnail" = "original",
 ) {
-  await requirePrivateSession();
+  const session = await requirePrivateSession();
   assertConfigured();
   assertUuid(groupId, "美食组标识");
   assertUuid(imageId, "图片标识");
   assertUuid(requestId, "上传请求标识");
 
-  const group = await selectDraft(groupId, requestId);
+  const group = await selectDraft(groupId, requestId, session.userId);
   if (!group || group.status !== "draft") {
     throw new FoodServiceError("上传草稿不存在或已经过期。", 404);
   }
@@ -645,12 +649,12 @@ async function verifyUploadedImages(groupId: string, images: FoodImageRow[]) {
 }
 
 export async function completeFoodUpload(groupId: string, requestId: string) {
-  await requirePrivateSession();
+  const session = await requirePrivateSession();
   assertConfigured();
   assertUuid(groupId, "美食组标识");
   assertUuid(requestId, "上传请求标识");
 
-  const group = await selectDraft(groupId, requestId);
+  const group = await selectDraft(groupId, requestId, session.userId);
   if (!group) throw new FoodServiceError("上传草稿不存在或已经过期。", 404);
   if (group.status === "ready") return { groupId };
   const images = await selectDraftImages(groupId);
@@ -682,11 +686,11 @@ export async function completeFoodUpload(groupId: string, requestId: string) {
 }
 
 export async function cancelFoodUpload(groupId: string, requestId: string) {
-  await requirePrivateSession();
+  const session = await requirePrivateSession();
   assertConfigured();
   assertUuid(groupId, "美食组标识");
   assertUuid(requestId, "上传请求标识");
-  const group = await selectDraft(groupId, requestId);
+  const group = await selectDraft(groupId, requestId, session.userId);
   if (!group || group.status === "ready") return;
   const images = await selectDraftImages(groupId);
   await removeDraft(groupId, images.map((image) => image.storage_path));

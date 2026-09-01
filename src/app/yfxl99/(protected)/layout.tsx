@@ -3,11 +3,11 @@ import { PrivateNavbar } from "@/components/private/PrivateNavbar";
 import { requirePrivateSession } from "@/lib/auth/session";
 
 export default async function ProtectedPrivateLayout({ children }: { children: ReactNode }) {
-  await requirePrivateSession();
+  const session = await requirePrivateSession();
 
   return (
     <>
-      <PrivateNavbar />
+      <PrivateNavbar username={session.username} />
       <main>{children}</main>
     </>
   );
