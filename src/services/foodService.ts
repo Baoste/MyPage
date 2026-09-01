@@ -27,6 +27,8 @@ import {
   PRIVATE_DIARY_BUCKET,
 } from "@/lib/supabase/storage";
 import type {
+  FoodComment,
+  FoodCommentRow,
   FoodGroup,
   FoodGroupRow,
   FoodGroupViewModel,
@@ -38,6 +40,7 @@ import type {
 
 const STALE_DRAFT_MILLISECONDS = 24 * 60 * 60 * 1_000;
 const MAXIMUM_IMAGE_HEADER_BYTES = 1024 * 1024;
+const MAXIMUM_COMMENT_CHARACTERS = 1000;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 type UploadImageRow = Pick<
@@ -87,6 +90,10 @@ function isMissingFoodSchemaError(error: { code?: string } | null) {
   return Boolean(error?.code && ["42703", "42P01", "PGRST200", "PGRST204", "PGRST205"].includes(error.code));
 }
 
+function isMissingFoodCommentSchemaError(error: { code?: string } | null) {
+  return Boolean(error?.code && ["42P01", "PGRST200", "PGRST204", "PGRST205"].includes(error.code));
+}
+
 function legacyFoodOccurredAt(foodDate: string) {
   return /^\d{4}-\d{2}-\d{2}$/u.test(foodDate)
     ? `${foodDate}T04:00:00.000Z`
@@ -113,6 +120,16 @@ function mapImage(row: FoodImageRow): FoodImage {
     capturedAt: row.captured_at ?? undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+  };
+}
+
+function mapComment(row: FoodCommentRow): FoodComment {
+  return {
+    id: row.id,
+    foodGroupId: row.food_entry_id,
+    authorUsername: row.author_username,
+    content: row.content,
+    createdAt: row.created_at,
   };
 }
 
@@ -303,6 +320,84 @@ export async function getFoodGroups(): Promise<FoodGroupViewModel[]> {
 export async function getFoodPageData() {
   const { groups, schemaReady } = await loadFoodGroups();
   return { groups, statistics: calculateFoodStatistics(groups), schemaReady };
+}
+
+function validatedCommentContent(value: unknown) {
+  if (typeof value !== "string" || value.includes("\0")) {
+    throw new FoodServiceError("请输入有效的评论内容。", 400);
+  }
+  const content = value.replace(/\r\n?/gu, "\n").trim();
+  const length = Array.from(content).length;
+  if (length < 1 || length > MAXIMUM_COMMENT_CHARACTERS) {
+    throw new FoodServiceError("评论需为 1～1000 个字符。", 400);
+  }
+  return content;
+}
+
+async function readyFoodGroupClient(groupId: string) {
+  const client = createServerSupabaseClient();
+  const { data, error } = await client
+    .from("food_entries")
+    .select("id")
+    .eq("id", groupId)
+    .eq("status", "ready")
+    .maybeSingle();
+  if (error) {
+    if (isMissingFoodSchemaError(error)) {
+      throw new FoodServiceError("请先执行最新 Food 数据库 Migration。", 503);
+    }
+    throw new FoodServiceError("无法读取美食记录。", 500);
+  }
+  if (!data) throw new FoodServiceError("美食记录不存在。", 404);
+  return client;
+}
+
+export async function getFoodComments(groupId: string) {
+  await requirePrivateSession();
+  assertConfigured();
+  assertUuid(groupId, "美食组标识");
+  const client = await readyFoodGroupClient(groupId);
+  const { data, error } = await client
+    .from("food_comments")
+    .select("id,food_entry_id,author_user_id,author_username,content,created_at")
+    .eq("food_entry_id", groupId)
+    .order("created_at", { ascending: true })
+    .order("id", { ascending: true });
+  if (error) {
+    if (isMissingFoodCommentSchemaError(error)) {
+      throw new FoodServiceError("请先执行 202609010002_food_comments.sql。", 503);
+    }
+    throw new FoodServiceError("暂时无法读取评论。", 500);
+  }
+  return ((data ?? []) as FoodCommentRow[]).map(mapComment);
+}
+
+export async function createFoodComment(groupId: string, contentValue: unknown) {
+  const session = await requirePrivateSession();
+  assertConfigured();
+  assertUuid(groupId, "美食组标识");
+  const content = validatedCommentContent(contentValue);
+  const client = await readyFoodGroupClient(groupId);
+  const { data, error } = await client
+    .from("food_comments")
+    .insert({
+      food_entry_id: groupId,
+      author_user_id: session.userId,
+      author_username: session.username,
+      content,
+    })
+    .select("id,food_entry_id,author_user_id,author_username,content,created_at")
+    .single();
+  if (error) {
+    if (isMissingFoodCommentSchemaError(error)) {
+      throw new FoodServiceError("请先执行 202609010002_food_comments.sql。", 503);
+    }
+    if (error.code === "23503") {
+      throw new FoodServiceError("账号信息已失效，请重新登录。", 401);
+    }
+    throw new FoodServiceError("暂时无法发布评论。", 500);
+  }
+  return mapComment(data as FoodCommentRow);
 }
 
 async function selectDraft(groupId: string, requestId?: string, ownerUserId?: string) {

@@ -143,6 +143,14 @@ export interface FoodImageViewModel extends FoodImage {
   thumbnailUrl: string;
 }
 
+export interface FoodComment {
+  id: string;
+  foodGroupId: string;
+  authorUsername: string;
+  content: string;
+  createdAt: string;
+}
+
 export interface FoodGroup {
   id: string;
   category: string;
@@ -289,4 +297,13 @@ export interface FoodImageRow {
   legacy_path: boolean;
   created_at: string;
   updated_at: string;
+}
+
+export interface FoodCommentRow {
+  id: string;
+  food_entry_id: string;
+  author_user_id: string | null;
+  author_username: string;
+  content: string;
+  created_at: string;
 }
