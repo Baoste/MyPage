@@ -339,11 +339,17 @@ export function FoodUploadDialog({ onClose }: FoodUploadDialogProps) {
               <legend className="text-xs font-semibold text-[#5d554e]">评分</legend>
               <div className="mt-2 flex h-[42px] items-center gap-1 rounded-xl border border-[#bdb3a7] bg-[#fbf8f2] px-3" role="radiogroup" aria-label="评分">
                 {[1, 2, 3, 4, 5].map((value) => (
-                  <label key={value} className="cursor-pointer">
-                    <input type="radio" name="food-rating" value={value} checked={rating === value} onChange={() => setRating(value as FoodRating)} className="sr-only" />
-                    <span aria-hidden="true" className={`text-xl ${rating >= value ? "text-[#a64b2a]" : "text-[#c9c0b4]"}`}>★</span>
-                    <span className="sr-only">{value} 星</span>
-                  </label>
+                  <button
+                    key={value}
+                    type="button"
+                    role="radio"
+                    aria-checked={rating === value}
+                    aria-label={`${value} 星`}
+                    onClick={() => setRating(value as FoodRating)}
+                    className={`grid size-7 place-items-center rounded-full text-xl leading-none transition-colors ${rating >= value ? "text-[#a64b2a]" : "text-[#c9c0b4] hover:text-[#9a8f82]"}`}
+                  >
+                    <span aria-hidden="true">★</span>
+                  </button>
                 ))}
               </div>
             </fieldset>
