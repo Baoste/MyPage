@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { PrivateCommentSection } from "@/components/private/PrivateCommentSection";
 import { PhotoEditDialog } from "@/components/private/photos/PhotoEditDialog";
 import {
   formatPhotoDateTime,
@@ -119,6 +120,14 @@ export function PhotoExpandedCard({
                 {photo.description || "这张照片还没有留下描述。"}
               </p>
             </div>
+
+            <PrivateCommentSection
+              key={photo.id}
+              endpoint={`/api/private/photos/entries/${photo.id}/comments`}
+              sectionId={`photo-comments-${photo.id}`}
+              ariaLabel="照片评论"
+              placeholder="说说这张照片，或留一句给同行的人…"
+            />
 
             {photo.tags.length ? (
               <ul className="mt-6 flex flex-wrap gap-2" aria-label="照片标签">

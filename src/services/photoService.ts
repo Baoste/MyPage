@@ -30,6 +30,8 @@ import {
 } from "@/lib/tree/activity";
 import type {
   PhotoActivityStats,
+  PhotoComment,
+  PhotoCommentRow,
   PhotoEntry,
   PhotoEntryRow,
   PhotoImageMimeType,
@@ -38,6 +40,7 @@ import type {
 
 const STALE_DRAFT_MILLISECONDS = 24 * 60 * 60 * 1_000;
 const MAXIMUM_IMAGE_HEADER_BYTES = 1024 * 1024;
+const MAXIMUM_COMMENT_CHARACTERS = 1000;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 
 interface LegacyPhotoRow {
@@ -71,6 +74,10 @@ function assertUuid(value: string, label: string) {
 
 function isMissingPhotoSchemaError(error: { code?: string } | null) {
   return Boolean(error?.code && ["42703", "42P01", "PGRST200", "PGRST204", "PGRST205"].includes(error.code));
+}
+
+function isMissingPhotoCommentSchemaError(error: { code?: string } | null) {
+  return Boolean(error?.code && ["42P01", "PGRST200", "PGRST204", "PGRST205"].includes(error.code));
 }
 
 function legacyOccurredAt(photoDate: string) {
@@ -113,6 +120,16 @@ function mapPhoto(row: PhotoEntryRow): PhotoEntry {
     legacyRecord: row.legacy_record,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+  };
+}
+
+function mapComment(row: PhotoCommentRow): PhotoComment {
+  return {
+    id: row.id,
+    photoEntryId: row.photo_entry_id,
+    authorUsername: row.author_username,
+    content: row.content,
+    createdAt: row.created_at,
   };
 }
 
@@ -231,6 +248,84 @@ export async function getPhotoEntries(): Promise<PhotoViewModel[]> {
 export async function getPhotoPageData() {
   const { photos, schemaReady } = await loadPhotoEntries();
   return { photos, statistics: calculatePhotoStatistics(photos), schemaReady };
+}
+
+function validatedCommentContent(value: unknown) {
+  if (typeof value !== "string" || value.includes("\0")) {
+    throw new PhotoServiceError("请输入有效的评论内容。", 400);
+  }
+  const content = value.replace(/\r\n?/gu, "\n").trim();
+  const length = Array.from(content).length;
+  if (length < 1 || length > MAXIMUM_COMMENT_CHARACTERS) {
+    throw new PhotoServiceError("评论需为 1～1000 个字符。", 400);
+  }
+  return content;
+}
+
+async function readyPhotoClient(photoId: string) {
+  const client = createServerSupabaseClient();
+  const { data, error } = await client
+    .from("photo_entries")
+    .select("id")
+    .eq("id", photoId)
+    .eq("status", "ready")
+    .maybeSingle();
+  if (error) {
+    if (isMissingPhotoSchemaError(error)) {
+      throw new PhotoServiceError("请先执行最新 Photos 数据库 Migration。", 503);
+    }
+    throw new PhotoServiceError("无法读取照片记录。", 500);
+  }
+  if (!data) throw new PhotoServiceError("照片不存在。", 404);
+  return client;
+}
+
+export async function getPhotoComments(photoId: string) {
+  await requirePrivateSession();
+  assertConfigured();
+  assertUuid(photoId, "照片标识");
+  const client = await readyPhotoClient(photoId);
+  const { data, error } = await client
+    .from("photo_comments")
+    .select("id,photo_entry_id,author_user_id,author_username,content,created_at")
+    .eq("photo_entry_id", photoId)
+    .order("created_at", { ascending: true })
+    .order("id", { ascending: true });
+  if (error) {
+    if (isMissingPhotoCommentSchemaError(error)) {
+      throw new PhotoServiceError("请先执行 202609010003_photo_comments.sql。", 503);
+    }
+    throw new PhotoServiceError("暂时无法读取评论。", 500);
+  }
+  return ((data ?? []) as PhotoCommentRow[]).map(mapComment);
+}
+
+export async function createPhotoComment(photoId: string, contentValue: unknown) {
+  const session = await requirePrivateSession();
+  assertConfigured();
+  assertUuid(photoId, "照片标识");
+  const content = validatedCommentContent(contentValue);
+  const client = await readyPhotoClient(photoId);
+  const { data, error } = await client
+    .from("photo_comments")
+    .insert({
+      photo_entry_id: photoId,
+      author_user_id: session.userId,
+      author_username: session.username,
+      content,
+    })
+    .select("id,photo_entry_id,author_user_id,author_username,content,created_at")
+    .single();
+  if (error) {
+    if (isMissingPhotoCommentSchemaError(error)) {
+      throw new PhotoServiceError("请先执行 202609010003_photo_comments.sql。", 503);
+    }
+    if (error.code === "23503") {
+      throw new PhotoServiceError("账号信息已失效，请重新登录。", 401);
+    }
+    throw new PhotoServiceError("暂时无法发布评论。", 500);
+  }
+  return mapComment(data as PhotoCommentRow);
 }
 
 export async function getPhotoEntryById(id: string): Promise<PhotoViewModel | null> {

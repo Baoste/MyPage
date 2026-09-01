@@ -7,9 +7,9 @@
 | 区域 | 实现 |
 | --- | --- |
 | Public | 首页 Hero、3/2/1 列作品 Gallery、文章列表、Markdown 文章详情、Resume 页面、响应式导航 |
-| Private | `/yfxl99` 登录、照片活跃度驱动的 WebGL2 程序化像素树 Welcome、支持上传/翻面/长按原位展开/统计/修改删除的 Photos、支持多图和账号评论的 Food 画廊、独立导航、Logout、Loading/Empty/Error 状态 |
+| Private | `/yfxl99` 登录、照片活跃度驱动的 WebGL2 程序化像素树 Welcome、支持上传/翻面/长按原位展开/统计/修改删除/账号评论的 Photos、支持多图和账号评论的 Food 画廊、独立导航、Logout、Loading/Empty/Error 状态 |
 | Authentication | 账号 + bcrypt 密码、一次性邀请码注册、HS256 签名 Session、统一 Proxy/Auth Guard、HttpOnly Cookie、7 天过期、同源校验、简单登录限流 |
-| Data | `projects`、`private_users`、`private_invites`、`photo_entries`、`food_entries`、`food_images` Service Layer；未配置 Supabase 时仅公开作品使用本地 Mock |
+| Data | `projects`、账号/邀请、Photo/Food 记录与评论 Service Layer；未配置 Supabase 时仅公开作品使用本地 Mock |
 | Storage | 新 Photo/Food 图片分别写入 `PHOTO_STORAGE_ROOT` / `FOOD_STORAGE_ROOT` 持久磁盘并经鉴权接口读取；已有图片继续兼容 Supabase Storage |
 | Database | 完整 migration、索引、约束、updated_at trigger、RLS、Storage policies、可选 seed |
 | Quality | TypeScript strict、Server/Client 边界、响应式、键盘焦点、语义 HTML、SEO、robots、sitemap、安全 Header |
@@ -153,6 +153,7 @@ npx supabase db push
 3. `supabase/migrations/202608190001_photo_local_gallery.sql`
 4. `supabase/migrations/202609010001_private_accounts_and_ownership.sql`
 5. `supabase/migrations/202609010002_food_comments.sql`
+6. `supabase/migrations/202609010003_photo_comments.sql`
 
 第一份 Migration 创建：
 
@@ -190,7 +191,13 @@ npx supabase db push
 - 评论作者来自服务器 Session，并保留发布时的用户名快照；
 - 浏览器角色不能直接读写评论，所有操作继续经过 Next.js 鉴权接口。
 
-代码部署早于第二/第三份 Migration 时，Food/Photos 页面都会安全回退到旧字段继续浏览，并显示 Migration 提示、禁用写操作。账号版代码部署前必须先执行第四份 Migration 并创建至少一个邀请码，否则原共享密码将停止工作，注册/登录会返回服务不可用。评论版代码部署前应执行第五份 Migration；缺失时 Food 仍可浏览，但评论接口会明确提示执行该文件。执行账号 Migration 后再部署代码，旧的共享密码 Session 会自然失效。
+第六份 Migration 以相同安全模型增加 Photo 评论：
+
+- 新建 `photo_comments`，评论随所属照片删除；
+- 评论作者同样来自服务器 Session，并保留发布时的用户名快照；
+- Food 与 Photo 共用前端评论组件，但表、外键和接口彼此独立。
+
+代码部署早于第二/第三份 Migration 时，Food/Photos 页面都会安全回退到旧字段继续浏览，并显示 Migration 提示、禁用写操作。账号版代码部署前必须先执行第四份 Migration 并创建至少一个邀请码，否则原共享密码将停止工作，注册/登录会返回服务不可用。评论版代码部署前应执行第五、六份 Migration；缺失时画廊仍可浏览，但对应评论接口会明确提示应执行的文件。执行账号 Migration 后再部署代码，旧的共享密码 Session 会自然失效。
 
 可选开发数据：在 SQL Editor 执行 `supabase/seed.sql`。它只写入一个公开 Project，不写无对应图片对象的私密记录。
 
@@ -209,7 +216,7 @@ Dashboard 中必须确认 `private-diary` 的 Public 开关关闭。两个 Bucke
 
 - anon/authenticated 只可 `SELECT projects WHERE is_published = true`；
 - anon/authenticated 不能写 `projects`；
-- `private_users`、`private_invites`、`photo_entries`、`food_entries`、`food_images` 与 `food_comments` 没有 anon/authenticated policy，因此不能匿名 CRUD；
+- `private_users`、`private_invites`、`photo_entries`、`food_entries`、`food_images`、`food_comments` 与 `photo_comments` 没有 anon/authenticated policy，因此不能匿名 CRUD；
 - `public-assets` 允许匿名读取；
 - `private-diary` 没有公开读取 policy；
 - 私密数据仅由 Next.js server 的 service-role client 在 Session 验证后访问。
@@ -359,7 +366,7 @@ POST /api/private/photos/uploads/complete
   → 再次从磁盘复验，成功后发布为 ready
 ```
 
-页面进入后直接显示画廊，没有额外页头。普通卡片在当前断点内等宽，高度严格使用原图比例，完整显示而不裁切；点击翻面查看时间、地点与标签，长按 450ms 在画廊内原位展开。展开卡桌面约占两列、手机占满宽度，周围卡片通过 FLIP 动画让位；切换目标时先收起旧卡再展开新卡。展开后可以修改文字资料或删除整条照片与图片。左下角“统计”展示照片数、地区、标签、最近十二个月和往年今日。
+页面进入后直接显示画廊，没有额外页头。普通卡片在当前断点内等宽，高度严格使用原图比例，完整显示而不裁切；点击翻面查看时间、地点与标签，长按 450ms 在画廊内原位展开。展开卡桌面约占两列、手机占满宽度，周围卡片通过 FLIP 动画让位；切换目标时先收起旧卡再展开新卡。详情中的“评论”会在描述下方展开与 Food 相同的时间旁注，显示发布账号，单条正文最多 1000 字。展开后可以修改文字资料或删除整条照片与图片；删除照片时数据库会级联删除关联评论。左下角“统计”展示照片数、地区、标签、最近十二个月和往年今日。
 
 旧 Supabase 照片继续使用短期 Signed URL。新本地图片通过 Session 鉴权的 `/api/private/photos/images/{id}/file` 读取；数据库仍只保存 `photos/...` 相对路径。完整约定、部署顺序和验收清单位于 `Photos.md`。
 
@@ -368,10 +375,13 @@ POST /api/private/photos/uploads/complete
 ```text
 src/app/yfxl99/(protected)/photos/page.tsx
 src/app/api/private/photos/
+├── entries/[id]/comments/route.ts
 src/components/private/photos/
+src/components/private/PrivateCommentSection.tsx
 src/lib/photo/
 src/services/photoService.ts
 supabase/migrations/202608190001_photo_local_gallery.sql
+supabase/migrations/202609010003_photo_comments.sql
 ```
 
 ### 添加 Food
@@ -486,7 +496,7 @@ Browser
 2. 创建 `/data/mypage`，确保运行 Node.js 的系统用户拥有读写权限；
 3. 在生产环境设置 `PHOTO_STORAGE_ROOT=/data/mypage` 与 `FOOD_STORAGE_ROOT=/data/mypage`；两类图片可以共用根目录，各自存入 `photos/` 与 `food/`；
 4. 如果使用 Docker，把宿主机持久目录挂载到容器内相同的配置路径；
-5. 配置 Supabase 和 Session 环境变量，按顺序执行五份 Migration，并创建第一个邀请码；
+5. 配置 Supabase 和 Session 环境变量，按顺序执行六份 Migration，并创建第一个邀请码；
 6. 使用 HTTPS 反向代理运行 `npm start`，并定期备份 `/data/mypage`。
 
 以后更换磁盘位置只需修改两个存储根目录并把原目录内容完整复制到新目录；数据库内的 `photos/...` 与 `food/...` 相对路径不需要修改。
@@ -505,7 +515,7 @@ Node 进程还必须对 `PHOTO_STORAGE_ROOT` 和 `FOOD_STORAGE_ROOT` 拥有持�
 ## 验收清单
 
 - [ ] 将 `.env.example` 复制为 `.env.local` 并填写真实值
-- [ ] 按顺序执行五份 migration，确认 `private_users`、`private_invites`、升级后的 `photo_entries`、`food_entries`、`food_images`、`food_comments` 与两个 Buckets
+- [ ] 按顺序执行六份 migration，确认 `private_users`、`private_invites`、升级后的 `photo_entries`、`food_entries`、`food_images`、`food_comments`、`photo_comments` 与两个 Buckets
 - [ ] 确认 `private-diary` 为 Private，所有私密表匿名查询失败
 - [ ] 将 `PHOTO_STORAGE_ROOT` / `FOOD_STORAGE_ROOT` 指向持久磁盘，确认 Node 进程可读写并配置目录备份
 - [ ] 用 `npm run generate-invite` 生成高熵邀请码，只把摘要写入 `private_invites`
@@ -518,7 +528,7 @@ Node 进程还必须对 `PHOTO_STORAGE_ROOT` 和 `FOOD_STORAGE_ROOT` 拥有持�
 - [x] Photos 画廊保持原图比例，长按原位展开、关闭复位、顺序切换和移动端布局通过 Chrome 验收
 - [ ] 邀请码注册、重复邀请码拒绝、账号密码登录、限流和 Logout 行为符合预期
 - [ ] 新上传 Photo/Food 显示当前账号，历史记录保持无署名
-- [ ] Food 详情可以读取、发布评论，评论显示当前账号且跨站写入被拒绝
+- [ ] Food/Photo 详情可以读取、发布评论，评论显示当前账号且跨站写入被拒绝
 - [x] 浏览器源码与静态 Bundle 中不存在明文密码或 Server Secrets
 
 Supabase、生产 Secret 和持久磁盘步骤需要项目所有者在自己的 Dashboard 与部署环境中完成；Food/Photos、账号和评论的增量 Migration 与两个存储根目录都不能遗漏。

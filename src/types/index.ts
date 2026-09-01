@@ -143,12 +143,19 @@ export interface FoodImageViewModel extends FoodImage {
   thumbnailUrl: string;
 }
 
-export interface FoodComment {
+export interface PrivateComment {
   id: string;
-  foodGroupId: string;
   authorUsername: string;
   content: string;
   createdAt: string;
+}
+
+export interface FoodComment extends PrivateComment {
+  foodGroupId: string;
+}
+
+export interface PhotoComment extends PrivateComment {
+  photoEntryId: string;
 }
 
 export interface FoodGroup {
@@ -302,6 +309,15 @@ export interface FoodImageRow {
 export interface FoodCommentRow {
   id: string;
   food_entry_id: string;
+  author_user_id: string | null;
+  author_username: string;
+  content: string;
+  created_at: string;
+}
+
+export interface PhotoCommentRow {
+  id: string;
+  photo_entry_id: string;
   author_user_id: string | null;
   author_username: string;
   content: string;
