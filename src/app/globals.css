@@ -216,36 +216,20 @@ textarea:focus-visible {
   will-change: transform, opacity;
 }
 
-.private-original-load-progress {
-  animation: private-original-load-progress 4.8s steps(28, end) forwards;
-  background:
-    repeating-linear-gradient(
-      to bottom,
-      rgb(248 244 237 / 8%) 0,
-      rgb(248 244 237 / 8%) 5px,
-      rgb(248 244 237 / 38%) 5px,
-      rgb(248 244 237 / 38%) 6px
-    ),
-    linear-gradient(to bottom, rgb(32 29 25 / 6%), rgb(32 29 25 / 24%));
+.private-original-image-reveal {
+  animation: private-original-image-reveal 720ms steps(24, end) forwards;
   clip-path: inset(0 0 100% 0);
+  visibility: visible;
   will-change: clip-path;
 }
 
-@keyframes private-original-load-progress {
-  0% {
+@keyframes private-original-image-reveal {
+  from {
     clip-path: inset(0 0 100% 0);
   }
 
-  55% {
-    clip-path: inset(0 0 43% 0);
-  }
-
-  82% {
-    clip-path: inset(0 0 15% 0);
-  }
-
-  100% {
-    clip-path: inset(0 0 6% 0);
+  to {
+    clip-path: inset(0 0 0 0);
   }
 }
 
@@ -450,11 +434,6 @@ textarea:focus-visible {
     scroll-behavior: auto !important;
     transition-delay: 0s !important;
     transition-duration: 0.01ms !important;
-  }
-
-  .private-original-load-progress {
-    animation: none !important;
-    clip-path: inset(0 0 45% 0);
   }
 }
 
