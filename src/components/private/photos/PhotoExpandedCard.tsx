@@ -1,8 +1,8 @@
 "use client";
 
-import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { PrivateDetailImage } from "@/components/private/PrivateDetailImage";
 import { PrivateCommentSection } from "@/components/private/PrivateCommentSection";
 import { PhotoEditDialog } from "@/components/private/photos/PhotoEditDialog";
 import {
@@ -25,6 +25,7 @@ export function PhotoExpandedCard({
   const [editOpen, setEditOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [mutationMessage, setMutationMessage] = useState("");
+  const expandedImageUrl = photo.thumbnailUrl || photo.imageUrl;
 
   useEffect(() => {
     closeButtonRef.current?.focus({ preventScroll: true });
@@ -59,16 +60,13 @@ export function PhotoExpandedCard({
       >
         <div className="grid md:grid-cols-[minmax(0,1.25fr)_minmax(18rem,0.75fr)]">
           <div className="relative min-h-[18rem] overflow-hidden bg-[#dcd5c9] sm:min-h-[28rem] md:min-h-[34rem]">
-            {photo.imageUrl ? (
-              <Image
-                unoptimized
-                src={photo.imageUrl}
+            {expandedImageUrl ? (
+              <PrivateDetailImage
+                thumbnailUrl={photo.thumbnailUrl}
+                originalUrl={photo.imageUrl}
                 alt={photo.title ?? `拍摄于 ${formatPhotoDateTime(photo)}`}
-                fill
                 sizes="(max-width: 767px) 100vw, 55vw"
-                className="object-contain"
-                decoding="async"
-                fetchPriority="low"
+                objectFit="contain"
               />
             ) : (
               <p className="grid h-full place-items-center px-5 text-sm text-[#71695f]">

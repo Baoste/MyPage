@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { PrivateDetailImage } from "@/components/private/PrivateDetailImage";
 import { PrivateCommentSection } from "@/components/private/PrivateCommentSection";
 import { FoodEditDialog } from "@/components/private/food/FoodEditDialog";
 import { foodLocationLabel, formatFoodDateTime } from "@/components/private/food/food-format";
@@ -72,16 +73,14 @@ export function FoodExpandedCard({
       >
         <div className="grid md:grid-cols-[minmax(0,1.25fr)_minmax(18rem,0.75fr)]">
           <div className="relative aspect-[4/3] overflow-hidden bg-[#dcd5c9] sm:aspect-[16/10] md:aspect-auto md:min-h-[31rem]">
-            {image?.imageUrl ? (
-              <Image
-                unoptimized
-                src={image.imageUrl}
+            {image?.thumbnailUrl || image?.imageUrl ? (
+              <PrivateDetailImage
+                key={image.id}
+                thumbnailUrl={image.thumbnailUrl}
+                originalUrl={image.imageUrl}
                 alt={`${group.category}，第 ${imageIndex + 1} 张，共 ${group.images.length} 张`}
-                fill
                 sizes="(max-width: 767px) 100vw, 55vw"
-                className="object-cover"
-                decoding="async"
-                fetchPriority="low"
+                objectFit="cover"
               />
             ) : (
               <p className="grid h-full place-items-center px-5 text-sm text-[#71695f]">图片暂时无法显示</p>
