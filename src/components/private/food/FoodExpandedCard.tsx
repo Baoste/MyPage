@@ -80,7 +80,8 @@ export function FoodExpandedCard({
                 fill
                 sizes="(max-width: 767px) 100vw, 55vw"
                 className="object-cover"
-                priority
+                decoding="async"
+                fetchPriority="low"
               />
             ) : (
               <p className="grid h-full place-items-center px-5 text-sm text-[#71695f]">图片暂时无法显示</p>
@@ -146,7 +147,19 @@ export function FoodExpandedCard({
                     onClick={() => setImageIndex(index)}
                     className={`relative size-14 shrink-0 overflow-hidden rounded-xl border-2 transition-opacity ${index === imageIndex ? "border-[#a64b2a]" : "border-transparent opacity-55 hover:opacity-90"}`}
                   >
-                    {item.imageUrl ? <Image unoptimized src={item.imageUrl} alt="" fill sizes="3.5rem" className="object-cover" /> : null}
+                    {item.thumbnailUrl || item.imageUrl ? (
+                      <Image
+                        unoptimized
+                        src={item.thumbnailUrl || item.imageUrl}
+                        alt=""
+                        fill
+                        sizes="3.5rem"
+                        className="object-cover"
+                        decoding="async"
+                        fetchPriority="low"
+                        loading="lazy"
+                      />
+                    ) : null}
                   </button>
                 ))}
               </div>

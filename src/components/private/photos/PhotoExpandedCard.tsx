@@ -67,6 +67,8 @@ export function PhotoExpandedCard({
                 fill
                 sizes="(max-width: 767px) 100vw, 55vw"
                 className="object-contain"
+                decoding="async"
+                fetchPriority="low"
               />
             ) : (
               <p className="grid h-full place-items-center px-5 text-sm text-[#71695f]">

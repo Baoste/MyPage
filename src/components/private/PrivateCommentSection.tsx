@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import type { PrivateComment } from "@/types";
 
 const COMMENT_LOAD_TIMEOUT_MS = 10_000;
@@ -51,13 +51,7 @@ export function PrivateCommentSection({
   const commentCharacterCount = Array.from(commentDraft).length;
   const normalizedCommentLength = Array.from(commentDraft.trim()).length;
 
-  useEffect(() => () => {
-    commentLoadSequenceRef.current += 1;
-    commentLoadControllerRef.current?.abort();
-    commentLoadControllerRef.current = null;
-  }, []);
-
-  async function loadComments() {
+  const loadComments = useCallback(async () => {
     const requestSequence = ++commentLoadSequenceRef.current;
     commentLoadControllerRef.current?.abort();
     const controller = new AbortController();
@@ -100,7 +94,20 @@ export function PrivateCommentSection({
         commentLoadControllerRef.current = null;
       }
     }
-  }
+  }, [endpoint]);
+
+  useEffect(() => {
+    const preloadTimer = window.setTimeout(() => {
+      void loadComments();
+    }, 0);
+
+    return () => {
+      window.clearTimeout(preloadTimer);
+      commentLoadSequenceRef.current += 1;
+      commentLoadControllerRef.current?.abort();
+      commentLoadControllerRef.current = null;
+    };
+  }, [loadComments]);
 
   function toggleComments() {
     const nextOpen = !commentsOpen;
