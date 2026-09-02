@@ -1,6 +1,6 @@
 # Personal Portfolio
 
-一个基于 Next.js App Router 的长期维护型个人网站骨架。公开区域用于作品、文章和简历；`/yfxl99` 是仅限受邀账号访问的私密照片与美食记录。项目不是静态 UI Demo：数据库、可配置的 Photo/Food 本地文件目录、Supabase Storage 兼容层、RLS、账号密码和签名 Session 均已接入实际代码路径。
+一个基于 Next.js App Router 的长期维护型个人网站骨架。公开区域用于作品、文章和简历；`/yfxl99` 是仅限受邀账号访问的私密照片与美食记录。Works 使用本地 TypeScript 目录和服务器持久磁盘封面；Private 区域的数据库、本地媒体目录、Supabase Storage 兼容层、RLS、账号密码和签名 Session 均已接入实际代码路径。
 
 ## 已实现内容
 
@@ -9,9 +9,9 @@
 | Public | 首页 Hero、3/2/1 列作品 Gallery、文章列表、Markdown 文章详情、Resume、可移除的 Tools 故事编辑器、响应式导航 |
 | Private | `/yfxl99` 登录、照片活跃度驱动的 WebGL2 程序化像素树 Welcome、支持上传/翻面/长按原位展开/统计/修改删除/账号评论的 Photos、支持多图和账号评论的 Food 画廊、独立导航、Logout、Loading/Empty/Error 状态 |
 | Authentication | 账号 + bcrypt 密码、一次性邀请码注册、HS256 签名 Session、统一 Proxy/Auth Guard、HttpOnly Cookie、7 天过期、同源校验、简单登录限流 |
-| Data | `projects`、账号/邀请、Photo/Food 记录与评论 Service Layer；未配置 Supabase 时仅公开作品使用本地 Mock |
-| Storage | 新 Photo/Food 图片分别写入 `PHOTO_STORAGE_ROOT` / `FOOD_STORAGE_ROOT` 持久磁盘并经鉴权接口读取；已有图片继续兼容 Supabase Storage |
-| Database | 完整 migration、索引、约束、updated_at trigger、RLS、Storage policies、可选 seed |
+| Data | Works 使用类型安全的本地 TypeScript 目录；账号/邀请、Photo/Food 记录与评论继续使用 Supabase Service Layer |
+| Storage | Project 封面及新 Photo/Food 图片写入各自持久磁盘目录；Project 经公开接口读取，Photo/Food 经鉴权接口读取；旧媒体继续兼容 Supabase Storage |
+| Database | Private 数据使用完整 migration、索引、约束、updated_at trigger、RLS 与 Storage policies；Works 不依赖数据库 |
 | Quality | TypeScript strict、Server/Client 边界、响应式、键盘焦点、语义 HTML、SEO、robots、sitemap、安全 Header |
 
 没有实现通用 Admin Dashboard 或 Supabase Auth；受邀用户在 `/yfxl99` 注册，Photos 和 Food 页面各自包含私密上传流程，新上传记录会展示上传账号。
@@ -22,8 +22,8 @@
 - React 19 + TypeScript
 - Tailwind CSS 4
 - 原生 WebGL2（程序化像素树）+ Canvas 2D 静态降级
-- Supabase PostgreSQL + Storage（公开资源与旧私密图片兼容）
-- 服务器本地持久磁盘（新 Photo/Food 图片）
+- Supabase PostgreSQL + Storage（Private 数据与旧媒体兼容）
+- 服务器本地持久磁盘（Project 封面及新 Photo/Food 图片）
 - `@supabase/supabase-js`
 - `bcryptjs`（密码哈希）
 - `jose`（签名 Session）
@@ -49,19 +49,20 @@ src/
 │   ├── public/                   公开 UI
 │   └── private/                  私密 UI、像素树场景与控制面板
 ├── config/site.ts                个人资料与导航
-├── data/                         可替换 Mock / Resume 数据
+├── data/                         本地 Works 目录 / Resume 数据
 ├── lib/
 │   ├── auth/                     账号、密码、Session、限流、请求校验
 │   ├── food/                     Food 校验、EXIF、地区、统计、本地存储、上传限流
 │   ├── photo/                    Photos 校验、统计、本地存储
+│   ├── project/                  Works 目录校验、封面本地存储
 │   ├── tree/                     照片活跃度纯函数
-│   └── supabase/                 Public/Server Client 与 Storage
-├── services/                     Project / Photo / Food 数据访问与私密草稿发布
-├── types/                        Entity、Row、ViewModel 类型
+│   └── supabase/                 Private Server Client 与旧 Storage 兼容
+├── services/                     Works 映射 / Photo / Food 数据访问与私密草稿发布
+├── types/                        Entity、数据库 Row、ViewModel 类型
 └── proxy.ts                      私密页面 307 / 私密 API 401 入口保护
 supabase/
-├── migrations/                   Schema、Bucket、RLS、Policy
-└── seed.sql                      可选公开 Project seed
+├── migrations/                   Private Schema、Bucket、RLS、Policy（含旧 Project 兼容表）
+└── seed.sql                      说明文件；Works 不需要数据库 seed
 ```
 
 ## 安装与运行
@@ -88,7 +89,7 @@ npm run build
 npm start
 ```
 
-没有配置 Supabase 时，公开首页显示 `src/data/projects.ts` 的少量 Mock，文章和 Resume 正常工作；账号注册、登录和私密 Gallery 不可用。私密空间需要 Supabase 数据库、service-role key 与 Session Secret。
+没有配置 Supabase 时，首页 Works、文章和 Resume 仍能正常工作；账号注册、登录和私密 Gallery 不可用。私密空间需要 Supabase 数据库、service-role key 与 Session Secret。
 
 ## 环境变量
 
@@ -98,10 +99,11 @@ npm start
 | --- | --- | --- |
 | `NEXT_PUBLIC_SITE_URL` | 站点绝对 URL，用于 metadata/sitemap | Public |
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase Project URL | Public |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | 公开项目读取使用的 anon key | Public |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase 公开资源兼容层使用的 anon key；Works 不使用 | Public |
 | `SUPABASE_SERVICE_ROLE_KEY` | 私密 DB、Photo/旧 Food Storage 与 Signed URL | Server only |
 | `SESSION_SECRET` | Session 签名密钥，至少 32 字符 | Server only |
 | `PRIVATE_MEDIA_SIGNED_URL_TTL_SECONDS` | Photo/旧 Food 私密 URL 有效期，默认 `300` | Server only |
+| `PROJECT_COVER_STORAGE_ROOT` | Project 封面的持久化根目录；默认 `.data/public-assets` | Server only |
 | `FOOD_STORAGE_ROOT` | 新 Food 图片的持久化根目录；默认 `.data/private-media` | Server only |
 | `PHOTO_STORAGE_ROOT` | 新 Photo 图片的持久化根目录；空值时回退到 `FOOD_STORAGE_ROOT`，再回退到 `.data/private-media` | Server only |
 | `TOOLS_STORAGE_ROOT` | Tools 模块数据根目录；默认 `.data/tools`，生产环境应指向持久磁盘 | Server only |
@@ -158,7 +160,7 @@ npx supabase db push
 
 第一份 Migration 创建：
 
-- `projects`、`photo_entries`、`food_entries`；
+- `photo_entries`、`food_entries`，以及历史兼容用的 `projects` 表；
 - 日期/公开排序索引和 rating/path 约束；
 - 自动更新 `updated_at` 的 trigger；
 - 两个 Storage buckets；
@@ -200,23 +202,25 @@ npx supabase db push
 
 代码部署早于第二/第三份 Migration 时，Food/Photos 页面都会安全回退到旧字段继续浏览，并显示 Migration 提示、禁用写操作。账号版代码部署前必须先执行第四份 Migration 并创建至少一个邀请码，否则原共享密码将停止工作，注册/登录会返回服务不可用。评论版代码部署前应执行第五、六份 Migration；缺失时画廊仍可浏览，但对应评论接口会明确提示应执行的文件。执行账号 Migration 后再部署代码，旧的共享密码 Session 会自然失效。
 
-可选开发数据：在 SQL Editor 执行 `supabase/seed.sql`。它只写入一个公开 Project，不写无对应图片对象的私密记录。
+`supabase/seed.sql` 不再写入作品。Works 的唯一数据源是 `src/data/projects.ts`，不需要在 SQL Editor 中添加或更新 Project。
 
 ### 3. 核对文件存储
 
 Migration 已创建：
 
-- `public-assets`：Public，用于 `projects/`、`articles/`；
+- `public-assets`：Public，保留给 `articles/` 和旧公开资源；新 Project 封面不再写入该 Bucket；
 - `private-diary`：Private；旧 Photo 使用 `photos/YYYY/MM/`，切换前上传的 Food 路径继续兼容读取和删除。
 
 Dashboard 中必须确认 `private-diary` 的 Public 开关关闭。两个 Bucket 均限制为 JPEG、PNG、WebP，单文件最大 10 MB。
 
-新上传的 Photos 和 Food 图片不再写入 Supabase Storage，而是分别写到 `PHOTO_STORAGE_ROOT/photos/{photoId}/{photoId}.{ext}` 与 `FOOD_STORAGE_ROOT/food/{groupId}/{imageId}.{ext}`。数据库只保存对应相对路径，既不保存 Windows/Linux 绝对路径，也不保存公开 URL。`PHOTO_STORAGE_ROOT` 为空时会与 Food 共用根目录；两者都未配置时，开发环境默认使用项目下的 `.data/private-media`。生产环境必须显式配置到项目目录之外的持久磁盘，并单独备份。
+Project 封面位于 `PROJECT_COVER_STORAGE_ROOT/projects/{filename}.{ext}`，并由 `/api/projects/covers/...` 公开读取；`src/data/projects.ts` 的 `coverFile` 只保存文件名。开发环境未配置时默认使用 `.data/public-assets`。
+
+新上传的 Photos 和 Food 图片不再写入 Supabase Storage，而是分别写到 `PHOTO_STORAGE_ROOT/photos/{photoId}/{photoId}.{ext}` 与 `FOOD_STORAGE_ROOT/food/{groupId}/{imageId}.{ext}`。数据库只保存对应相对路径，既不保存 Windows/Linux 绝对路径，也不保存公开 URL。`PHOTO_STORAGE_ROOT` 为空时会与 Food 共用根目录；两者都未配置时，开发环境默认使用项目下的 `.data/private-media`。以上本地目录在生产环境都必须显式配置到项目目录之外的持久磁盘，并单独备份。
 
 ### 4. 核对 RLS
 
-- anon/authenticated 只可 `SELECT projects WHERE is_published = true`；
-- anon/authenticated 不能写 `projects`；
+- 第一份历史 Migration 仍保留 `projects` 的只读 RLS policy，但首页不会发起该查询；
+- Works 不通过 anon/authenticated 角色读写数据库；
 - `private_users`、`private_invites`、`photo_entries`、`food_entries`、`food_images`、`food_comments` 与 `photo_comments` 没有 anon/authenticated policy，因此不能匿名 CRUD；
 - `public-assets` 允许匿名读取；
 - `private-diary` 没有公开读取 policy；
@@ -308,30 +312,26 @@ src/components/private/tree/
 
 ### 添加 Project
 
-1. 如有封面，将 UUID 文件名图片上传到 `public-assets/projects/`。
-2. 在 `projects` 表新增记录，`cover_path` 只写 Bucket 内路径，例如 `projects/UUID.webp`。
-3. 设置 `is_published = true` 才会在首页出现；`sort_order` 越小越靠前。
+1. 如有封面，将安全的英文文件名图片复制到 `${PROJECT_COVER_STORAGE_ROOT}/projects/`。
+2. 在 `src/data/projects.ts` 的 `projects` 数组中添加一个对象。
+3. 数组顺序就是首页顺序；临时隐藏时设置 `published: false`。
 
 示例：
 
-```sql
-insert into public.projects (
-  title, description, cover_path, tags, project_date,
-  project_url, github_url, sort_order, is_published
-) values (
-  'Project name',
-  'Short description',
-  'projects/UUID.webp',
-  array['Next.js', 'Design'],
-  '2026-08-18',
-  'https://example.com',
-  'https://github.com/example/repo',
-  10,
-  true
-);
+```ts
+{
+  id: "project-name",
+  title: "Project name",
+  description: "Short description",
+  coverFile: "project-name.webp",
+  tags: ["Next.js", "Design"],
+  projectDate: "2026-08-18",
+  projectUrl: "https://example.com",
+  githubUrl: "https://github.com/example/repo",
+},
 ```
 
-配置 Supabase 后，首页以数据库为准，不再显示本地 Project Mock。
+完整字段、封面复制命令、草稿和校验说明见 [`docs/Works.md`](docs/Works.md)。修改作品元数据后需要重新构建并部署。
 
 ### 添加 Article
 
@@ -446,12 +446,13 @@ supabase/migrations/202608180002_food_groups_and_images.sql
 
 ### 图片命名与删除
 
-- 使用 UUID 文件名，支持 `.jpg`、`.jpeg`、`.png`、`.webp`；
-- 不使用原始相机名、中文名或可预测路径；
+- Photo/Food 使用 UUID 文件名；Project 封面可使用唯一、易读的安全英文文件名；均支持 `.jpg`、`.jpeg`、`.png`、`.webp`；
+- 不使用原始相机名或中文名；
+- Project 的 `coverFile` 只写 `{filename}.{extension}`，实际文件位于 `PROJECT_COVER_STORAGE_ROOT/projects/`；
 - 新 Photo 数据库路径必须为 `photos/{photoId}/{photoId}.{extension}`，实际文件位于 `PHOTO_STORAGE_ROOT` 下的同名相对路径；旧 `photos/YYYY/MM/` 路径仅为 Supabase 兼容；
 - 新 Food 数据库路径必须为 `food/{groupId}/{imageId}.{extension}`，实际文件位于 `FOOD_STORAGE_ROOT` 下的同名相对路径；旧 `food/YYYY/MM/` 路径仅为 Supabase 兼容；
 - 删除 Photo/Food 时同时删除数据库行和对应本地文件或 Storage object，避免孤儿文件；
-- `src/lib/photo/local-storage.ts` 与 `src/lib/food/local-storage.ts` 负责各自根目录配置、路径越界防护、写入、读取与精确删除；`src/lib/supabase/storage.ts` 继续负责旧 Photo/Food 的 Signed URL 和对象兼容。
+- `src/lib/project/local-storage.ts`、`src/lib/photo/local-storage.ts` 与 `src/lib/food/local-storage.ts` 负责各自根目录配置和路径越界防护；Project 封面由公开 API 流式读取，Photo/Food 继续使用受 Session 保护的接口；`src/lib/supabase/storage.ts` 负责旧 Photo/Food 的 Signed URL 和对象兼容。
 
 ### 配置 Resume PDF
 
@@ -497,18 +498,18 @@ Browser
 
 ### Vercel
 
-公开页面仍可部署到 Vercel，但当前 Photo/Food 新上传依赖可持续写入的本地磁盘，不能使用 Vercel 函数的临时文件系统保存。若要在 Vercel 运行完整 Photos/Food 功能，需要另行接入对象存储；当前推荐部署到带持久云硬盘的腾讯云 CVM。
+公开页面仍可部署到 Vercel，但当前 Project 封面和 Photo/Food 新上传依赖持久磁盘，不能使用 Vercel 函数的临时文件系统保存。若要在 Vercel 显示封面并运行完整 Photos/Food 功能，需要另行接入对象存储；当前推荐部署到带持久云硬盘的腾讯云 CVM。
 
 ### 腾讯云 CVM
 
 1. 将一块持久云硬盘挂载到固定位置，例如 `/data`；
 2. 创建 `/data/mypage`，确保运行 Node.js 的系统用户拥有读写权限；
-3. 在生产环境设置 `PHOTO_STORAGE_ROOT=/data/mypage`、`FOOD_STORAGE_ROOT=/data/mypage` 与 `TOOLS_STORAGE_ROOT=/data/mypage/tools`；媒体与 Tools 数据分别写入各自子目录；
+3. 在生产环境设置 `PROJECT_COVER_STORAGE_ROOT=/data/mypage/public-assets`、`PHOTO_STORAGE_ROOT=/data/mypage`、`FOOD_STORAGE_ROOT=/data/mypage` 与 `TOOLS_STORAGE_ROOT=/data/mypage/tools`；媒体与 Tools 数据分别写入各自子目录；
 4. 如果使用 Docker，把宿主机持久目录挂载到容器内相同的配置路径；
 5. 配置 Supabase 和 Session 环境变量，按顺序执行六份 Migration，并创建第一个邀请码；
 6. 使用 HTTPS 反向代理运行 `npm start`，并定期备份 `/data/mypage`。
 
-以后更换磁盘位置只需修改两个存储根目录并把原目录内容完整复制到新目录；数据库内的 `photos/...` 与 `food/...` 相对路径不需要修改。
+以后更换磁盘位置时，修改对应存储根目录并把原目录内容完整复制到新目录；Works 的 `coverFile` 以及数据库内的 `photos/...`、`food/...` 相对路径不需要修改。
 
 ### Node Server
 
@@ -519,14 +520,14 @@ npm start
 ```
 
 生产环境应置于 HTTPS 反向代理后。`NODE_ENV=production` 时 Session Cookie 使用 `Secure` 和 `__Host-` 前缀，因此 HTTPS 是必需的。
-Node 进程还必须对 `PHOTO_STORAGE_ROOT`、`FOOD_STORAGE_ROOT` 和 `TOOLS_STORAGE_ROOT` 拥有持续读写权限。不要把生产路径设在源码目录、`.next`、系统临时目录或容器未挂载的可写层中。若希望删除按钮同时物理删除编辑器代码，Node 进程还需对部署目录中的 `tool-modules/story-editor/` 有删除权限；否则会采用上面的停用标记降级路径。
+Node 进程必须能读取 `PROJECT_COVER_STORAGE_ROOT`，并对 `PHOTO_STORAGE_ROOT`、`FOOD_STORAGE_ROOT` 和 `TOOLS_STORAGE_ROOT` 拥有持续读写权限。不要把生产路径设在源码目录、`.next`、系统临时目录或容器未挂载的可写层中。若希望删除按钮同时物理删除编辑器代码，Node 进程还需对部署目录中的 `tool-modules/story-editor/` 有删除权限；否则会采用上面的停用标记降级路径。
 
 ## 验收清单
 
 - [ ] 将 `.env.example` 复制为 `.env.local` 并填写真实值
 - [ ] 按顺序执行六份 migration，确认 `private_users`、`private_invites`、升级后的 `photo_entries`、`food_entries`、`food_images`、`food_comments`、`photo_comments` 与两个 Buckets
 - [ ] 确认 `private-diary` 为 Private，所有私密表匿名查询失败
-- [ ] 将 `PHOTO_STORAGE_ROOT` / `FOOD_STORAGE_ROOT` 指向持久磁盘，确认 Node 进程可读写并配置目录备份
+- [ ] 将 `PROJECT_COVER_STORAGE_ROOT` / `PHOTO_STORAGE_ROOT` / `FOOD_STORAGE_ROOT` 指向持久磁盘，确认 Node 进程权限并配置目录备份
 - [ ] 将 `TOOLS_STORAGE_ROOT` 指向持久磁盘，并确认 Tools 删除后的停用标记可持续保存
 - [ ] 用 `npm run generate-invite` 生成高熵邀请码，只把摘要写入 `private_invites`
 - [x] `npm run lint`
@@ -571,7 +572,7 @@ Supabase、生产 Secret 和持久磁盘步骤需要项目所有者在自己的 
 - 固定落叶与计时器验收：production build 下分别检查 0% 和 100% 叶片密度；0% 时 165 个固定根部落叶仍使用当前叶片色板显示，树在 1440×960 与 390×844 画布中保持水平居中，Welcome 文案不存在；计时器连续采样均每秒前进，桌面/手机无溢出且 WebGL 无运行时错误。
 - 增量时间纯函数验收：北京时间起点本身得到 `0 day 00 h 00 m 00 s`，增加 90,061 秒后准确得到 `1 day 01 h 01 m 01 s`。
 - 像素树质量检查：`npm run lint` 与 `npm run typecheck` 通过；扫描 19 个 `.next/static` 文件，未发现明文密码、Password Hash、Session Secret 或 Service Role 变量名。
-- 像素树生产构建：当前 `.env.local` 指向的公开 Supabase `projects` 查询在预渲染时不可用；未修改该文件，改用项目已有的“未配置 Supabase”回退模式完成 `npm run build`，所有路由成功生成。正式部署前应确认 Supabase 项目可从构建环境访问。
+- Works 本地目录构建：首页构建不再访问 Supabase `projects`；作品元数据会在构建时校验，封面由运行时本地文件接口读取。
 - Food 生产构建：`npm run typecheck`、`npm run lint`、`npm run build` 全部通过；构建产物包含组修改/删除、本地图片读取、图片来源刷新、上传 `init / per-file PUT / complete / cancel` 共七个动态 Food API 路由。
 - Food Chrome 验收：用不进入正式代码的临时本地数据检查桌面与 390×844 手机；长按 520 ms 后卡片留在 `.food-gallery` 内原位展开，打开 Dialog 数为 `0`，相邻卡片位置发生变化，页面横向溢出为 `0`，浏览器运行时错误为 `0`。桌面展开约占两列，手机展开宽度与画廊同为 350px；圆角、同组切换、修改/删除入口和收起按钮均正常。
 - Food 图片校验验收：上传弹窗读取本地 JPEG 后正确显示文件预览、`44KB` 与 `736×736` 尺寸；服务器文件头解析以真实 JPEG 及合成 PNG/WebP 头验证，三种格式均正确复验尺寸；没有发起外部上传。

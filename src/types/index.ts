@@ -2,18 +2,22 @@ export interface Project {
   id: string;
   title: string;
   description?: string;
-  coverPath?: string;
+  coverFile?: string;
+  tags?: readonly string[];
+  projectDate?: string;
+  projectUrl?: string;
+  githubUrl?: string;
+  published?: boolean;
+}
+
+export interface ProjectViewModel {
+  id: string;
+  title: string;
+  description?: string;
   tags: string[];
   projectDate?: string;
   projectUrl?: string;
   githubUrl?: string;
-  sortOrder: number;
-  isPublished: boolean;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface ProjectViewModel extends Project {
   coverUrl?: string;
 }
 
@@ -225,21 +229,6 @@ export interface FoodStatistics {
   ratingDistribution: FoodRankingItem[];
   monthlyTimeline: FoodTimelineItem[];
   todayMemories: FoodMemoryItem[];
-}
-
-export interface ProjectRow {
-  id: string;
-  title: string;
-  description: string | null;
-  cover_path: string | null;
-  tags: string[] | null;
-  project_date: string | null;
-  project_url: string | null;
-  github_url: string | null;
-  sort_order: number;
-  is_published: boolean;
-  created_at: string;
-  updated_at: string;
 }
 
 export interface PhotoEntryRow {

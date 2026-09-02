@@ -1,383 +1,209 @@
 # Works 添加与维护说明
 
-## 1. 数据保存在哪里
+首页的 Works 已完全改为本地代码目录：作品信息写在 TypeScript 文件中，封面保存在服务器本地磁盘。它不会读取 Supabase 的 `projects` 表，也不需要为作品配置数据库权限。
 
-首页作品由两部分组成：
-
-```text
-Supabase PostgreSQL
-└── public.projects
-    └── 保存标题、介绍、标签、日期、链接和封面相对路径
-
-Supabase Storage
-└── public-assets
-    └── projects/
-        └── 保存作品封面图片
-```
-
-数据库不保存图片文件，也不保存 Base64 或永久拼接好的完整 URL。页面读取 `projects.cover_path` 后，通过 `getPublicAssetUrl()` 生成公开图片地址。
-
-`public-assets` 是公开 Bucket，任何人都可以读取其中的文件。不要将私密照片或包含敏感信息的图片作为作品封面上传。
-
-## 2. 添加前检查
-
-确保已经完成以下配置：
-
-1. 已执行 `supabase/migrations/202608180001_initial_schema.sql`。
-2. Supabase 中存在 `public.projects` 表。
-3. Supabase Storage 中存在公开的 `public-assets` Bucket。
-4. `.env.local` 已填写：
-
-```env
-NEXT_PUBLIC_SUPABASE_URL=https://YOUR_PROJECT.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=YOUR_ANON_KEY
-```
-
-项目一旦检测到这两个 Supabase 变量，就会以数据库内容为准，不再显示 `src/data/projects.ts` 中的 Mock 作品。即使数据库中一条作品也没有，页面也只会显示空状态，不会自动回退到 Mock 数据。
-
-## 3. 准备封面图片
-
-封面支持：
-
-- JPEG：`.jpg`、`.jpeg`
-- PNG：`.png`
-- WebP：`.webp`
-- 单张最大 10MB
-
-建议优先使用 WebP，并将图片压缩到适合网页加载的大小。推荐横向构图；当前首页以 `16:9` 画框展示封面，并使用 `object-cover` 填满画框，因此过高或过宽的图片边缘可能被裁切。
-
-不要直接使用原始相机文件名、中文文件名或容易重复的名字。可以先在 Supabase SQL Editor 中生成 UUID：
-
-```sql
-select gen_random_uuid();
-```
-
-假设结果为：
-
-```text
-550e8400-e29b-41d4-a716-446655440000
-```
-
-图片文件名可以设为：
-
-```text
-550e8400-e29b-41d4-a716-446655440000.webp
-```
-
-## 4. 上传作品封面
-
-在 Supabase Dashboard 中依次打开：
-
-```text
-Storage
-→ public-assets
-→ projects
-```
-
-如果 `projects` 文件夹不存在，可以在上传文件时创建。最终文件位置应类似：
-
-```text
-public-assets/projects/550e8400-e29b-41d4-a716-446655440000.webp
-```
-
-后面写入数据库的 `cover_path` 必须是 Bucket 内的相对路径：
-
-```text
-projects/550e8400-e29b-41d4-a716-446655440000.webp
-```
-
-不要填写以下形式：
-
-```text
-/projects/550e8400-e29b-41d4-a716-446655440000.webp
-public-assets/projects/550e8400-e29b-41d4-a716-446655440000.webp
-https://YOUR_PROJECT.supabase.co/storage/v1/object/public/...
-```
-
-路径不能以 `/` 开头，也不能包含 `../`。
-
-封面不是必填项。如果暂时没有封面，将 `cover_path` 留空，首页会根据作品顺序显示几何占位图。
-
-## 5. 通过 Dashboard 添加作品
-
-在 Supabase Dashboard 中依次打开：
-
-```text
-Table Editor
-→ projects
-→ Insert row
-```
-
-填写字段：
-
-| 字段 | 是否必填 | 示例 | 说明 |
-| --- | --- | --- | --- |
-| `id` | 否 | 留空 | 数据库自动生成 UUID |
-| `title` | 是 | `个人知识库` | 1～160 个字符 |
-| `description` | 否 | `用于整理文章与长期笔记的内容系统。` | 首页作品介绍 |
-| `cover_path` | 否 | `projects/UUID.webp` | Bucket 内相对路径，不包含 Bucket 名 |
-| `tags` | 否 | `Next.js`、`TypeScript` | PostgreSQL `text[]` 数组；在数组编辑器中逐项添加 |
-| `project_date` | 否 | `2026-09-02` | `YYYY-MM-DD` 格式 |
-| `project_url` | 否 | `https://example.com` | 在线作品地址，必须包含协议 |
-| `github_url` | 否 | `https://github.com/name/repo` | 源码地址，必须包含协议 |
-| `sort_order` | 是 | `10` | 数字越小越靠前；默认值为 `0` |
-| `is_published` | 是 | `true` | 只有 `true` 才会出现在公开首页 |
-| `created_at` | 否 | 留空 | 数据库自动填写 |
-| `updated_at` | 否 | 留空 | 数据库自动填写，修改记录时自动更新 |
-
-如果作品还没有准备好，可以先将 `is_published` 设为 `false`，作为草稿保存。匿名访问者无法读取未发布作品。
-
-## 6. 通过 SQL 添加作品
-
-SQL Editor 是最稳定、最容易复查的添加方式。封面上传完成后执行：
-
-```sql
-insert into public.projects (
-  title,
-  description,
-  cover_path,
-  tags,
-  project_date,
-  project_url,
-  github_url,
-  sort_order,
-  is_published
-) values (
-  '个人知识库',
-  '用于整理文章、图片和长期笔记的内容系统。',
-  'projects/550e8400-e29b-41d4-a716-446655440000.webp',
-  array['Next.js', 'TypeScript', 'Supabase'],
-  '2026-09-02',
-  'https://example.com',
-  'https://github.com/your-name/project',
-  10,
-  true
-);
-```
-
-没有封面或外部链接时使用 `null`：
-
-```sql
-insert into public.projects (
-  title,
-  description,
-  cover_path,
-  tags,
-  project_date,
-  project_url,
-  github_url,
-  sort_order,
-  is_published
-) values (
-  '界面实验',
-  '关于内容层级、留白与交互反馈的界面实验。',
-  null,
-  array['界面设计', '设计研究'],
-  '2026-08-20',
-  null,
-  null,
-  20,
-  true
-);
-```
-
-添加后可以用以下查询确认公开作品及其排序：
-
-```sql
-select
-  id,
-  title,
-  cover_path,
-  tags,
-  project_date,
-  sort_order,
-  is_published
-from public.projects
-where is_published = true
-order by sort_order asc, project_date desc nulls last;
-```
-
-## 7. 首页排序规则
-
-首页按照以下顺序读取作品：
-
-```text
-1. sort_order ASC
-2. project_date DESC
-```
-
-即：
-
-- `sort_order` 越小，作品越靠前。
-- 两个作品的 `sort_order` 相同时，日期较新的排在前面。
-- 建议使用 `10、20、30` 这样的间隔编号，后续可以在中间插入 `15`，避免频繁修改所有作品。
-
-示例：
-
-| 作品 | `sort_order` | 显示位置 |
-| --- | ---: | --- |
-| 作品 A | 10 | 第一个 |
-| 作品 B | 20 | 第二个 |
-| 作品 C | 30 | 第三个 |
-
-## 8. 查看首页结果
-
-本地启动项目：
-
-```bash
-npm run dev
-```
-
-访问：
-
-```text
-http://localhost:3000/
-```
-
-生产首页设置了 300 秒重新验证时间。发布或修改作品后，线上页面最多可能需要约 5 分钟更新；本地开发环境通常刷新页面即可看到变化。
-
-作品卡片会根据数据库内容显示：
-
-- 编号。
-- 封面或几何占位图。
-- 标签。
-- 标题。
-- 描述。
-- 项目日期。
-- “查看项目”链接。
-- “查看源码”链接。
-
-只有相应 URL 存在时，操作按钮才会出现。
-
-## 9. 修改作品
-
-可以在 Table Editor 中直接编辑，也可以执行 SQL：
-
-```sql
-update public.projects
-set
-  title = '新的作品名称',
-  description = '新的作品介绍。',
-  sort_order = 5
-where id = '作品记录的 UUID';
-```
-
-修改封面时：
-
-1. 先将新图片上传到 `public-assets/projects/`。
-2. 更新 `cover_path`。
-3. 确认首页可以正常加载新封面。
-4. 再删除不再使用的旧 Storage 文件。
-
-数据库触发器会自动更新 `updated_at`。
-
-## 10. 取消发布
-
-暂时隐藏作品时不要删除记录，只需设置：
-
-```sql
-update public.projects
-set is_published = false
-where id = '作品记录的 UUID';
-```
-
-未发布作品不会被匿名用户读取，也不会出现在首页。重新发布：
-
-```sql
-update public.projects
-set is_published = true
-where id = '作品记录的 UUID';
-```
-
-## 11. 删除作品
-
-数据库记录和 Storage 文件没有自动级联关系。删除数据库行不会自动删除封面文件。
-
-推荐顺序：
-
-1. 将 `is_published` 改为 `false`。
-2. 确认首页不再显示该作品。
-3. 删除 `public.projects` 中的记录。
-4. 删除 `public-assets/projects/` 中不再使用的封面文件。
-
-删除数据库记录：
-
-```sql
-delete from public.projects
-where id = '作品记录的 UUID';
-```
-
-删除 Storage 文件前，确认没有其他作品仍引用相同的 `cover_path`。
-
-## 12. 未配置 Supabase 时添加 Mock 作品
-
-只有在没有配置公开 Supabase 变量时，首页才读取：
+## 1. 当前架构
 
 ```text
 src/data/projects.ts
+        │ 作品信息与排列顺序
+        ▼
+src/lib/project/catalog.ts
+        │ 构建时校验
+        ▼
+src/services/projectService.ts
+        │ 隐藏草稿、生成封面地址
+        ▼
+首页 Works
+
+PROJECT_COVER_STORAGE_ROOT/projects/*.webp
+        │ 服务器本地封面
+        ▼
+/api/projects/covers/projects/*.webp
 ```
 
-可以临时增加：
+相关文件的职责：
+
+- `src/data/projects.ts`：唯一的作品信息来源；数组顺序就是首页顺序。
+- `src/lib/project/catalog.ts`：在开发和构建时检查 ID、日期、链接、标签和封面文件名。
+- `src/services/projectService.ts`：过滤未发布作品，并将封面文件名转换为本地图片接口地址。
+- `src/lib/project/local-storage.ts`：限制允许访问的目录、扩展名和文件大小。
+- `src/app/api/projects/covers/[...path]/route.ts`：从服务器磁盘读取并返回封面。
+
+Supabase 即使不可用，首页 Works 也能正常显示。Private 私密区域仍然按原来的方式使用 Supabase，不受这次修改影响。
+
+## 2. 添加一个作品
+
+### 第一步：准备封面
+
+支持 `.jpg`、`.jpeg`、`.png` 和 `.webp`，单张不超过 10 MB。建议使用 16:9 的 WebP 图片，并采用容易识别的英文文件名，例如：
+
+```text
+personal-knowledge-base.webp
+```
+
+封面更新后建议使用新文件名，避免浏览器和 CDN 继续显示旧缓存。
+
+### 第二步：把封面复制到服务器本地目录
+
+默认目录是：
+
+```text
+.data/public-assets/projects/
+```
+
+因此本地开发时可将图片放到：
+
+```text
+.data/public-assets/projects/personal-knowledge-base.webp
+```
+
+生产服务器建议在 `.env.local` 中设置一个持久化磁盘目录：
+
+```dotenv
+PROJECT_COVER_STORAGE_ROOT=/data/mypage/public-assets
+```
+
+对应的封面位置就是：
+
+```text
+/data/mypage/public-assets/projects/personal-knowledge-base.webp
+```
+
+Linux 示例：
+
+```bash
+mkdir -p /data/mypage/public-assets/projects
+cp personal-knowledge-base.webp /data/mypage/public-assets/projects/
+```
+
+Windows PowerShell 示例：
+
+```powershell
+New-Item -ItemType Directory -Force .data/public-assets/projects
+Copy-Item .\personal-knowledge-base.webp .data/public-assets/projects\
+```
+
+> 部署平台如果使用临时文件系统，重新部署后文件可能消失。生产环境必须把 `PROJECT_COVER_STORAGE_ROOT` 指向持久化磁盘或挂载卷。
+
+### 第三步：编辑作品目录
+
+打开 `src/data/projects.ts`，向 `projects` 数组添加一个对象：
 
 ```ts
 {
-  id: "mock-my-project",
+  id: "personal-knowledge-base",
   title: "个人知识库",
-  description: "用于整理文章与长期笔记的内容系统。",
+  description: "一个用于整理笔记、灵感与资料的个人知识系统。",
+  coverFile: "personal-knowledge-base.webp",
   tags: ["Next.js", "TypeScript"],
   projectDate: "2026-09-02",
   projectUrl: "https://example.com",
   githubUrl: "https://github.com/your-name/project",
-  sortOrder: 10,
-  isPublished: true,
-  createdAt: timestamp,
-  updatedAt: timestamp,
-}
+},
 ```
 
-Mock 模式下没有 Supabase Public URL，因此仅在本地数据中填写 `coverPath` 不能让任意本地图片自动显示。需要正式封面时，推荐配置 Supabase 并使用前面的 Storage 流程。
+保存后，本地开发服务器会自动刷新。生产环境中的作品信息属于构建产物，所以修改 `src/data/projects.ts` 后需要重新构建并部署；单独替换磁盘上的图片不需要重新构建。
 
-## 13. 常见问题
+## 3. 字段说明
 
-### 首页显示 `00 Projects`
+| 字段 | 必填 | 说明 |
+| --- | --- | --- |
+| `id` | 是 | 唯一 ID，只能使用小写英文、数字和连字符，例如 `personal-site`。 |
+| `title` | 是 | 首页显示的作品标题。 |
+| `description` | 否 | 作品简介。 |
+| `coverFile` | 否 | 只写文件名，不写目录和 URL，例如 `personal-site.webp`。 |
+| `tags` | 否 | 技术或主题标签数组。 |
+| `projectDate` | 否 | `YYYY-MM-DD` 格式的真实日期。 |
+| `projectUrl` | 否 | 作品在线地址，必须以 `http://` 或 `https://` 开头。 |
+| `githubUrl` | 否 | 源代码地址，必须以 `http://` 或 `https://` 开头。 |
+| `published` | 否 | 默认为公开；设置为 `false` 时不在首页显示。 |
 
-依次检查：
+不要再填写数据库时代的字段，例如 `cover_path`、`sort_order`、`is_published`、`created_at` 或 `updated_at`。
 
-1. 记录的 `is_published` 是否为 `true`。
-2. `.env.local` 是否指向添加记录的同一个 Supabase 项目。
-3. 是否已经执行初始 Migration。
-4. `projects` 表中是否确实存在已发布记录。
-5. 线上页面是否仍处于 300 秒缓存周期内。
+## 4. 调整作品顺序
 
-### 作品存在但封面显示占位图
+首页严格按照 `src/data/projects.ts` 中的数组顺序显示。要调整顺序，直接移动整个作品对象，不再设置 `sort_order`。
 
-依次检查：
+## 5. 暂时隐藏作品
 
-1. `cover_path` 是否填写为 `projects/文件名.webp`。
-2. 路径是否错误地包含了 `/`、Bucket 名或完整 URL。
-3. 文件是否真的上传到了 `public-assets/projects/`。
-4. `public-assets` 是否保持为 Public Bucket。
-5. 文件扩展名、实际 MIME 是否为 JPEG、PNG 或 WebP。
+在作品对象中加入：
 
-### 添加了作品但顺序不正确
+```ts
+published: false,
+```
 
-检查 `sort_order`。数值越小越靠前；相同数值才会继续比较 `project_date`。
+它仍保留在代码里，但不会出现在首页。删除这一行或改为 `true` 即可重新公开。
 
-### 点击按钮没有出现
+## 6. 不使用封面或链接
 
-“查看项目”需要非空的 `project_url`，“查看源码”需要非空的 `github_url`。填写 URL 时包含 `https://`。
+只有 `id` 和 `title` 是必填的。最小作品对象如下：
 
-## 14. 相关代码
+```ts
+{
+  id: "small-experiment",
+  title: "一个小实验",
+},
+```
+
+没有 `coverFile` 时，卡片会显示占位效果；没有链接时，不会显示相应按钮。
+
+## 7. 修改作品
+
+- 修改文字、标签、日期或链接：直接编辑 `src/data/projects.ts`，然后重新部署。
+- 修改封面：上传一个新文件，更新 `coverFile`。建议使用新文件名以绕过缓存。
+- 只覆盖同名封面：无需重新构建，但客户端可能暂时命中旧缓存。
+
+## 8. 删除作品
+
+建议先设置 `published: false` 确认页面效果，再从数组中删除作品对象。封面文件不会自动删除；确认不再使用后，需要手动从服务器的 `projects` 目录移除。
+
+## 9. 自动校验
+
+`defineProjects(...)` 会在开发和构建期间检查：
+
+- 作品 ID 是否符合格式且没有重复；
+- 标题和描述是否包含意外的首尾空格；
+- 封面是否只是安全文件名、扩展名是否受支持且没有重复；
+- 日期是否为有效的 `YYYY-MM-DD`；
+- 链接是否为 HTTP/HTTPS 地址；
+- 标签是否为空、重复或包含首尾空格。
+
+添加作品后建议运行：
+
+```bash
+npm run typecheck
+npm run build
+```
+
+如果数据有误，构建会直接报出对应作品和字段，避免把错误内容部署到线上。
+
+## 10. 常见问题
+
+### 首页没有显示新作品
+
+检查 `published` 是否被设为 `false`，并确认生产环境已经使用最新代码重新构建、部署。
+
+### 作品显示了，但封面是占位图
+
+检查 `coverFile` 是否与磁盘上的文件名完全一致，包括大小写和扩展名。也可以直接访问：
 
 ```text
-src/app/(public)/page.tsx                    首页入口与 300 秒重新验证
-src/components/public/ProjectGallery.tsx    作品列表
-src/components/public/ProjectCard.tsx       单个作品卡片
-src/components/common/SafeImage.tsx         封面与缺图占位
-src/services/projectService.ts              数据查询、排序与 ViewModel
-src/lib/supabase/storage.ts                  Public Storage URL
-src/data/projects.ts                         未配置 Supabase 时的 Mock
-supabase/migrations/202608180001_initial_schema.sql
-                                               projects、Bucket 与 RLS
+/api/projects/covers/projects/你的文件名.webp
 ```
 
+如果返回 404，说明当前服务器在配置的本地目录中没有找到文件。
+
+### 如何修改首页排列顺序
+
+移动 `src/data/projects.ts` 中的对象顺序即可。
+
+### 修改图片后为何仍看到旧图
+
+图片接口会使用浏览器缓存。最可靠的方式是给新版图片换一个文件名，并同步修改 `coverFile`。
+
+## 11. 旧 Supabase Projects 数据
+
+首页现在不会查询 `public.projects`，也不会从 Supabase Storage 的 `public-assets/projects/` 读取封面。原有表和文件可以暂时保留作备份；在确认不再需要且已经备份前，不建议直接删除。
+
+这次改变只针对 Works。账号、邀请、Photo、Food、评论和其他 Private 数据仍可继续使用 Supabase。

@@ -5,10 +5,8 @@ import styles from "@/components/public/PublicSite.module.css";
 import { siteConfig } from "@/config/site";
 import { getPublishedProjects } from "@/services/projectService";
 
-export const revalidate = 300;
-
-export default async function HomePage() {
-  const projects = await getPublishedProjects();
+export default function HomePage() {
+  const projects = getPublishedProjects();
 
   return (
     <>

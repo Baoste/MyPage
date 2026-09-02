@@ -1,5 +1,8 @@
 -- Personal site: database, storage buckets, indexes, constraints, and RLS.
 -- This migration is designed for a standard Supabase project.
+-- The projects table below is retained for installations that already applied
+-- this historical migration. Homepage Works now uses src/data/projects.ts and
+-- does not query or write this table.
 
 create extension if not exists pgcrypto;
 

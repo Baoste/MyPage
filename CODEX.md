@@ -69,10 +69,10 @@ CSS:
 Tailwind CSS
 
 Database:
-Supabase PostgreSQL
+Supabase PostgreSQL（仅 Private 业务数据）
 
 Object Storage:
-Supabase Storage
+服务器本地持久磁盘 + Supabase Storage 旧媒体兼容
 
 Supabase SDK:
 @supabase/supabase-js
@@ -366,7 +366,7 @@ Footer
 
 不要写过多虚假的介绍内容。
 
-暂时使用容易替换的 Mock 内容。
+Works 使用 `src/data/projects.ts` 中可直接维护的本地内容，不依赖数据库或临时 Mock 回退。
 
 ---
 
@@ -438,9 +438,9 @@ interface Project {
 
   description?: string;
 
-  coverPath?: string;
+  coverFile?: string;
 
-  tags: string[];
+  tags?: readonly string[];
 
   projectDate?: string;
 
@@ -448,15 +448,11 @@ interface Project {
 
   githubUrl?: string;
 
-  sortOrder: number;
-
-  isPublished: boolean;
-
-  createdAt: string;
-
-  updatedAt: string;
+  published?: boolean;
 }
 ```
+
+作品对象集中维护在 `src/data/projects.ts`，数组顺序就是首页顺序。`coverFile` 只保存文件名；不使用数据库字段或数据库时间戳。
 
 Hover 可以包含轻微：
 
@@ -1251,20 +1247,15 @@ private-diary
 用于：
 
 ```text
-作品封面
-
 公开文章图片
 
-其他公开媒体
+其他公开媒体及旧资源兼容
 ```
 
 目录例如：
 
 ```text
 public-assets/
-├── projects/
-│   ├── ...
-│
 └── articles/
     └── ...
 ```
@@ -1274,6 +1265,14 @@ public-assets/
 ```text
 Public Bucket
 ```
+
+新 Project 封面不再写入 Supabase Storage。它们位于服务器持久磁盘的：
+
+```text
+PROJECT_COVER_STORAGE_ROOT/projects/{filename}.{ext}
+```
+
+`src/data/projects.ts` 的 `coverFile` 只保存文件名，由 `/api/projects/covers/...` 公开读取。生产环境必须把 `PROJECT_COVER_STORAGE_ROOT` 配置到项目目录之外的持久磁盘。
 
 ---
 
@@ -1460,16 +1459,10 @@ SUPABASE_SERVICE_ROLE_KEY
 用于：
 
 ```text
-公开数据读取
+Supabase 旧公开资源兼容
 ```
 
-例如：
-
-```text
-Published Projects
-```
-
-如果完全可以 Server Component 读取，则优先 Server Side。
+Published Projects 不再通过这里读取；首页直接在 Server Component 中读取本地 Works Service。
 
 不要为了使用 Supabase 而强行让 Browser 直接请求 Database。
 
@@ -1490,6 +1483,8 @@ uploadPrivateAsset()
 
 deleteAsset()
 ```
+
+这些函数继续服务 Supabase 公开资源与旧媒体兼容；Project 封面改由 `src/lib/project/local-storage.ts` 完成路径校验，并由站内 Route Handler 流式返回。
 
 当前阶段：
 
@@ -1563,15 +1558,15 @@ PRIVATE_MEDIA_SIGNED_URL_TTL_SECONDS=300
 
 # 48. Database Tables
 
-第一阶段创建：
+Private 业务使用：
 
 ```text
-projects
-
 photo_entries
 
 food_entries
 ```
+
+早期 Migration 中的 `projects` 表仅为历史兼容保留。当前 Works 不查询、不写入该表，也不要求数据库中存在作品记录。
 
 文章继续：
 
@@ -1589,44 +1584,21 @@ Static Data + PDF
 
 ---
 
-# 49. projects Table
+# 49. Works Local Catalog
 
-创建：
-
-```sql
-projects
-```
-
-推荐：
-
-```sql
-id              uuid primary key
-title           text not null
-description     text
-cover_path      text
-tags            text[]
-project_date    date
-project_url     text
-github_url      text
-sort_order      integer default 0
-is_published    boolean default false
-created_at      timestamptz default now()
-updated_at      timestamptz default now()
-```
-
-首页只能读取：
+作品信息唯一来源：
 
 ```text
-is_published = true
+src/data/projects.ts
 ```
 
-默认排序：
+通过 `defineProjects(...)` 在开发与构建时检查 ID、文件名、日期、链接和重复项。首页顺序使用数组顺序，`published: false` 表示隐藏。封面只保存 `coverFile` 文件名，实际文件位于：
 
 ```text
-sort_order ASC
+PROJECT_COVER_STORAGE_ROOT/projects/{coverFile}
 ```
 
-必要时第二排序条件可以使用日期。
+旧 `projects` 表和其中的 `cover_path`、`sort_order`、`is_published` 等字段不再参与运行时 Works 流程。
 
 ---
 
@@ -1741,31 +1713,11 @@ Row Level Security
 
 ---
 
-# 54. projects RLS
+# 54. Legacy projects RLS
 
-匿名用户只允许：
+旧 Migration 仍为历史 `projects` 表保留只读 published policy，以兼容已经部署的数据库；当前首页不会创建 Supabase Client 来读取该表。
 
-```text
-SELECT
-```
-
-已经：
-
-```text
-is_published = true
-```
-
-的数据。
-
-匿名用户禁止：
-
-```text
-INSERT
-
-UPDATE
-
-DELETE
-```
+Works 的公开面只包括只读封面 Route Handler。它必须限制固定子目录、允许的扩展名和文件大小，并防止目录穿越。
 
 ---
 
@@ -1852,25 +1804,13 @@ src/services/
 
 # 58. Project Service
 
-至少实现：
+实现：
 
 ```ts
 getPublishedProjects()
 ```
 
-未来可以预留：
-
-```ts
-getProjectById()
-
-createProject()
-
-updateProject()
-
-deleteProject()
-```
-
-但是第一阶段不需要制作管理 UI。
+该函数只读取 `src/data/projects.ts`，过滤 `published: false`，并把 `coverFile` 映射为站内封面 URL。作品更新通过代码评审和重新部署完成，不实现数据库 CRUD 或管理 UI。
 
 ---
 
@@ -2132,41 +2072,31 @@ Orphan Storage Object
 
 **不做 Admin Dashboard。**
 
-数据通过：
+Works 通过：
 
 ```text
-Supabase Dashboard
+src/data/projects.ts
 
-SQL
-
-Seed Script
+PROJECT_COVER_STORAGE_ROOT/projects/
 ```
 
-维护。
-
-图片暂时可以：
-
-```text
-Supabase Dashboard Upload
-```
-
-然后添加 Metadata。
+维护。Private 数据仍通过受 Session 保护的页面和 Supabase Service 维护。
 
 ---
 
 # 68. Seed Data
 
-建议提供少量：
+开发环境可以在本地目录提供少量真实或容易替换的作品数据：
 
 ```text
-Seed / Mock Data
+Typed Local Data
 ```
 
 用于开发页面。
 
 但是不要使用大量 Lorem Ipsum。
 
-确保删除 Mock 数据之后项目仍然可以正常运行。
+Works 不使用数据库 Seed；删除全部本地作品后页面仍应正常显示 Empty State。
 
 ---
 
@@ -2781,23 +2711,9 @@ private-diary
 
 # 91. Public Security
 
-`projects`：
+Works 元数据编译进服务端构建产物，不开放写接口，也不接受浏览器提交的作品对象。
 
-匿名允许：
-
-```text
-SELECT published records
-```
-
-匿名禁止：
-
-```text
-INSERT
-
-UPDATE
-
-DELETE
-```
+Project 封面接口匿名只读，并限制 `PROJECT_COVER_STORAGE_ROOT/projects/`、安全文件名、受支持图片扩展名、最大文件大小和路径越界。
 
 ---
 
@@ -3079,21 +2995,27 @@ Logout
 
 # 99. Database 验收
 
-Supabase 中存在：
+Supabase 中存在 Private 业务表：
 
 ```text
-projects
-
 photo_entries
 
 food_entries
 ```
 
-并存在对应 Migration。
+并存在对应 Migration。历史 `projects` 表可以保留，但 Works 的验收不能依赖它；Supabase 不可用时首页作品仍应显示。
 
 ---
 
 # 100. Storage 验收
+
+服务器本地持久存储：
+
+```text
+PROJECT_COVER_STORAGE_ROOT/projects/
+```
+
+用于 Project 公开封面；必须验证目录持久化、只读权限、路径越界防护和独立备份。
 
 Supabase Storage：
 
@@ -3241,7 +3163,17 @@ Service Layer
 
 ↓
 
-Supabase / Markdown / Storage
+Local Catalog / Supabase / Markdown / Storage
+```
+
+Works：
+
+```text
+Server Component
+↓
+Project Service
+↓
+Typed Local Catalog + Local Cover Route
 ```
 
 Private Data：
@@ -3268,9 +3200,7 @@ Supabase PostgreSQL
 Supabase Storage
 ```
 
-最终目标：
-
-> **PostgreSQL 负责“这是什么”，Storage 负责“文件在哪里”，Next.js Server 负责“你有没有权限看”。**
+最终目标：Private 中 PostgreSQL 负责元数据，Storage/本地磁盘负责文件，Next.js Server 负责权限；Works 中 TypeScript Catalog 负责元数据，持久磁盘负责封面，构建时校验负责一致性。
 
 ---
 
@@ -3394,4 +3324,4 @@ Database
 
 这个项目最终应该是一个：
 
-> **能够真实连接 Supabase、能够保存和读取作品/照片/美食信息、能够安全保护恋爱日记、能够继续长期维护的完整个人网站骨架。**
+> **Works 能以类型安全的本地目录长期维护，Private 能真实连接 Supabase、保存和读取照片/美食信息、安全保护恋爱日记，并且两部分边界清晰的完整个人网站骨架。**
