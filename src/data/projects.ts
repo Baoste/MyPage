@@ -6,8 +6,8 @@ import { defineProjects } from "@/lib/project/catalog";
  * - Array order is display order.
  * - Omit `published` or set it to `true` to show an item.
  * - Set `published: false` to keep a draft in code without displaying it.
- * - `coverFile` accepts one filename or a filename list inside
- *   PROJECT_COVER_STORAGE_ROOT/projects/.
+ * - `coverFile` accepts one filename, an image filename list inside
+ *   PROJECT_COVER_STORAGE_ROOT/projects/, or one full Bilibili video URL.
  * - `projectDate` uses `YYYY-MM - YYYY-MM`.
  */
 export const projects = defineProjects([
@@ -22,10 +22,11 @@ export const projects = defineProjects([
     githubUrl: "https://github.com/Baoste/CudaPathTracing",
   },
   {
-    id: "game-burst",
-    title: "Burst",
+    id: "game-bust",
+    title: "Bust",
     description:
       "一个独立开发的卡牌游戏，探索了创新的游戏机制和策略深度。",
+    coverFile: "https://www.bilibili.com/video/BV1PEj161Exm",
     tags: ["独立游戏", "卡牌游戏"],
     projectDate: "2026-02 - 2026-06",
   },

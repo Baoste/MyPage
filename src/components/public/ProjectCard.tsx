@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { SafeImage } from "@/components/common/SafeImage";
 import { ProjectCoverCarousel } from "@/components/public/ProjectCoverCarousel";
+import { ProjectCoverVideo } from "@/components/public/ProjectCoverVideo";
 import styles from "@/components/public/PublicSite.module.css";
 import { formatProjectPeriod } from "@/lib/format";
 import type { ProjectViewModel } from "@/types";
@@ -11,6 +12,11 @@ interface ProjectCardProps {
 }
 
 export function ProjectCard({ project, index }: ProjectCardProps) {
+  const videoCover = project.coverMedia.find((cover) => cover.type === "video");
+  const imageUrls = project.coverMedia.flatMap((cover) => (
+    cover.type === "image" ? [cover.url] : []
+  ));
+
   return (
     <article className={`${styles.projectCard} group`}>
       <div className={styles.projectNumber} aria-hidden="true">
@@ -18,15 +24,17 @@ export function ProjectCard({ project, index }: ProjectCardProps) {
       </div>
 
       <div className={styles.projectMedia}>
-        {project.coverUrls.length > 1 ? (
+        {videoCover ? (
+          <ProjectCoverVideo title={project.title} video={videoCover} />
+        ) : imageUrls.length > 1 ? (
           <ProjectCoverCarousel
             title={project.title}
-            urls={project.coverUrls}
+            urls={imageUrls}
             fallbackIndex={index}
           />
         ) : (
           <SafeImage
-            src={project.coverUrls[0]}
+            src={imageUrls[0]}
             alt={`${project.title}封面`}
             sizes="(min-width: 1200px) 50vw, (min-width: 768px) 45vw, 80vw"
             ratio="wide"

@@ -1,4 +1,5 @@
 import type { Project } from "@/types";
+import { parseProjectVideoUrl } from "@/lib/project/video";
 
 const PROJECT_ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u;
 const PROJECT_COVER_FILE_PATTERN = /^[a-z0-9][a-z0-9._-]{0,159}\.(?:jpe?g|png|webp)$/iu;
@@ -37,6 +38,7 @@ function validateUrl(projectId: string, label: string, value?: string) {
 export function defineProjects(items: readonly Project[]): readonly Project[] {
   const ids = new Set<string>();
   const coverFiles = new Set<string>();
+  const coverVideos = new Set<string>();
 
   for (const project of items) {
     const projectId = project.id || "unknown";
@@ -53,24 +55,42 @@ export function defineProjects(items: readonly Project[]): readonly Project[] {
       projectError(projectId, "description cannot contain surrounding spaces.");
     }
 
-    const projectCoverFiles = typeof project.coverFile === "string"
-      ? [project.coverFile]
-      : project.coverFile ?? [];
     if (Array.isArray(project.coverFile) && project.coverFile.length === 0) {
       projectError(projectId, "coverFile list cannot be empty.");
     }
-    if (projectCoverFiles.length > 8) {
-      projectError(projectId, "coverFile supports at most 8 images per project.");
-    }
-    for (const coverFile of projectCoverFiles) {
-      if (!PROJECT_COVER_FILE_PATTERN.test(coverFile)) {
-        projectError(projectId, "coverFile must contain safe JPEG, PNG, or WebP filenames.");
+
+    const coverVideo = typeof project.coverFile === "string"
+      ? parseProjectVideoUrl(project.coverFile)
+      : null;
+
+    if (coverVideo) {
+      if (coverVideos.has(coverVideo.videoKey)) {
+        projectError(projectId, "the same Bilibili video and part must not be used more than once.");
       }
-      const normalizedCoverFile = coverFile.toLowerCase();
-      if (coverFiles.has(normalizedCoverFile)) {
-        projectError(projectId, `cover file "${coverFile}" must not be used more than once.`);
+      coverVideos.add(coverVideo.videoKey);
+    } else {
+      const projectCoverFiles = typeof project.coverFile === "string"
+        ? [project.coverFile]
+        : project.coverFile ?? [];
+      if (projectCoverFiles.length > 8) {
+        projectError(projectId, "coverFile supports at most 8 images per project.");
       }
-      coverFiles.add(normalizedCoverFile);
+      for (const coverFile of projectCoverFiles) {
+        if (/^https?:\/\//iu.test(coverFile)) {
+          projectError(
+            projectId,
+            "video cover must be one full HTTPS Bilibili video URL; image lists cannot contain URLs.",
+          );
+        }
+        if (!PROJECT_COVER_FILE_PATTERN.test(coverFile)) {
+          projectError(projectId, "coverFile must contain safe JPEG, PNG, or WebP filenames.");
+        }
+        const normalizedCoverFile = coverFile.toLowerCase();
+        if (coverFiles.has(normalizedCoverFile)) {
+          projectError(projectId, `cover file "${coverFile}" must not be used more than once.`);
+        }
+        coverFiles.add(normalizedCoverFile);
+      }
     }
 
     validateProjectPeriod(projectId, project.projectDate);

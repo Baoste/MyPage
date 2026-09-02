@@ -2,11 +2,15 @@ import "server-only";
 
 import { projects } from "@/data/projects";
 import { projectCoverUrl } from "@/lib/project/local-storage";
+import { parseProjectVideoUrl } from "@/lib/project/video";
 import type { Project, ProjectViewModel } from "@/types";
 
 function toViewModel(project: Project): ProjectViewModel {
+  const coverVideo = typeof project.coverFile === "string"
+    ? parseProjectVideoUrl(project.coverFile)
+    : null;
   const coverFiles = typeof project.coverFile === "string"
-    ? [project.coverFile]
+    ? coverVideo ? [] : [project.coverFile]
     : project.coverFile ?? [];
 
   return {
@@ -17,9 +21,14 @@ function toViewModel(project: Project): ProjectViewModel {
     projectDate: project.projectDate,
     projectUrl: project.projectUrl,
     githubUrl: project.githubUrl,
-    coverUrls: coverFiles.flatMap((coverFile) => {
+    coverMedia: coverVideo ? [{
+      type: "video",
+      provider: coverVideo.provider,
+      sourceUrl: coverVideo.sourceUrl,
+      embedUrl: coverVideo.embedUrl,
+    }] : coverFiles.flatMap((coverFile) => {
       const coverUrl = projectCoverUrl(`projects/${coverFile}`);
-      return coverUrl ? [coverUrl] : [];
+      return coverUrl ? [{ type: "image" as const, url: coverUrl }] : [];
     }),
   };
 }

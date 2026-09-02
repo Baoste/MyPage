@@ -10,6 +10,20 @@ export interface Project {
   published?: boolean;
 }
 
+export interface ProjectImageCover {
+  type: "image";
+  url: string;
+}
+
+export interface ProjectVideoCover {
+  type: "video";
+  provider: "bilibili";
+  sourceUrl: string;
+  embedUrl: string;
+}
+
+export type ProjectCoverMedia = ProjectImageCover | ProjectVideoCover;
+
 export interface ProjectViewModel {
   id: string;
   title: string;
@@ -18,7 +32,7 @@ export interface ProjectViewModel {
   projectDate?: string;
   projectUrl?: string;
   githubUrl?: string;
-  coverUrls: string[];
+  coverMedia: ProjectCoverMedia[];
 }
 
 export interface Article {

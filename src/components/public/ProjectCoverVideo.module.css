@@ -1,0 +1,51 @@
+.video {
+  aspect-ratio: 16 / 9;
+  background: #111;
+  border: 1px solid #111;
+  overflow: hidden;
+  position: relative;
+}
+
+.frame {
+  border: 0;
+  display: block;
+  height: 100%;
+  width: 100%;
+}
+
+.externalLink {
+  align-items: center;
+  background: rgb(17 17 17 / 76%);
+  color: #fff;
+  display: inline-flex;
+  font-family: "Arial Narrow", "Roboto Condensed", Impact, sans-serif;
+  font-size: 0.68rem;
+  font-stretch: condensed;
+  font-weight: 800;
+  gap: 0.32rem;
+  letter-spacing: 0.08em;
+  padding: 0.42rem 0.56rem;
+  position: absolute;
+  right: 0.55rem;
+  text-decoration: none;
+  top: 0.55rem;
+  transition: background-color 160ms ease-out, color 160ms ease-out;
+  z-index: 1;
+}
+
+.externalLink:hover,
+.externalLink:focus-visible {
+  background: var(--public-yellow);
+  color: #111;
+}
+
+.externalLink:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .externalLink {
+    transition: none;
+  }
+}
