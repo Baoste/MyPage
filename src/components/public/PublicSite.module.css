@@ -1,0 +1,796 @@
+.publicSite {
+  --accent: #0759e6;
+  --public-blue: #0759e6;
+  --public-red: #f0201b;
+  --public-yellow: #ffd400;
+  --public-ink: #090909;
+  --public-paper: #ffffff;
+  --public-line: #0b0b0b;
+  background: var(--public-paper);
+  color: var(--public-ink);
+  font-family: Arial, Helvetica, sans-serif;
+  min-height: 100vh;
+  overflow-x: clip;
+}
+
+.navbar {
+  background: rgb(255 255 255 / 96%);
+  border-bottom: 2px solid var(--public-line);
+  position: sticky;
+  top: 0;
+  z-index: 50;
+}
+
+.navbarInner {
+  display: grid;
+  grid-template-columns: minmax(12rem, 0.8fr) minmax(28rem, 2fr) minmax(11rem, 0.65fr);
+  margin-inline: auto;
+  max-width: 100rem;
+  min-height: 5rem;
+}
+
+.brand,
+.desktopNav,
+.talkLink {
+  align-items: center;
+  display: flex;
+}
+
+.brand {
+  border-right: 2px solid var(--public-line);
+  font-family: "Arial Narrow", "Roboto Condensed", Impact, sans-serif;
+  font-size: clamp(1.45rem, 2vw, 2rem);
+  font-stretch: condensed;
+  font-weight: 900;
+  letter-spacing: -0.055em;
+  padding-inline: clamp(1.25rem, 3vw, 3rem);
+  text-transform: uppercase;
+}
+
+.desktopNav {
+  justify-content: center;
+  padding-inline: 1.5rem;
+}
+
+.navLink {
+  align-items: center;
+  display: flex;
+  font-size: 0.7rem;
+  font-weight: 800;
+  justify-content: center;
+  min-height: 5rem;
+  padding-inline: clamp(0.85rem, 1.7vw, 1.65rem);
+  position: relative;
+  text-transform: uppercase;
+}
+
+.navLink::after {
+  background: var(--public-blue);
+  bottom: 1.15rem;
+  content: "";
+  height: 2px;
+  left: 50%;
+  position: absolute;
+  transform: translateX(-50%) scaleX(0);
+  transition: transform 160ms ease-out;
+  width: calc(100% - 1.7rem);
+}
+
+.navLink:hover::after,
+.activeNavLink::after {
+  transform: translateX(-50%) scaleX(1);
+}
+
+.activeNavLink {
+  color: var(--public-blue);
+}
+
+.talkLink {
+  border-left: 2px solid var(--public-line);
+  color: var(--public-blue);
+  font-size: 0.72rem;
+  font-weight: 900;
+  justify-content: center;
+  padding-inline: 1rem;
+  text-transform: uppercase;
+}
+
+.talkLink span,
+.projectAction span,
+.footerAction span {
+  transition: transform 160ms ease-out;
+}
+
+.talkLink:hover span,
+.projectAction:hover span,
+.footerAction:hover span {
+  transform: translate(0.16rem, -0.16rem);
+}
+
+.mobileMenuButton {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-left: 2px solid var(--public-line);
+  display: none;
+  font-size: 1.5rem;
+  justify-content: center;
+  min-height: 4.25rem;
+  width: 4.25rem;
+}
+
+.mobileNav {
+  border-top: 2px solid var(--public-line);
+  display: none;
+}
+
+.mobileNavLink {
+  align-items: center;
+  border-bottom: 1px solid #c8c8c8;
+  display: flex;
+  font-size: 0.78rem;
+  font-weight: 800;
+  justify-content: space-between;
+  min-height: 3.7rem;
+  padding-inline: 1.25rem;
+  text-transform: uppercase;
+}
+
+.hero {
+  border-bottom: 2px solid var(--public-line);
+  display: grid;
+  grid-template-columns: minmax(0, 4.2fr) minmax(13.5rem, 0.92fr);
+  margin-inline: auto;
+  max-width: 100rem;
+  min-height: clamp(34rem, 60vw, 45rem);
+}
+
+.heroMain {
+  display: grid;
+  grid-template-rows: 1fr auto;
+  min-width: 0;
+  padding: clamp(2.25rem, 5vw, 5rem) clamp(1.25rem, 4.8vw, 4.75rem) 0;
+}
+
+.heroKicker {
+  align-items: center;
+  display: flex;
+  font-size: 0.68rem;
+  font-weight: 800;
+  gap: 0.6rem;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.heroKicker::before {
+  background: var(--public-blue);
+  content: "";
+  height: 0.65rem;
+  width: 0.65rem;
+}
+
+.heroName {
+  font-family: "Arial Narrow", "Roboto Condensed", Impact, sans-serif;
+  font-size: clamp(5rem, 13.5vw, 13.5rem);
+  font-stretch: condensed;
+  font-weight: 900;
+  letter-spacing: -0.075em;
+  line-height: 0.73;
+  margin: clamp(3.5rem, 7vw, 6.5rem) 0 clamp(2.5rem, 4vw, 4rem);
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  text-transform: uppercase;
+}
+
+.heroIntro {
+  align-items: end;
+  display: grid;
+  gap: clamp(1.75rem, 4vw, 4.5rem);
+  grid-template-columns: minmax(0, 1fr) minmax(10rem, 16rem);
+}
+
+.heroRole {
+  color: var(--public-blue);
+  font-family: "Arial Narrow", "Roboto Condensed", Impact, sans-serif;
+  font-size: clamp(1.45rem, 2.7vw, 2.15rem);
+  font-stretch: condensed;
+  font-weight: 900;
+  letter-spacing: -0.035em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.heroDescription {
+  font-size: clamp(0.95rem, 1.4vw, 1.15rem);
+  line-height: 1.55;
+  margin-top: 0.8rem;
+  max-width: 35rem;
+}
+
+.skillList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  list-style: none;
+  margin: 1.25rem 0 0;
+  padding: 0;
+}
+
+.skillPill,
+.projectTag {
+  border: 1.5px solid var(--public-blue);
+  border-radius: 99rem;
+  color: var(--public-blue);
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  padding: 0.32rem 0.85rem;
+  text-transform: uppercase;
+}
+
+.portrait {
+  align-self: end;
+  display: block;
+  height: auto;
+  width: 100%;
+}
+
+.toolRow {
+  align-items: center;
+  display: grid;
+  gap: 1.2rem;
+  grid-template-columns: repeat(4, minmax(0, auto));
+  justify-content: start;
+  min-height: 6.5rem;
+}
+
+.toolItem {
+  align-items: center;
+  display: flex;
+  font-size: clamp(0.7rem, 1vw, 0.9rem);
+  font-weight: 800;
+  gap: 0.45rem;
+  white-space: nowrap;
+}
+
+.toolMark {
+  align-items: center;
+  border: 2px solid var(--public-ink);
+  display: inline-flex;
+  font-size: 0.55rem;
+  height: 1.35rem;
+  justify-content: center;
+  transform: rotate(45deg);
+  width: 1.35rem;
+}
+
+.toolMark span {
+  transform: rotate(-45deg);
+}
+
+.heroRail {
+  border-left: 2px solid var(--public-line);
+  display: grid;
+  grid-template-rows: minmax(17rem, 1fr) minmax(14rem, 0.78fr);
+  min-width: 0;
+}
+
+.railStatement {
+  border-bottom: 2px solid var(--public-line);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: clamp(1.5rem, 3vw, 2.6rem);
+}
+
+.railArrow {
+  color: var(--public-blue);
+  font-size: clamp(3rem, 5vw, 5rem);
+  font-weight: 300;
+  line-height: 1;
+}
+
+.railRoles {
+  color: var(--public-blue);
+  font-size: clamp(0.72rem, 1.15vw, 0.9rem);
+  font-weight: 900;
+  line-height: 1.55;
+  margin-top: 1.35rem;
+  text-transform: uppercase;
+}
+
+.colorGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 0.85fr;
+}
+
+.redBlock {
+  background: var(--public-red);
+  border-bottom: 2px solid var(--public-line);
+  border-right: 2px solid var(--public-line);
+}
+
+.whiteBlock {
+  border-bottom: 2px solid var(--public-line);
+}
+
+.blueBlock {
+  background: var(--public-blue);
+  border-right: 2px solid var(--public-line);
+}
+
+.yellowBlock {
+  background: var(--public-yellow);
+}
+
+.works {
+  margin-inline: auto;
+  max-width: 100rem;
+}
+
+.worksHeader {
+  align-items: center;
+  background: var(--public-yellow);
+  border-bottom: 2px solid var(--public-line);
+  display: flex;
+  justify-content: space-between;
+  min-height: 4.35rem;
+  padding-inline: clamp(1.25rem, 3vw, 3rem);
+}
+
+.worksTitle {
+  font-family: "Arial Narrow", "Roboto Condensed", Impact, sans-serif;
+  font-size: clamp(1.35rem, 2.3vw, 2rem);
+  font-stretch: condensed;
+  font-weight: 900;
+  letter-spacing: -0.035em;
+  text-transform: uppercase;
+}
+
+.worksCount {
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.projectList {
+  display: grid;
+}
+
+.projectCard {
+  border-bottom: 1px solid #bdbdbd;
+  display: grid;
+  grid-template-columns: minmax(3.5rem, 0.42fr) minmax(18rem, 1.55fr) minmax(17rem, 1.2fr);
+  min-width: 0;
+}
+
+.projectCard:nth-child(even) {
+  grid-template-columns: minmax(3.5rem, 0.42fr) minmax(17rem, 1.05fr) minmax(18rem, 1.8fr);
+}
+
+.projectNumber {
+  align-items: flex-start;
+  display: flex;
+  justify-content: center;
+  padding-top: clamp(1.5rem, 3vw, 2.5rem);
+}
+
+.projectNumber span {
+  align-items: center;
+  background: var(--public-yellow);
+  display: inline-flex;
+  font-family: "Arial Narrow", "Roboto Condensed", Impact, sans-serif;
+  font-size: 1.2rem;
+  font-stretch: condensed;
+  font-weight: 900;
+  height: 2.7rem;
+  justify-content: center;
+  width: 2.7rem;
+}
+
+.projectMedia {
+  align-items: center;
+  border-left: 1px solid #bdbdbd;
+  border-right: 1px solid #bdbdbd;
+  display: flex;
+  min-width: 0;
+  padding: clamp(1.25rem, 2.5vw, 2.2rem);
+}
+
+.projectMedia > * {
+  transition: transform 180ms ease-out;
+}
+
+.projectCard:nth-child(even) .projectMedia {
+  grid-column: 3;
+  grid-row: 1;
+}
+
+.projectContent {
+  align-self: center;
+  min-width: 0;
+  padding: clamp(2rem, 4vw, 4.25rem);
+}
+
+.projectCard:nth-child(even) .projectContent {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.projectTags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.projectTitle {
+  font-family: "Arial Narrow", "Roboto Condensed", Impact, sans-serif;
+  font-size: clamp(2rem, 4vw, 4.25rem);
+  font-stretch: condensed;
+  font-weight: 900;
+  letter-spacing: -0.045em;
+  line-height: 0.95;
+  margin-top: 1.5rem;
+  text-transform: uppercase;
+}
+
+.projectDescription {
+  font-size: clamp(0.85rem, 1.15vw, 1rem);
+  line-height: 1.55;
+  margin-top: 1.15rem;
+  max-width: 28rem;
+}
+
+.projectMeta {
+  color: #575757;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  margin-top: 1rem;
+  text-transform: uppercase;
+}
+
+.projectActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-top: 1.65rem;
+}
+
+.projectAction {
+  align-items: center;
+  background: var(--public-ink);
+  color: var(--public-paper);
+  display: inline-flex;
+  font-size: 0.68rem;
+  font-weight: 800;
+  gap: 0.55rem;
+  min-height: 2.6rem;
+  padding-inline: 1rem;
+  text-transform: uppercase;
+}
+
+.projectActionSecondary {
+  background: transparent;
+  border: 2px solid var(--public-ink);
+  color: var(--public-ink);
+}
+
+.footer {
+  border-top: 1px solid #bdbdbd;
+  margin-top: 0;
+}
+
+.footerTop {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.8fr) minmax(7rem, 0.32fr);
+  margin-inline: auto;
+  max-width: 100rem;
+}
+
+.footerPanel {
+  border-right: 1px solid #bdbdbd;
+  min-height: 10rem;
+  padding: 1.7rem clamp(1.25rem, 3vw, 3rem);
+}
+
+.footerHeading {
+  font-size: 0.7rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.footerCopy {
+  font-size: 0.82rem;
+  line-height: 1.5;
+  margin-top: 0.8rem;
+  max-width: 25rem;
+}
+
+.footerAction {
+  align-items: center;
+  display: inline-flex;
+  font-size: 0.68rem;
+  font-weight: 900;
+  gap: 0.5rem;
+  margin-top: 1.15rem;
+  text-transform: uppercase;
+}
+
+.footerBlocks {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+
+.footerBlocks span:first-child {
+  background: var(--public-blue);
+  border-right: 2px solid var(--public-line);
+}
+
+.footerBlocks span:last-child {
+  background: var(--public-yellow);
+}
+
+.footerBottom {
+  align-items: center;
+  border-top: 1px solid #bdbdbd;
+  display: flex;
+  font-size: 0.62rem;
+  justify-content: space-between;
+  margin-inline: auto;
+  max-width: 100rem;
+  min-height: 4rem;
+  padding-inline: clamp(1.25rem, 3vw, 3rem);
+  text-transform: uppercase;
+}
+
+.footerLinks {
+  align-items: center;
+  display: flex;
+  gap: 1.25rem;
+}
+
+.emptyState {
+  border-bottom: 1px solid #bdbdbd;
+  padding: 4rem clamp(1.25rem, 3vw, 3rem);
+}
+
+@media (max-width: 960px) {
+  .navbarInner {
+    grid-template-columns: 11rem 1fr 10rem;
+  }
+
+  .navLink {
+    padding-inline: 0.68rem;
+  }
+
+  .hero {
+    grid-template-columns: minmax(0, 1fr) 12rem;
+  }
+
+  .heroMain {
+    padding-inline: 2rem;
+  }
+
+  .toolRow {
+    gap: 0.8rem;
+  }
+
+  .projectCard,
+  .projectCard:nth-child(even) {
+    grid-template-columns: 4.5rem minmax(0, 1.45fr) minmax(0, 1fr);
+  }
+
+  .projectTitle {
+    font-size: clamp(1.8rem, 4vw, 3rem);
+  }
+}
+
+@media (max-width: 767px) {
+  .navbarInner {
+    grid-template-columns: 1fr auto;
+    min-height: 4.25rem;
+  }
+
+  .brand {
+    border-right: 0;
+    font-size: 1.45rem;
+    min-width: 0;
+    padding-inline: 1.25rem;
+  }
+
+  .desktopNav,
+  .talkLink {
+    display: none;
+  }
+
+  .mobileMenuButton,
+  .mobileNav {
+    display: flex;
+  }
+
+  .mobileNav {
+    flex-direction: column;
+  }
+
+  .hero {
+    display: block;
+    min-height: 0;
+  }
+
+  .heroMain {
+    display: block;
+    padding: 2rem 1.25rem 0;
+  }
+
+  .heroName {
+    font-size: clamp(4.2rem, 23vw, 7.3rem);
+    line-height: 0.78;
+    margin-block: 3.25rem 2.5rem;
+  }
+
+  .heroIntro {
+    align-items: center;
+    gap: 1rem;
+    grid-template-columns: minmax(0, 1.25fr) minmax(7.25rem, 0.75fr);
+  }
+
+  .heroRole {
+    font-size: 1.25rem;
+  }
+
+  .heroDescription {
+    font-size: 0.9rem;
+  }
+
+  .skillPill {
+    font-size: 0.55rem;
+    padding-inline: 0.6rem;
+  }
+
+  .toolRow {
+    border-top: 1px solid #bdbdbd;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin-top: 2rem;
+    min-height: 0;
+    padding-block: 1.25rem;
+  }
+
+  .heroRail {
+    border-left: 0;
+    border-top: 2px solid var(--public-line);
+    grid-template-columns: minmax(0, 1fr) 7.5rem;
+    grid-template-rows: 9rem;
+  }
+
+  .railStatement {
+    border-bottom: 0;
+    border-right: 2px solid var(--public-line);
+    flex-direction: row;
+    gap: 1.5rem;
+    justify-content: flex-start;
+    padding: 1.1rem 1.25rem;
+  }
+
+  .railArrow {
+    font-size: 2.7rem;
+  }
+
+  .railRoles {
+    font-size: 0.65rem;
+    margin-top: 0;
+  }
+
+  .worksHeader {
+    min-height: 3.8rem;
+  }
+
+  .worksCount {
+    font-size: 0.6rem;
+  }
+
+  .projectCard,
+  .projectCard:nth-child(even) {
+    grid-template-columns: 4rem minmax(0, 1fr);
+  }
+
+  .projectNumber {
+    grid-column: 1;
+    grid-row: 1;
+    padding-top: 1.25rem;
+  }
+
+  .projectNumber span {
+    font-size: 1rem;
+    height: 2.35rem;
+    width: 2.35rem;
+  }
+
+  .projectMedia,
+  .projectCard:nth-child(even) .projectMedia {
+    border-right: 0;
+    grid-column: 2;
+    grid-row: 1;
+    padding: 1rem;
+  }
+
+  .projectContent,
+  .projectCard:nth-child(even) .projectContent {
+    border-top: 1px solid #bdbdbd;
+    grid-column: 1 / -1;
+    grid-row: 2;
+    padding: 1.5rem 1.25rem 2.2rem;
+  }
+
+  .projectTitle {
+    font-size: clamp(2.1rem, 11vw, 3.2rem);
+    margin-top: 1.1rem;
+  }
+
+  .footerTop {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .footerPanel:nth-child(2) {
+    border-right: 0;
+  }
+
+  .footerBlocks {
+    border-top: 2px solid var(--public-line);
+    grid-column: 1 / -1;
+    min-height: 2.75rem;
+  }
+
+  .footerBottom {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.65rem;
+    justify-content: center;
+    padding-block: 0.75rem;
+  }
+}
+
+@media (max-width: 430px) {
+  .heroIntro {
+    display: block;
+  }
+
+  .portrait {
+    margin: 2rem auto 0;
+    max-width: 10rem;
+  }
+
+  .railStatement {
+    gap: 0.8rem;
+  }
+
+  .footerTop {
+    grid-template-columns: 1fr;
+  }
+
+  .footerPanel {
+    border-bottom: 1px solid #bdbdbd;
+    border-right: 0;
+    min-height: 8.5rem;
+  }
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .projectCard:hover .projectMedia > * {
+    transform: translateY(-2px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .navLink::after,
+  .talkLink span,
+  .projectAction span,
+  .footerAction span,
+  .projectCard .projectMedia > * {
+    transition: none;
+  }
+}

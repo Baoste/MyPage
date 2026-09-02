@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { publicNavigation, siteConfig } from "@/config/site";
+import styles from "@/components/public/PublicSite.module.css";
 
 export function PublicNavbar() {
   const pathname = usePathname();
@@ -24,36 +25,36 @@ export function PublicNavbar() {
   };
 
   return (
-    <header className="sticky top-0 z-50 border-b border-[#cfcbc0]/80 bg-[#f4f1e9]/95 backdrop-blur-sm print-hidden">
-      <div className="container-shell flex h-[4.75rem] items-center justify-between">
+    <header className={`${styles.navbar} print-hidden`}>
+      <div className={styles.navbarInner}>
         <Link
           href="/"
-          className="focus-ring text-sm font-bold tracking-[-0.02em]"
+          className={`${styles.brand} focus-ring`}
           onClick={() => setIsOpen(false)}
         >
           {siteConfig.name}
         </Link>
 
-        <nav className="hidden items-center gap-8 md:flex" aria-label="主导航">
+        <nav className={styles.desktopNav} aria-label="主导航">
           {publicNavigation.map((item) => (
             <Link
               key={item.href}
               href={item.href}
               aria-current={isActive(item.href) ? "page" : undefined}
-              className={`focus-ring border-b py-1 text-xs font-semibold uppercase tracking-[0.12em] transition-colors ${
-                isActive(item.href)
-                  ? "border-[#20221e] text-[#20221e]"
-                  : "border-transparent text-[#696a62] hover:text-[#20221e]"
-              }`}
+              className={`${styles.navLink} ${isActive(item.href) ? styles.activeNavLink : ""} focus-ring`}
             >
               {item.label}
             </Link>
           ))}
         </nav>
 
+        <Link href={`mailto:${siteConfig.email}`} className={`${styles.talkLink} focus-ring`}>
+          联系我&nbsp; <span aria-hidden="true">↗</span>
+        </Link>
+
         <button
           type="button"
-          className="focus-ring flex size-10 items-center justify-center border border-[#bdb8ac] md:hidden"
+          className={`${styles.mobileMenuButton} focus-ring`}
           aria-expanded={isOpen}
           aria-controls="mobile-navigation"
           aria-label={isOpen ? "关闭菜单" : "打开菜单"}
@@ -69,18 +70,18 @@ export function PublicNavbar() {
         <nav
           id="mobile-navigation"
           aria-label="移动端导航"
-          className="container-shell border-t border-[#cfcbc0] py-3 md:hidden"
+          className={styles.mobileNav}
         >
           {publicNavigation.map((item) => (
             <Link
               key={item.href}
               href={item.href}
               aria-current={isActive(item.href) ? "page" : undefined}
-              className="focus-ring flex min-h-12 items-center justify-between border-b border-[#d8d3c8] text-sm"
+              className={`${styles.mobileNavLink} focus-ring`}
               onClick={() => setIsOpen(false)}
             >
               {item.label}
-              <span aria-hidden="true">↗</span>
+              <span aria-hidden="true">{isActive(item.href) ? "●" : "↗"}</span>
             </Link>
           ))}
         </nav>

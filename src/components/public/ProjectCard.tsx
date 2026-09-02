@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { SafeImage } from "@/components/common/SafeImage";
+import styles from "@/components/public/PublicSite.module.css";
 import { formatDate } from "@/lib/format";
 import type { ProjectViewModel } from "@/types";
 
@@ -10,46 +11,49 @@ interface ProjectCardProps {
 
 export function ProjectCard({ project, index }: ProjectCardProps) {
   return (
-    <article className="group min-w-0 border-t border-[#bdb8ac] pt-3">
-      <div className="mb-3 flex items-center justify-between text-[0.66rem] font-semibold uppercase tracking-[0.15em] text-[#77766e]">
-        <span>作品 {String(index + 1).padStart(2, "0")}</span>
-        {project.projectDate ? (
-          <time dateTime={project.projectDate}>
-            {formatDate(project.projectDate, { year: "numeric", month: "short" })}
-          </time>
-        ) : null}
+    <article className={`${styles.projectCard} group`}>
+      <div className={styles.projectNumber} aria-hidden="true">
+        <span>{String(index + 1).padStart(2, "0")}</span>
       </div>
 
-      <SafeImage
-        src={project.coverUrl}
-        alt={`${project.title}封面`}
-        sizes="(min-width: 1024px) 30vw, (min-width: 768px) 45vw, 100vw"
-      />
+      <div className={styles.projectMedia}>
+        <SafeImage
+          src={project.coverUrl}
+          alt={`${project.title}封面`}
+          sizes="(min-width: 1200px) 50vw, (min-width: 768px) 45vw, 80vw"
+          ratio="wide"
+          fallbackIndex={index}
+        />
+      </div>
 
-      <div className="pt-5">
-        <h3 className="display-type text-[1.65rem] leading-tight">{project.title}</h3>
-        {project.description ? (
-          <p className="mt-3 text-sm leading-6 text-[#62635c]">
-            {project.description}
-          </p>
-        ) : null}
-        <ul className="mt-4 flex flex-wrap gap-x-3 gap-y-1" aria-label="作品标签">
+      <div className={styles.projectContent}>
+        <ul className={styles.projectTags} aria-label="作品标签">
           {project.tags.map((tag) => (
-            <li key={tag} className="text-[0.68rem] uppercase tracking-[0.12em] text-[#77766e]">
-              {tag}
-            </li>
+            <li key={tag} className={styles.projectTag}>{tag}</li>
           ))}
         </ul>
+
+        <h3 className={styles.projectTitle}>{project.title}</h3>
+        {project.description ? (
+          <p className={styles.projectDescription}>{project.description}</p>
+        ) : null}
+        {project.projectDate ? (
+          <p className={styles.projectMeta}>
+            <time dateTime={project.projectDate}>
+              {formatDate(project.projectDate, { year: "numeric", month: "short" })}
+            </time>
+          </p>
+        ) : null}
         {project.projectUrl || project.githubUrl ? (
-          <div className="mt-5 flex gap-4 text-xs font-semibold uppercase tracking-[0.1em]">
+          <div className={styles.projectActions}>
             {project.projectUrl ? (
-              <Link href={project.projectUrl} target="_blank" rel="noreferrer">
-                查看项目 ↗
+              <Link className={styles.projectAction} href={project.projectUrl} target="_blank" rel="noreferrer">
+                查看项目 <span aria-hidden="true">↗</span>
               </Link>
             ) : null}
             {project.githubUrl ? (
-              <Link href={project.githubUrl} target="_blank" rel="noreferrer">
-                查看源码 ↗
+              <Link className={`${styles.projectAction} ${styles.projectActionSecondary}`} href={project.githubUrl} target="_blank" rel="noreferrer">
+                查看源码 <span aria-hidden="true">↗</span>
               </Link>
             ) : null}
           </div>
