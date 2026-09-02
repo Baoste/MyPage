@@ -1,7 +1,9 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import type { PrivateComment } from "@/types";
+
+const COMMENT_LOAD_TIMEOUT_MS = 10_000;
 
 const commentTimeFormatter = new Intl.DateTimeFormat("zh-CN", {
   timeZone: "Asia/Shanghai",
@@ -44,30 +46,74 @@ export function PrivateCommentSection({
   const [isCommenting, setIsCommenting] = useState(false);
   const [commentFeedback, setCommentFeedback] = useState("");
   const [commentFeedbackIsError, setCommentFeedbackIsError] = useState(false);
+  const commentLoadControllerRef = useRef<AbortController | null>(null);
+  const commentLoadSequenceRef = useRef(0);
   const commentCharacterCount = Array.from(commentDraft).length;
   const normalizedCommentLength = Array.from(commentDraft.trim()).length;
 
+  useEffect(() => () => {
+    commentLoadSequenceRef.current += 1;
+    commentLoadControllerRef.current?.abort();
+    commentLoadControllerRef.current = null;
+  }, []);
+
   async function loadComments() {
+    const requestSequence = ++commentLoadSequenceRef.current;
+    commentLoadControllerRef.current?.abort();
+    const controller = new AbortController();
+    commentLoadControllerRef.current = controller;
+    let didTimeout = false;
+    const timeoutId = window.setTimeout(() => {
+      didTimeout = true;
+      controller.abort();
+    }, COMMENT_LOAD_TIMEOUT_MS);
+
     setCommentsStatus("loading");
     setCommentFeedback("");
+    setCommentFeedbackIsError(false);
     try {
-      const response = await fetch(endpoint, { cache: "no-store" });
+      const response = await fetch(endpoint, {
+        cache: "no-store",
+        signal: controller.signal,
+      });
       const data = await response.json() as CommentsResponse;
       if (!response.ok || !data.comments) {
         throw new Error(data.message || "暂时无法读取评论。");
       }
+      if (requestSequence !== commentLoadSequenceRef.current) return;
       setComments(data.comments);
       setCommentsStatus("ready");
     } catch (error) {
+      if (requestSequence !== commentLoadSequenceRef.current) return;
       setCommentsStatus("error");
       setCommentFeedbackIsError(true);
-      setCommentFeedback(error instanceof Error ? error.message : "暂时无法读取评论。");
+      setCommentFeedback(
+        didTimeout
+          ? "读取评论超时，请检查网络后重试。"
+          : error instanceof Error
+            ? error.message
+            : "暂时无法读取评论。",
+      );
+    } finally {
+      window.clearTimeout(timeoutId);
+      if (commentLoadControllerRef.current === controller) {
+        commentLoadControllerRef.current = null;
+      }
     }
   }
 
   function toggleComments() {
     const nextOpen = !commentsOpen;
     setCommentsOpen(nextOpen);
+    if (!nextOpen && commentsStatus === "loading") {
+      commentLoadSequenceRef.current += 1;
+      commentLoadControllerRef.current?.abort();
+      commentLoadControllerRef.current = null;
+      setCommentsStatus("idle");
+      setCommentFeedback("");
+      setCommentFeedbackIsError(false);
+      return;
+    }
     if (nextOpen && (commentsStatus === "idle" || commentsStatus === "error")) {
       void loadComments();
     }
