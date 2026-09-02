@@ -58,12 +58,19 @@ export function PrivateDetailImage({
           aria-hidden="true"
           fill
           sizes={sizes}
-          className={`${imageClassName} ${originalStatus === "loaded" ? "visible" : "invisible"}`}
+          className={`${imageClassName} z-[1] ${originalStatus === "loaded" ? "visible" : "invisible"}`}
           decoding="async"
           fetchPriority="high"
           loading="eager"
           onLoad={() => setOriginalStatus("loaded")}
           onError={() => setOriginalStatus("error")}
+        />
+      ) : null}
+
+      {originalStatus === "loading" ? (
+        <span
+          aria-hidden="true"
+          className="private-original-load-progress absolute inset-0 z-[5] pointer-events-none"
         />
       ) : null}
 
