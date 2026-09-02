@@ -216,23 +216,6 @@ textarea:focus-visible {
   will-change: transform, opacity;
 }
 
-.private-original-image-reveal {
-  animation: private-original-image-reveal 720ms steps(24, end) forwards;
-  clip-path: inset(0 0 100% 0);
-  visibility: visible;
-  will-change: clip-path;
-}
-
-@keyframes private-original-image-reveal {
-  from {
-    clip-path: inset(0 0 100% 0);
-  }
-
-  to {
-    clip-path: inset(0 0 0 0);
-  }
-}
-
 @keyframes food-expanded-enter {
   from {
     opacity: 0.82;
