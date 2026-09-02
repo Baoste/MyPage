@@ -2,16 +2,24 @@ import type { Project } from "@/types";
 
 const PROJECT_ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u;
 const PROJECT_COVER_FILE_PATTERN = /^[a-z0-9][a-z0-9._-]{0,159}\.(?:jpe?g|png|webp)$/iu;
-const PROJECT_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/u;
+const PROJECT_PERIOD_PATTERN = /^(\d{4})-(0[1-9]|1[0-2]) - (\d{4})-(0[1-9]|1[0-2])$/u;
 
 function projectError(projectId: string, message: string): never {
   throw new Error(`Invalid local project "${projectId}": ${message}`);
 }
 
-function isValidDate(value: string) {
-  if (!PROJECT_DATE_PATTERN.test(value)) return false;
-  const parsed = new Date(`${value}T00:00:00.000Z`);
-  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+function validateProjectPeriod(projectId: string, value?: string) {
+  if (!value) return;
+  const match = PROJECT_PERIOD_PATTERN.exec(value);
+  if (!match) {
+    projectError(projectId, "projectDate must use YYYY-MM - YYYY-MM format.");
+  }
+
+  const startMonth = Number(match[1]) * 12 + Number(match[2]);
+  const endMonth = Number(match[3]) * 12 + Number(match[4]);
+  if (startMonth > endMonth) {
+    projectError(projectId, "projectDate start month cannot be after its end month.");
+  }
 }
 
 function validateUrl(projectId: string, label: string, value?: string) {
@@ -45,20 +53,27 @@ export function defineProjects(items: readonly Project[]): readonly Project[] {
       projectError(projectId, "description cannot contain surrounding spaces.");
     }
 
-    if (project.coverFile) {
-      if (!PROJECT_COVER_FILE_PATTERN.test(project.coverFile)) {
-        projectError(projectId, "coverFile must be a safe JPEG, PNG, or WebP filename.");
+    const projectCoverFiles = typeof project.coverFile === "string"
+      ? [project.coverFile]
+      : project.coverFile ?? [];
+    if (Array.isArray(project.coverFile) && project.coverFile.length === 0) {
+      projectError(projectId, "coverFile list cannot be empty.");
+    }
+    if (projectCoverFiles.length > 8) {
+      projectError(projectId, "coverFile supports at most 8 images per project.");
+    }
+    for (const coverFile of projectCoverFiles) {
+      if (!PROJECT_COVER_FILE_PATTERN.test(coverFile)) {
+        projectError(projectId, "coverFile must contain safe JPEG, PNG, or WebP filenames.");
       }
-      const normalizedCoverFile = project.coverFile.toLowerCase();
+      const normalizedCoverFile = coverFile.toLowerCase();
       if (coverFiles.has(normalizedCoverFile)) {
-        projectError(projectId, "coverFile must not be shared by another project.");
+        projectError(projectId, `cover file "${coverFile}" must not be used more than once.`);
       }
       coverFiles.add(normalizedCoverFile);
     }
 
-    if (project.projectDate && !isValidDate(project.projectDate)) {
-      projectError(projectId, "projectDate must be a real date in YYYY-MM-DD format.");
-    }
+    validateProjectPeriod(projectId, project.projectDate);
     validateUrl(projectId, "projectUrl", project.projectUrl);
     validateUrl(projectId, "githubUrl", project.githubUrl);
 

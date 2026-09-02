@@ -2,7 +2,7 @@ export interface Project {
   id: string;
   title: string;
   description?: string;
-  coverFile?: string;
+  coverFile?: string | readonly string[];
   tags?: readonly string[];
   projectDate?: string;
   projectUrl?: string;
@@ -18,7 +18,7 @@ export interface ProjectViewModel {
   projectDate?: string;
   projectUrl?: string;
   githubUrl?: string;
-  coverUrl?: string;
+  coverUrls: string[];
 }
 
 export interface Article {

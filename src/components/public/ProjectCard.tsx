@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { SafeImage } from "@/components/common/SafeImage";
+import { ProjectCoverCarousel } from "@/components/public/ProjectCoverCarousel";
 import styles from "@/components/public/PublicSite.module.css";
-import { formatDate } from "@/lib/format";
+import { formatProjectPeriod } from "@/lib/format";
 import type { ProjectViewModel } from "@/types";
 
 interface ProjectCardProps {
@@ -17,13 +18,21 @@ export function ProjectCard({ project, index }: ProjectCardProps) {
       </div>
 
       <div className={styles.projectMedia}>
-        <SafeImage
-          src={project.coverUrl}
-          alt={`${project.title}封面`}
-          sizes="(min-width: 1200px) 50vw, (min-width: 768px) 45vw, 80vw"
-          ratio="wide"
-          fallbackIndex={index}
-        />
+        {project.coverUrls.length > 1 ? (
+          <ProjectCoverCarousel
+            title={project.title}
+            urls={project.coverUrls}
+            fallbackIndex={index}
+          />
+        ) : (
+          <SafeImage
+            src={project.coverUrls[0]}
+            alt={`${project.title}封面`}
+            sizes="(min-width: 1200px) 50vw, (min-width: 768px) 45vw, 80vw"
+            ratio="wide"
+            fallbackIndex={index}
+          />
+        )}
       </div>
 
       <div className={styles.projectContent}>
@@ -39,9 +48,7 @@ export function ProjectCard({ project, index }: ProjectCardProps) {
         ) : null}
         {project.projectDate ? (
           <p className={styles.projectMeta}>
-            <time dateTime={project.projectDate}>
-              {formatDate(project.projectDate, { year: "numeric", month: "short" })}
-            </time>
+            {formatProjectPeriod(project.projectDate)}
           </p>
         ) : null}
         {project.projectUrl || project.githubUrl ? (

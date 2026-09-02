@@ -212,7 +212,7 @@ Migration 已创建：
 
 Dashboard 中必须确认 `private-diary` 的 Public 开关关闭。两个 Bucket 均限制为 JPEG、PNG、WebP，单文件最大 10 MB。
 
-Project 封面位于 `PROJECT_COVER_STORAGE_ROOT/projects/{filename}.{ext}`，并由 `/api/projects/covers/...` 公开读取；`src/data/projects.ts` 的 `coverFile` 只保存文件名。开发环境未配置时默认使用 `.data/public-assets`。
+Project 封面位于 `PROJECT_COVER_STORAGE_ROOT/projects/{filename}.{ext}`，并由 `/api/projects/covers/...` 公开读取；`src/data/projects.ts` 的 `coverFile` 保存一个文件名或最多 8 个文件名的数组。开发环境未配置时默认使用 `.data/public-assets`。
 
 新上传的 Photos 和 Food 图片不再写入 Supabase Storage，而是分别写到 `PHOTO_STORAGE_ROOT/photos/{photoId}/{photoId}.{ext}` 与 `FOOD_STORAGE_ROOT/food/{groupId}/{imageId}.{ext}`。数据库只保存对应相对路径，既不保存 Windows/Linux 绝对路径，也不保存公开 URL。`PHOTO_STORAGE_ROOT` 为空时会与 Food 共用根目录；两者都未配置时，开发环境默认使用项目下的 `.data/private-media`。以上本地目录在生产环境都必须显式配置到项目目录之外的持久磁盘，并单独备份。
 
@@ -324,10 +324,16 @@ src/components/private/tree/
   description: "Short description",
   coverFile: "project-name.webp",
   tags: ["Next.js", "Design"],
-  projectDate: "2026-08-18",
+  projectDate: "2026-01 - 2026-08",
   projectUrl: "https://example.com",
   githubUrl: "https://github.com/example/repo",
 },
+```
+
+多图作品将 `coverFile` 改为数组即可；数组顺序就是左右滑动顺序，单图仍使用字符串：
+
+```ts
+coverFile: ["project-name-01.webp", "project-name-02.webp", "project-name-03.webp"],
 ```
 
 完整字段、封面复制命令、草稿和校验说明见 [`docs/Works.md`](docs/Works.md)。修改作品元数据后需要重新构建并部署。
@@ -447,7 +453,7 @@ supabase/migrations/202608180002_food_groups_and_images.sql
 
 - Photo/Food 使用 UUID 文件名；Project 封面可使用唯一、易读的安全英文文件名；均支持 `.jpg`、`.jpeg`、`.png`、`.webp`；
 - 不使用原始相机名或中文名；
-- Project 的 `coverFile` 只写 `{filename}.{extension}`，实际文件位于 `PROJECT_COVER_STORAGE_ROOT/projects/`；
+- Project 的 `coverFile` 只写一个文件名或文件名数组，实际文件均位于 `PROJECT_COVER_STORAGE_ROOT/projects/`；
 - 新 Photo 数据库路径必须为 `photos/{photoId}/{photoId}.{extension}`，实际文件位于 `PHOTO_STORAGE_ROOT` 下的同名相对路径；旧 `photos/YYYY/MM/` 路径仅为 Supabase 兼容；
 - 新 Food 数据库路径必须为 `food/{groupId}/{imageId}.{extension}`，实际文件位于 `FOOD_STORAGE_ROOT` 下的同名相对路径；旧 `food/YYYY/MM/` 路径仅为 Supabase 兼容；
 - 删除 Photo/Food 时同时删除数据库行和对应本地文件或 Storage object，避免孤儿文件；

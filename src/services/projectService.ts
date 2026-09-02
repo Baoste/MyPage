@@ -5,6 +5,10 @@ import { projectCoverUrl } from "@/lib/project/local-storage";
 import type { Project, ProjectViewModel } from "@/types";
 
 function toViewModel(project: Project): ProjectViewModel {
+  const coverFiles = typeof project.coverFile === "string"
+    ? [project.coverFile]
+    : project.coverFile ?? [];
+
   return {
     id: project.id,
     title: project.title,
@@ -13,9 +17,10 @@ function toViewModel(project: Project): ProjectViewModel {
     projectDate: project.projectDate,
     projectUrl: project.projectUrl,
     githubUrl: project.githubUrl,
-    coverUrl: project.coverFile
-      ? projectCoverUrl(`projects/${project.coverFile}`)
-      : undefined,
+    coverUrls: coverFiles.flatMap((coverFile) => {
+      const coverUrl = projectCoverUrl(`projects/${coverFile}`);
+      return coverUrl ? [coverUrl] : [];
+    }),
   };
 }
 

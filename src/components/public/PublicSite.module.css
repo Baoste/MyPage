@@ -400,6 +400,7 @@
 
 .projectMedia > * {
   transition: transform 180ms ease-out;
+  width: 100%;
 }
 
 .projectCard:nth-child(even) .projectMedia {

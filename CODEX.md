@@ -437,7 +437,7 @@ interface Project {
 
   description?: string;
 
-  coverFile?: string;
+  coverFile?: string | readonly string[];
 
   tags?: readonly string[];
 
@@ -451,7 +451,9 @@ interface Project {
 }
 ```
 
-作品对象集中维护在 `src/data/projects.ts`，数组顺序就是首页顺序。`coverFile` 只保存文件名；不使用数据库字段或数据库时间戳。
+作品对象集中维护在 `src/data/projects.ts`，数组顺序就是首页顺序。`coverFile` 保存一个文件名或最多 8 个文件名的数组；多图使用左右滑动与圆点导航，单图不显示轮播控件。不使用数据库字段或数据库时间戳。
+
+`projectDate` 使用 `YYYY-MM - YYYY-MM`，首页显示为“YYYY年MM月—YYYY年MM月”，并在构建时检查月份与先后顺序。
 
 Hover 可以包含轻微：
 
@@ -1271,7 +1273,7 @@ Public Bucket
 PROJECT_COVER_STORAGE_ROOT/projects/{filename}.{ext}
 ```
 
-`src/data/projects.ts` 的 `coverFile` 只保存文件名，由 `/api/projects/covers/...` 公开读取。生产环境必须把 `PROJECT_COVER_STORAGE_ROOT` 配置到项目目录之外的持久磁盘。
+`src/data/projects.ts` 的 `coverFile` 只保存文件名或文件名数组，由 `/api/projects/covers/...` 公开读取。生产环境必须把 `PROJECT_COVER_STORAGE_ROOT` 配置到项目目录之外的持久磁盘。
 
 ---
 
@@ -1576,7 +1578,7 @@ Static Data + PDF
 src/data/projects.ts
 ```
 
-通过 `defineProjects(...)` 在开发与构建时检查 ID、文件名、日期、链接和重复项。首页顺序使用数组顺序，`published: false` 表示隐藏。封面只保存 `coverFile` 文件名，实际文件位于：
+通过 `defineProjects(...)` 在开发与构建时检查 ID、文件名、封面数量、日期、链接和重复项。首页顺序使用数组顺序，`published: false` 表示隐藏。封面只保存 `coverFile` 文件名或文件名数组，实际文件位于：
 
 ```text
 PROJECT_COVER_STORAGE_ROOT/projects/{coverFile}
@@ -1794,7 +1796,7 @@ src/services/
 getPublishedProjects()
 ```
 
-该函数只读取 `src/data/projects.ts`，过滤 `published: false`，并把 `coverFile` 映射为站内封面 URL。作品更新通过代码评审和重新部署完成，不实现数据库 CRUD 或管理 UI。
+该函数只读取 `src/data/projects.ts`，过滤 `published: false`，并把 `coverFile` 映射为站内封面 URL 列表。作品更新通过代码评审和重新部署完成，不实现数据库 CRUD 或管理 UI。
 
 ---
 

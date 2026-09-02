@@ -36,7 +36,7 @@ Supabase 即使不可用，首页 Works 也能正常显示。Private 私密区�
 
 ### 第一步：准备封面
 
-支持 `.jpg`、`.jpeg`、`.png` 和 `.webp`，单张不超过 10 MB。建议使用 16:9 的 WebP 图片，并采用容易识别的英文文件名，例如：
+支持 `.jpg`、`.jpeg`、`.png` 和 `.webp`，单张不超过 10 MB。建议使用比例一致的 16:9 WebP 图片，并采用容易识别的英文文件名，例如：
 
 ```text
 personal-knowledge-base.webp
@@ -97,13 +97,25 @@ Copy-Item .\personal-knowledge-base.webp .data/public-assets/projects\
   description: "一个用于整理笔记、灵感与资料的个人知识系统。",
   coverFile: "personal-knowledge-base.webp",
   tags: ["Next.js", "TypeScript"],
-  projectDate: "2026-09-02",
+  projectDate: "2026-01 - 2026-09",
   projectUrl: "https://example.com",
   githubUrl: "https://github.com/your-name/project",
 },
 ```
 
 保存后，本地开发服务器会自动刷新。生产环境中的作品信息属于构建产物，所以修改 `src/data/projects.ts` 后需要重新构建并部署；单独替换磁盘上的图片不需要重新构建。
+
+一个作品需要展示多张封面时，将 `coverFile` 写成文件名数组，最多 8 张：
+
+```ts
+coverFile: [
+  "personal-knowledge-base-01.webp",
+  "personal-knowledge-base-02.webp",
+  "personal-knowledge-base-03.webp",
+],
+```
+
+多图会显示为可左右滑动的轮播图，并在底部显示圆点导航；圆点也可以点击。只有一张图片时仍然显示普通单图，不出现轮播控件。数组顺序就是图片顺序。
 
 ## 3. 字段说明
 
@@ -112,9 +124,9 @@ Copy-Item .\personal-knowledge-base.webp .data/public-assets/projects\
 | `id` | 是 | 唯一 ID，只能使用小写英文、数字和连字符，例如 `personal-site`。 |
 | `title` | 是 | 首页显示的作品标题。 |
 | `description` | 否 | 作品简介。 |
-| `coverFile` | 否 | 只写文件名，不写目录和 URL，例如 `personal-site.webp`。 |
+| `coverFile` | 否 | 一个文件名或 1–8 个文件名的数组；不写目录和 URL。 |
 | `tags` | 否 | 技术或主题标签数组。 |
-| `projectDate` | 否 | `YYYY-MM-DD` 格式的真实日期。 |
+| `projectDate` | 否 | `YYYY-MM - YYYY-MM` 格式的起止月份，开始月份不能晚于结束月份。 |
 | `projectUrl` | 否 | 作品在线地址，必须以 `http://` 或 `https://` 开头。 |
 | `githubUrl` | 否 | 源代码地址，必须以 `http://` 或 `https://` 开头。 |
 | `published` | 否 | 默认为公开；设置为 `false` 时不在首页显示。 |
@@ -164,8 +176,8 @@ published: false,
 
 - 作品 ID 是否符合格式且没有重复；
 - 标题和描述是否包含意外的首尾空格；
-- 封面是否只是安全文件名、扩展名是否受支持且没有重复；
-- 日期是否为有效的 `YYYY-MM-DD`；
+- 封面是否只是安全文件名、列表是否超过 8 张、扩展名是否受支持且没有重复；
+- 项目时间是否为有效的 `YYYY-MM - YYYY-MM`，且开始月份不晚于结束月份；
 - 链接是否为 HTTP/HTTPS 地址；
 - 标签是否为空、重复或包含首尾空格。
 
@@ -186,7 +198,7 @@ npm run build
 
 ### 作品显示了，但封面是占位图
 
-检查 `coverFile` 是否与磁盘上的文件名完全一致，包括大小写和扩展名。也可以直接访问：
+检查 `coverFile` 中每个文件名是否与磁盘上的文件完全一致，包括大小写和扩展名。也可以直接访问：
 
 ```text
 /api/projects/covers/projects/你的文件名.webp
