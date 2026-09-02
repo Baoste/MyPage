@@ -5,6 +5,7 @@
 /.next
 /out
 /.data
+/next-env.d.ts
 
 # production
 /build
