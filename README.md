@@ -99,7 +99,6 @@ npm start
 | --- | --- | --- |
 | `NEXT_PUBLIC_SITE_URL` | 站点绝对 URL，用于 metadata/sitemap | Public |
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase Project URL | Public |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase 公开资源兼容层使用的 anon key；Works 不使用 | Public |
 | `SUPABASE_SERVICE_ROLE_KEY` | 私密 DB、Photo/旧 Food Storage 与 Signed URL | Server only |
 | `SESSION_SECRET` | Session 签名密钥，至少 32 字符 | Server only |
 | `PRIVATE_MEDIA_SIGNED_URL_TTL_SECONDS` | Photo/旧 Food 私密 URL 有效期，默认 `300` | Server only |
@@ -137,7 +136,7 @@ values ('<脚本输出的摘要>', '首次邀请', 1, now() + interval '7 days')
 
 ### 1. 创建项目并填写 Keys
 
-在 Supabase Project Settings 中取得 Project URL、anon key 和 service-role key，写入 `.env.local`。service-role key 仅被 `src/lib/supabase/server.ts` 这一服务器模块读取。
+在 Supabase Project Settings 中取得 Project URL 和 service-role key，写入 `.env.local`。项目不再创建浏览器端 Supabase Client，因此不需要 anon key；service-role key 仅被 `src/lib/supabase/server.ts` 这一服务器模块读取。
 
 ### 2. 执行 Database Migration
 

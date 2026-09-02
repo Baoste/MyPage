@@ -1,10 +1,7 @@
 import "server-only";
 
-import { createPublicSupabaseClient } from "@/lib/supabase/public";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { isPublicSupabaseConfigured } from "@/lib/supabase/config";
 
-export const PUBLIC_ASSET_BUCKET = "public-assets";
 export const PRIVATE_DIARY_BUCKET = "private-diary";
 
 const DEFAULT_SIGNED_URL_TTL_SECONDS = 300;
@@ -51,17 +48,6 @@ function validateImageUpload(
   }
 }
 
-export function getPublicAssetUrl(storagePath: string): string | undefined {
-  if (!isPublicSupabaseConfigured()) return undefined;
-
-  const client = createPublicSupabaseClient();
-  const { data } = client.storage
-    .from(PUBLIC_ASSET_BUCKET)
-    .getPublicUrl(cleanStoragePath(storagePath));
-
-  return data.publicUrl;
-}
-
 export async function getPrivateSignedUrl(storagePath: string) {
   const client = createServerSupabaseClient();
   const { data, error } = await client.storage
@@ -76,7 +62,6 @@ export async function getPrivateSignedUrl(storagePath: string) {
 }
 
 async function uploadImage(
-  bucket: typeof PUBLIC_ASSET_BUCKET | typeof PRIVATE_DIARY_BUCKET,
   storagePath: string,
   body: ArrayBuffer,
   contentType: string,
@@ -84,20 +69,14 @@ async function uploadImage(
   const path = cleanStoragePath(storagePath);
   validateImageUpload(path, body, contentType);
   const client = createServerSupabaseClient();
-  const { error } = await client.storage.from(bucket).upload(path, body, {
-    contentType,
-    upsert: false,
-  });
+  const { error } = await client.storage
+    .from(PRIVATE_DIARY_BUCKET)
+    .upload(path, body, {
+      contentType,
+      upsert: false,
+    });
 
   if (error) throw new Error("Unable to upload media.");
-}
-
-export async function uploadPublicAsset(
-  storagePath: string,
-  body: ArrayBuffer,
-  contentType: string,
-) {
-  await uploadImage(PUBLIC_ASSET_BUCKET, storagePath, body, contentType);
 }
 
 export async function uploadPrivateAsset(
@@ -105,7 +84,7 @@ export async function uploadPrivateAsset(
   body: ArrayBuffer,
   contentType: string,
 ) {
-  await uploadImage(PRIVATE_DIARY_BUCKET, storagePath, body, contentType);
+  await uploadImage(storagePath, body, contentType);
 }
 
 export async function createPrivateSignedUploadUrl(
@@ -131,16 +110,4 @@ export async function deletePrivateAssets(storagePaths: string[]) {
   const client = createServerSupabaseClient();
   const { error } = await client.storage.from(PRIVATE_DIARY_BUCKET).remove(paths);
   if (error) throw new Error("Unable to delete private media.");
-}
-
-export async function deleteAsset(
-  bucket: typeof PUBLIC_ASSET_BUCKET | typeof PRIVATE_DIARY_BUCKET,
-  storagePath: string,
-) {
-  const client = createServerSupabaseClient();
-  const { error } = await client.storage
-    .from(bucket)
-    .remove([cleanStoragePath(storagePath)]);
-
-  if (error) throw new Error("Unable to delete media.");
 }

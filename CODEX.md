@@ -159,7 +159,6 @@ src/
 │   ├── auth/
 │   └── supabase/
 │       ├── server.ts
-│       ├── public.ts
 │       └── storage.ts
 │
 ├── types/
@@ -1420,7 +1419,6 @@ interface FoodViewModel extends FoodEntry {
 ```text
 src/lib/supabase/
 ├── server.ts
-├── public.ts
 └── storage.ts
 ```
 
@@ -1454,17 +1452,9 @@ SUPABASE_SERVICE_ROLE_KEY
 
 ---
 
-# 44. public.ts
+# 44. Public Supabase Client
 
-用于：
-
-```text
-Supabase 旧公开资源兼容
-```
-
-Published Projects 不再通过这里读取；首页直接在 Server Component 中读取本地 Works Service。
-
-不要为了使用 Supabase 而强行让 Browser 直接请求 Database。
+`src/lib/supabase/public.ts` 已删除。项目不再创建使用 anon key 的浏览器端 Supabase Client；Works 读取本地目录，Private 数据统一经 Server Side service-role Client 和 Session 鉴权访问。
 
 ---
 
@@ -1473,18 +1463,14 @@ Published Projects 不再通过这里读取；首页直接在 Server Component �
 封装：
 
 ```ts
-getPublicAssetUrl()
-
 getPrivateSignedUrl()
-
-uploadPublicAsset()
 
 uploadPrivateAsset()
 
-deleteAsset()
+deletePrivateAssets()
 ```
 
-这些函数继续服务 Supabase 公开资源与旧媒体兼容；Project 封面改由 `src/lib/project/local-storage.ts` 完成路径校验，并由站内 Route Handler 流式返回。
+这些函数只服务 Private 旧媒体兼容；Project 封面由 `src/lib/project/local-storage.ts` 完成路径校验，并由站内 Route Handler 流式返回。
 
 当前阶段：
 
@@ -1530,8 +1516,6 @@ NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY
 
 ```env
 NEXT_PUBLIC_SUPABASE_URL=
-
-NEXT_PUBLIC_SUPABASE_ANON_KEY=
 
 SUPABASE_SERVICE_ROLE_KEY=
 
