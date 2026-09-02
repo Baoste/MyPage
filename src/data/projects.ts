@@ -10,20 +10,22 @@ import { defineProjects } from "@/lib/project/catalog";
  */
 export const projects = defineProjects([
   {
-    id: "editorial-system",
-    title: "内容编辑系统",
+    id: "cuda-path-tracing",
+    title: "CUDA Path Tracing",
     description:
-      "以清晰的信息层级和舒适的阅读体验为核心，打造从容的内容发布流程。",
-    tags: ["产品设计", "前端开发"],
-    projectDate: "2026-05-01",
+      "一个自制的光线追踪渲染器，使用 CUDA 进行 GPU 加速，支持多种材质和光照模型。",
+    coverFile: "cuda-path-tracing.jpg",
+    tags: ["图形学", "光线追踪"],
+    projectDate: "2025-05-01",
+    githubUrl: "https://github.com/Baoste/CudaPathTracing",
   },
   {
-    id: "archive-tool",
-    title: "个人档案库",
+    id: "game-burst",
+    title: "Burst",
     description:
-      "为容易散落的笔记和图片提供一个私密、可搜索的归档空间。",
-    tags: ["Next.js", "Supabase"],
-    projectDate: "2026-02-01",
+      "一个独立开发的卡牌游戏，探索了创新的游戏机制和策略深度。",
+    tags: ["独立游戏", "卡牌游戏"],
+    projectDate: "2026-08-01",
   },
   {
     id: "quiet-interface",
