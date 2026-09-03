@@ -451,7 +451,7 @@ interface Project {
 }
 ```
 
-作品对象集中维护在 `src/data/projects.ts`，数组顺序就是首页顺序。`coverFile` 保存一个本地图片文件名、最多 8 个图片文件名的数组，或一个完整的 HTTPS B 站视频链接；多图使用左右滑动与圆点导航，单图不显示轮播控件，视频使用 16:9 的 B 站官方外链播放器。不使用数据库字段或数据库时间戳。
+作品对象集中维护在 `src/data/projects.ts`，数组顺序就是首页顺序。`coverFile` 保存一个媒体项目或最多 8 个媒体项目的数组；每一项可以是本地图片文件名或完整的 HTTPS B 站视频链接，也可以混合排列。多项媒体按照数组顺序同时铺成响应式画廊，单项保持单幅展示，视频使用 16:9 的 B 站官方外链播放器。不使用数据库字段或数据库时间戳。
 
 `projectDate` 使用 `YYYY-MM - YYYY-MM`，首页显示为“YYYY年MM月—YYYY年MM月”，并在构建时检查月份与先后顺序。
 
@@ -1273,7 +1273,7 @@ Public Bucket
 PROJECT_COVER_STORAGE_ROOT/projects/{filename}.{ext}
 ```
 
-`src/data/projects.ts` 的图片 `coverFile` 保存文件名或文件名数组，由 `/api/projects/covers/...` 公开读取；也可以保存一个完整的 HTTPS B 站视频链接，此时浏览器直接加载 B 站外链播放器。生产环境必须把 `PROJECT_COVER_STORAGE_ROOT` 配置到项目目录之外的持久磁盘。
+`src/data/projects.ts` 的 `coverFile` 可保存图片文件名与完整 HTTPS B 站视频链接组成的有序数组。图片由 `/api/projects/covers/...` 公开读取，视频由浏览器加载 B 站外链播放器。生产环境必须把 `PROJECT_COVER_STORAGE_ROOT` 配置到项目目录之外的持久磁盘。
 
 ---
 
@@ -1578,13 +1578,13 @@ Static Data + PDF
 src/data/projects.ts
 ```
 
-通过 `defineProjects(...)` 在开发与构建时检查 ID、文件名、封面数量、B 站视频链接、日期、链接和重复项。首页顺序使用数组顺序，`published: false` 表示隐藏。图片封面保存 `coverFile` 文件名或文件名数组，实际文件位于：
+通过 `defineProjects(...)` 在开发与构建时检查 ID、媒体数量、图片文件名、B 站视频链接、日期、链接和重复项。首页顺序使用数组顺序，`published: false` 表示隐藏。图片项目使用安全文件名，实际文件位于：
 
 ```text
 PROJECT_COVER_STORAGE_ROOT/projects/{coverFile}
 ```
 
-视频封面则在 `coverFile` 中保存一个完整 HTTPS B 站视频地址，由 Project Service 转换为官方 `player.bilibili.com` 播放地址；视频不能与图片数组混用。
+视频项目在 `coverFile` 中保存完整 HTTPS B 站视频地址，由 Project Service 转换为官方 `player.bilibili.com` 播放地址；图片与视频可以在同一个数组中混合，并按照数组顺序同时展示。
 
 旧 `projects` 表和其中的 `cover_path`、`sort_order`、`is_published` 等字段不再参与运行时 Works 流程。
 
@@ -1798,7 +1798,7 @@ src/services/
 getPublishedProjects()
 ```
 
-该函数只读取 `src/data/projects.ts`，过滤 `published: false`，并把图片 `coverFile` 映射为站内封面 URL 列表，或把受支持的 B 站链接映射为视频媒体。作品更新通过代码评审和重新部署完成，不实现数据库 CRUD 或管理 UI。
+该函数只读取 `src/data/projects.ts`，过滤 `published: false`，并逐项把图片文件名映射为站内封面 URL、把受支持的 B 站链接映射为视频媒体，保留两者在数组中的原始顺序。作品更新通过代码评审和重新部署完成，不实现数据库 CRUD 或管理 UI。
 
 ---
 

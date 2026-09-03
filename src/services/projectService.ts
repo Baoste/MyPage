@@ -3,14 +3,11 @@ import "server-only";
 import { projects } from "@/data/projects";
 import { projectCoverUrl } from "@/lib/project/local-storage";
 import { parseProjectVideoUrl } from "@/lib/project/video";
-import type { Project, ProjectViewModel } from "@/types";
+import type { Project, ProjectCoverMedia, ProjectViewModel } from "@/types";
 
 function toViewModel(project: Project): ProjectViewModel {
-  const coverVideo = typeof project.coverFile === "string"
-    ? parseProjectVideoUrl(project.coverFile)
-    : null;
-  const coverFiles = typeof project.coverFile === "string"
-    ? coverVideo ? [] : [project.coverFile]
+  const coverSources = typeof project.coverFile === "string"
+    ? [project.coverFile]
     : project.coverFile ?? [];
 
   return {
@@ -21,13 +18,18 @@ function toViewModel(project: Project): ProjectViewModel {
     projectDate: project.projectDate,
     projectUrl: project.projectUrl,
     githubUrl: project.githubUrl,
-    coverMedia: coverVideo ? [{
-      type: "video",
-      provider: coverVideo.provider,
-      sourceUrl: coverVideo.sourceUrl,
-      embedUrl: coverVideo.embedUrl,
-    }] : coverFiles.flatMap((coverFile) => {
-      const coverUrl = projectCoverUrl(`projects/${coverFile}`);
+    coverMedia: coverSources.flatMap<ProjectCoverMedia>((coverSource) => {
+      const coverVideo = parseProjectVideoUrl(coverSource);
+      if (coverVideo) {
+        return [{
+          type: "video" as const,
+          provider: coverVideo.provider,
+          sourceUrl: coverVideo.sourceUrl,
+          embedUrl: coverVideo.embedUrl,
+        }];
+      }
+
+      const coverUrl = projectCoverUrl(`projects/${coverSource}`);
       return coverUrl ? [{ type: "image" as const, url: coverUrl }] : [];
     }),
   };

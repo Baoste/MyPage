@@ -59,38 +59,33 @@ export function defineProjects(items: readonly Project[]): readonly Project[] {
       projectError(projectId, "coverFile list cannot be empty.");
     }
 
-    const coverVideo = typeof project.coverFile === "string"
-      ? parseProjectVideoUrl(project.coverFile)
-      : null;
+    const coverSources = typeof project.coverFile === "string"
+      ? [project.coverFile]
+      : project.coverFile ?? [];
+    if (coverSources.length > 8) {
+      projectError(projectId, "coverFile supports at most 8 image or video items per project.");
+    }
+    for (const coverSource of coverSources) {
+      const coverVideo = parseProjectVideoUrl(coverSource);
+      if (coverVideo) {
+        if (coverVideos.has(coverVideo.videoKey)) {
+          projectError(projectId, "the same Bilibili video and part must not be used more than once.");
+        }
+        coverVideos.add(coverVideo.videoKey);
+        continue;
+      }
 
-    if (coverVideo) {
-      if (coverVideos.has(coverVideo.videoKey)) {
-        projectError(projectId, "the same Bilibili video and part must not be used more than once.");
+      if (/^https?:\/\//iu.test(coverSource)) {
+        projectError(projectId, "video items must use a full supported HTTPS Bilibili URL.");
       }
-      coverVideos.add(coverVideo.videoKey);
-    } else {
-      const projectCoverFiles = typeof project.coverFile === "string"
-        ? [project.coverFile]
-        : project.coverFile ?? [];
-      if (projectCoverFiles.length > 8) {
-        projectError(projectId, "coverFile supports at most 8 images per project.");
+      if (!PROJECT_COVER_FILE_PATTERN.test(coverSource)) {
+        projectError(projectId, "image items must use safe JPEG, PNG, or WebP filenames.");
       }
-      for (const coverFile of projectCoverFiles) {
-        if (/^https?:\/\//iu.test(coverFile)) {
-          projectError(
-            projectId,
-            "video cover must be one full HTTPS Bilibili video URL; image lists cannot contain URLs.",
-          );
-        }
-        if (!PROJECT_COVER_FILE_PATTERN.test(coverFile)) {
-          projectError(projectId, "coverFile must contain safe JPEG, PNG, or WebP filenames.");
-        }
-        const normalizedCoverFile = coverFile.toLowerCase();
-        if (coverFiles.has(normalizedCoverFile)) {
-          projectError(projectId, `cover file "${coverFile}" must not be used more than once.`);
-        }
-        coverFiles.add(normalizedCoverFile);
+      const normalizedCoverFile = coverSource.toLowerCase();
+      if (coverFiles.has(normalizedCoverFile)) {
+        projectError(projectId, `cover file "${coverSource}" must not be used more than once.`);
       }
+      coverFiles.add(normalizedCoverFile);
     }
 
     validateProjectPeriod(projectId, project.projectDate);

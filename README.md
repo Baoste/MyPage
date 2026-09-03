@@ -212,7 +212,7 @@ Migration 已创建：
 
 Dashboard 中必须确认 `private-diary` 的 Public 开关关闭。两个 Bucket 均限制为 JPEG、PNG、WebP，单文件最大 10 MB。
 
-Project 图片封面位于 `PROJECT_COVER_STORAGE_ROOT/projects/{filename}.{ext}`，并由 `/api/projects/covers/...` 公开读取；`src/data/projects.ts` 的 `coverFile` 可保存一个图片文件名、最多 8 个图片文件名的数组，或一个完整的 HTTPS B 站视频链接。开发环境未配置时默认使用 `.data/public-assets`。
+Project 图片封面位于 `PROJECT_COVER_STORAGE_ROOT/projects/{filename}.{ext}`，并由 `/api/projects/covers/...` 公开读取；`src/data/projects.ts` 的 `coverFile` 可保存一个媒体项目或最多 8 个媒体项目的数组，每一项可以是图片文件名或完整的 HTTPS B 站视频链接。开发环境未配置时默认使用 `.data/public-assets`。
 
 新上传的 Photos 和 Food 图片不再写入 Supabase Storage，而是分别写到 `PHOTO_STORAGE_ROOT/photos/{photoId}/{photoId}.{ext}` 与 `FOOD_STORAGE_ROOT/food/{groupId}/{imageId}.{ext}`。数据库只保存对应相对路径，既不保存 Windows/Linux 绝对路径，也不保存公开 URL。`PHOTO_STORAGE_ROOT` 为空时会与 Food 共用根目录；两者都未配置时，开发环境默认使用项目下的 `.data/private-media`。以上本地目录在生产环境都必须显式配置到项目目录之外的持久磁盘，并单独备份。
 
@@ -330,7 +330,7 @@ src/components/private/tree/
 },
 ```
 
-多图作品将 `coverFile` 改为数组即可；数组顺序就是左右滑动顺序，单图仍使用字符串：
+多媒体作品将 `coverFile` 改为数组即可；图片和视频会按照数组顺序同时铺成画廊，单项仍可直接使用字符串：
 
 ```ts
 coverFile: ["project-name-01.webp", "project-name-02.webp", "project-name-03.webp"],
@@ -342,7 +342,17 @@ coverFile: ["project-name-01.webp", "project-name-02.webp", "project-name-03.web
 coverFile: "https://www.bilibili.com/video/BV1xxxxxxxxx/",
 ```
 
-视频链接必须单独使用，不能放进图片数组；`b23.tv` 短链和其他视频网站暂不支持。
+图片和视频也可以混合排列：
+
+```ts
+coverFile: [
+  "project-name-01.webp",
+  "https://www.bilibili.com/video/BV1xxxxxxxxx/",
+  "project-name-02.webp",
+],
+```
+
+数组最多 8 项；`b23.tv` 短链和其他视频网站暂不支持。
 
 完整字段、封面复制命令、草稿和校验说明见 [`docs/Works.md`](docs/Works.md)。修改作品元数据后需要重新构建并部署。
 
