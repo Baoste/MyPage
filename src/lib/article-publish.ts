@@ -1,9 +1,11 @@
 import "server-only";
 
-import { createHash, timingSafeEqual } from "node:crypto";
+import bcrypt from "bcryptjs";
 
 const WINDOW_MILLISECONDS = 15 * 60 * 1_000;
 const MAXIMUM_ATTEMPTS = 5;
+const MAXIMUM_PASSWORD_BYTES = 72;
+const BCRYPT_HASH_PATTERN = /^\$2[aby]\$12\$[./A-Za-z0-9]{53}$/;
 
 interface AttemptRecord {
   count: number;
@@ -17,17 +19,28 @@ const globalStore = globalThis as typeof globalThis & {
 const attempts = globalStore.articlePublishAttempts ?? new Map<string, AttemptRecord>();
 globalStore.articlePublishAttempts = attempts;
 
-function passwordDigest(value: string) {
-  return createHash("sha256").update(value, "utf8").digest();
+function configuredPasswordHash() {
+  return process.env.ARTICLE_PUBLISH_PASSWORD_HASH?.trim() ?? "";
 }
 
 export function isArticlePublishConfigured() {
-  return Boolean(process.env.ARTICLE_PUBLISH_PASSWORD?.trim());
+  return BCRYPT_HASH_PATTERN.test(configuredPasswordHash());
 }
 
-export function verifyArticlePublishPassword(candidate: string) {
-  const configured = process.env.ARTICLE_PUBLISH_PASSWORD ?? "";
-  return timingSafeEqual(passwordDigest(candidate), passwordDigest(configured));
+export async function verifyArticlePublishPassword(candidate: string) {
+  const configuredHash = configuredPasswordHash();
+  if (
+    !BCRYPT_HASH_PATTERN.test(configuredHash)
+    || new TextEncoder().encode(candidate).byteLength > MAXIMUM_PASSWORD_BYTES
+  ) {
+    return false;
+  }
+
+  try {
+    return await bcrypt.compare(candidate, configuredHash);
+  } catch {
+    return false;
+  }
 }
 
 export function consumeArticlePublishAttempt(key: string) {

@@ -374,7 +374,7 @@
 }
 
 .worksTitleTrack {
-  animation: works-title-marquee 60s linear infinite;
+  animation: works-title-marquee 120s linear infinite;
   display: flex;
   min-width: max-content;
   will-change: transform;

@@ -28,7 +28,7 @@ Browser
   → POST /api/articles
   → 同源与 256 KiB 请求限制
   → 按客户端 IP 的密码尝试限流
-  → ARTICLE_PUBLISH_PASSWORD 服务端校验
+  → ARTICLE_PUBLISH_PASSWORD_HASH bcrypt 校验
   → 字段二次校验
   → public.articles INSERT
   → /articles/{slug}
@@ -60,15 +60,26 @@ Migration 依赖第一份初始 Migration 中的 `public.set_updated_at()`，因
 
 ## 3. 配置发布密码
 
-在服务器的 `.env.local` 中设置固定密码：
+项目只保存发布密码的 bcrypt 哈希，不再把原密码放进环境变量。先在项目根目录运行：
 
-```dotenv
-ARTICLE_PUBLISH_PASSWORD=替换为你自己的高强度密码
+```bash
+npm run hash-article-password
 ```
 
-修改 `.env.local` 后必须重新启动 Next.js 进程。不要使用 `NEXT_PUBLIC_` 前缀，不要把真实密码写入 `.env.example`、源码或 Git。
+命令会隐藏输入并要求确认，然后输出两种格式：
 
-密码只会随同源 `POST /api/articles` 请求发送到服务器，不会进入浏览器构建文件。服务端先把候选值和环境变量分别计算成固定长度 SHA-256 摘要，再使用时序安全比较。连续错误尝试按客户端 IP 限制为 15 分钟最多 5 次；当前限流保存在单个 Node 实例内存中，多实例部署需要换成 Redis 等共享限流存储。
+- `.env.local` 专用值已经把 `$` 写成 `\$`，直接复制整行即可；这是为了避免 Next.js 把 bcrypt 哈希中的 `$` 当成环境变量展开符。
+- 部署平台环境变量使用没有反斜杠的原始哈希值。
+
+本地示例（实际内容由命令生成）：
+
+```dotenv
+ARTICLE_PUBLISH_PASSWORD_HASH=\$2b\$12\$...
+```
+
+修改 `.env.local` 后必须重新启动 Next.js 进程。删除旧的 `ARTICLE_PUBLISH_PASSWORD`；不要使用 `NEXT_PUBLIC_` 前缀，也不要把原密码或真实哈希写入 `.env.example`、源码或 Git。
+
+密码只会随同源 `POST /api/articles` 请求发送到服务器，不会进入浏览器构建文件。服务端使用成本因子 12 的 bcrypt 哈希验证，不保存或还原原密码；生成命令要求密码至少 8 个字符，bcrypt 输入不能超过 72 个 UTF-8 字节。连续错误尝试按客户端 IP 限制为 15 分钟最多 5 次；当前限流保存在单个 Node 实例内存中，多实例部署需要换成 Redis 等共享限流存储。
 
 生产环境必须使用 HTTPS，否则密码在浏览器与服务器之间的传输无法得到 TLS 保护。
 
@@ -76,10 +87,10 @@ ARTICLE_PUBLISH_PASSWORD=替换为你自己的高强度密码
 
 1. 打开 `/articles`。
 2. 点击页面右下角的圆形“+”按钮。
-3. 填写标题、Slug、摘要和可选标签。
+3. 填写标题、摘要和可选标签；Slug 会在发布时由服务端随机生成。
 4. 在左侧 Markdown 编辑区编写正文，通过工具栏插入常用格式。
 5. 在右侧预览区检查最终排版；窄屏设备上预览位于编辑区下方。
-6. 输入 `.env.local` 中设置的发布密码。
+6. 输入生成 `ARTICLE_PUBLISH_PASSWORD_HASH` 时使用的原密码。
 7. 点击“发布文章”。
 
 成功后页面会自动进入新文章详情。`/articles`、详情 metadata 和 `/sitemap.xml` 都会在后续请求中读取新数据，无需重新构建或部署。
@@ -89,19 +100,18 @@ ARTICLE_PUBLISH_PASSWORD=替换为你自己的高强度密码
 | 字段 | 必填 | 限制 |
 | --- | --- | --- |
 | 标题 | 是 | 去除首尾空格后 1～160 字符 |
-| Slug | 是 | 1～120 字符，只能使用小写字母、数字和单个连字符；必须唯一 |
 | 摘要 | 是 | 去除首尾空格后 1～500 字符 |
 | 标签 | 否 | 使用中文或英文逗号分隔；去重后最多 12 个，每个最多 32 字符 |
 | Markdown 正文 | 是 | 去除首尾空格后 1～200,000 字符 |
-| 发布密码 | 是 | 与服务器 `ARTICLE_PUBLISH_PASSWORD` 完全一致 |
+| 发布密码 | 是 | 与 `ARTICLE_PUBLISH_PASSWORD_HASH` 对应的原密码完全一致；最多 72 个 UTF-8 字节 |
 
-Slug 会成为永久链接的一部分：
+Slug 会成为永久链接的一部分，并由服务端使用随机 UUID 生成：
 
 ```text
-https://你的域名/articles/rendering-notes
+https://你的域名/articles/7c7e21e8-1f36-4aca-ae9d-84eb7cae75bd
 ```
 
-发布后当前界面不提供修改 Slug、编辑或删除功能，因此发布前应确认标题、Slug、摘要和预览结果。重复 Slug 会返回明确提示，不会覆盖已有文章。
+发布者不需要填写或维护 Slug。数据库唯一约束负责阻止重复；如果发生概率极低的 UUID 碰撞，服务端会自动重新生成，最多尝试三次。当前界面不提供文章编辑或删除功能，因此发布前仍应确认标题、摘要和预览结果。
 
 ## 6. Markdown 支持
 
@@ -135,7 +145,7 @@ const message = "hello";
 | 数据库字段 | 用途 |
 | --- | --- |
 | `id` | 自动生成的 UUID |
-| `slug` | 唯一公开路径 |
+| `slug` | 服务端随机生成的 UUID，用作唯一公开路径 |
 | `title` | 标题 |
 | `summary` | 列表、详情页和 metadata 摘要 |
 | `content` | Markdown 原文 |
@@ -157,7 +167,7 @@ const message = "hello";
 
 1. 部署包含 Articles 改动的新代码。
 2. 在目标 Supabase 执行 `202609030001_articles.sql`。
-3. 在生产服务器设置 `NEXT_PUBLIC_SUPABASE_URL`、`SUPABASE_SERVICE_ROLE_KEY` 和 `ARTICLE_PUBLISH_PASSWORD`。
+3. 在生产服务器设置 `NEXT_PUBLIC_SUPABASE_URL`、`SUPABASE_SERVICE_ROLE_KEY` 和原始 bcrypt 值形式的 `ARTICLE_PUBLISH_PASSWORD_HASH`。
 4. 重启 Node.js 服务，使环境变量生效。
 5. 打开 `/articles/new` 发布一篇测试文章。
 6. 检查 `/articles`、详情页、metadata 和 `/sitemap.xml`。
@@ -172,15 +182,11 @@ const message = "hello";
 
 ### 提示“文章发布密码尚未配置”
 
-在实际运行 Next.js 的服务器环境中设置 `ARTICLE_PUBLISH_PASSWORD`，然后重启进程。只修改当前终端之外的文件而不重启服务不会生效。
+运行 `npm run hash-article-password`，把生成的值设置为实际运行 Next.js 的服务器环境中的 `ARTICLE_PUBLISH_PASSWORD_HASH`，然后重启进程。`.env.local` 使用带 `\$` 的格式，部署平台的环境变量使用原始 `$` 格式；格式错误也会被视为尚未配置。
 
 ### 提示“发布密码不正确”或 429
 
 密码区分大小写，也不会自动去除用户输入中的空格。连续五次失败后，同一客户端需要等待最多 15 分钟。单实例重启会清空当前内存限流记录。
-
-### 提示 Slug 已被使用
-
-每篇文章必须使用唯一 Slug。修改为另一个只含小写字母、数字和连字符的值后重新发布。
 
 ### 发布成功但列表顺序不对
 
@@ -199,5 +205,6 @@ src/components/public/ArticleEditor.module.css
 src/components/public/ArticlePublishButton.tsx
 src/services/articleService.ts
 src/lib/article-publish.ts
+scripts/hash-article-password.mjs
 supabase/migrations/202609030001_articles.sql
 ```

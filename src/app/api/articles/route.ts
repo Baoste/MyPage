@@ -47,13 +47,12 @@ export async function POST(request: NextRequest) {
     return jsonError("请求内容格式不正确。", 400);
   }
 
-  const { password, title, slug, summary, content, tags } = body;
+  const { password, title, summary, content, tags } = body;
   if (
     typeof password !== "string"
     || password.length === 0
-    || password.length > 256
+    || new TextEncoder().encode(password).byteLength > 72
     || typeof title !== "string"
-    || typeof slug !== "string"
     || typeof summary !== "string"
     || typeof content !== "string"
     || !Array.isArray(tags)
@@ -71,7 +70,7 @@ export async function POST(request: NextRequest) {
   if (!attempt.allowed) {
     return jsonError("尝试次数过多，请稍后再试。", 429, attempt.retryAfterSeconds);
   }
-  if (!verifyArticlePublishPassword(password)) {
+  if (!(await verifyArticlePublishPassword(password))) {
     return jsonError("发布密码不正确。", 401);
   }
   clearArticlePublishAttempts(clientKey);
@@ -79,7 +78,6 @@ export async function POST(request: NextRequest) {
   try {
     const article = await createArticle({
       title,
-      slug,
       summary,
       content,
       tags,

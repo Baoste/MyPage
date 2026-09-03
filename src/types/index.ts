@@ -71,7 +71,6 @@ export interface ArticleRow {
 }
 
 export interface ArticleCreateInput {
-  slug: string;
   title: string;
   summary: string;
   content: string;

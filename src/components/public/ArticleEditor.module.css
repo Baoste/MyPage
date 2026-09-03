@@ -13,7 +13,7 @@
   background: var(--public-paper);
   display: grid;
   gap: 1.25rem;
-  grid-template-columns: minmax(0, 1fr) minmax(14rem, 0.7fr);
+  grid-template-columns: minmax(0, 1fr);
   padding: clamp(1.25rem, 3vw, 2.25rem);
 }
 

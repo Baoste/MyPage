@@ -11,7 +11,8 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "generate-invite": "node scripts/generate-invite.mjs"
+    "generate-invite": "node scripts/generate-invite.mjs",
+    "hash-article-password": "node scripts/hash-article-password.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.3",

@@ -101,7 +101,7 @@ npm start
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase Project URL | Public |
 | `SUPABASE_SERVICE_ROLE_KEY` | Articles、私密 DB、Photo/旧 Food Storage 与 Signed URL | Server only |
 | `SESSION_SECRET` | Session 签名密钥，至少 32 字符 | Server only |
-| `ARTICLE_PUBLISH_PASSWORD` | `/articles/new` 发布文章时校验的固定密码 | Server only |
+| `ARTICLE_PUBLISH_PASSWORD_HASH` | `/articles/new` 发布密码的 bcrypt 哈希；用 `npm run hash-article-password` 生成 | Server only |
 | `PRIVATE_MEDIA_SIGNED_URL_TTL_SECONDS` | Photo/旧 Food 私密 URL 有效期，默认 `300` | Server only |
 | `PROJECT_COVER_STORAGE_ROOT` | Project 封面的持久化根目录；默认 `.data/public-assets` | Server only |
 | `FOOD_STORAGE_ROOT` | 新 Food 图片的持久化根目录；默认 `.data/private-media` | Server only |
@@ -364,7 +364,7 @@ coverFile: [
 
 ### 添加 Article
 
-先执行 `supabase/migrations/202609030001_articles.sql`，并在 `.env.local` 配置仅服务端可见的 `ARTICLE_PUBLISH_PASSWORD`。打开 `/articles`，点击右下角“+”进入 `/articles/new`，填写标题、Slug、摘要、标签和 Markdown 正文，确认右侧实时预览后输入密码发布。发布成功会自动进入 `/articles/{slug}`；列表、详情 metadata 和 sitemap 都从数据库读取。
+先执行 `supabase/migrations/202609030001_articles.sql`，运行 `npm run hash-article-password`，并把输出的 bcrypt 哈希配置为仅服务端可见的 `ARTICLE_PUBLISH_PASSWORD_HASH`。打开 `/articles`，点击右下角“+”进入 `/articles/new`，填写标题、摘要、标签和 Markdown 正文，确认右侧实时预览后输入原密码发布。Slug 由服务端随机生成；发布成功会自动进入 `/articles/{slug}`，列表、详情 metadata 和 sitemap 都从数据库读取。
 
 原始 HTML 默认不会执行。完整字段、Markdown、密码安全、Migration、部署和故障排查见 [`docs/Articles.md`](docs/Articles.md)。
 
@@ -542,7 +542,7 @@ Node 进程必须能读取 `PROJECT_COVER_STORAGE_ROOT`，并对 `PHOTO_STORAGE_
 
 - [ ] 将 `.env.example` 复制为 `.env.local` 并填写真实值
 - [ ] 按顺序执行全部 migration，确认 `articles`、`private_users`、`private_invites`、升级后的 `photo_entries`、`food_entries`、`food_images`、`food_comments`、`photo_comments` 与两个 Buckets
-- [ ] 在 `.env.local` 配置 `ARTICLE_PUBLISH_PASSWORD`，确认发布页能写入 Markdown 文章
+- [ ] 用 `npm run hash-article-password` 生成 bcrypt 哈希，在 `.env.local` 配置 `ARTICLE_PUBLISH_PASSWORD_HASH`，确认发布页能写入 Markdown 文章
 - [ ] 确认 `private-diary` 为 Private，所有私密表匿名查询失败
 - [ ] 将 `PROJECT_COVER_STORAGE_ROOT` / `PHOTO_STORAGE_ROOT` / `FOOD_STORAGE_ROOT` 指向持久磁盘，确认 Node 进程权限并配置目录备份
 - [ ] 将 `TOOLS_STORAGE_ROOT` 指向持久磁盘，并确认 Tools 删除后的停用标记可持续保存

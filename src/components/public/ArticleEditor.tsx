@@ -24,15 +24,6 @@ const MARKDOWN_COMMANDS: MarkdownCommand[] = [
   { label: "代码", before: "```\n", after: "\n```", placeholder: "code" },
 ];
 
-function slugFromTitle(value: string) {
-  return value
-    .normalize("NFKD")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 120);
-}
-
 function tagsFromValue(value: string) {
   return [...new Set(
     value
@@ -46,19 +37,12 @@ export function ArticleEditor() {
   const router = useRouter();
   const markdownRef = useRef<HTMLTextAreaElement>(null);
   const [title, setTitle] = useState("");
-  const [slug, setSlug] = useState("");
-  const [slugWasEdited, setSlugWasEdited] = useState(false);
   const [summary, setSummary] = useState("");
   const [tagValue, setTagValue] = useState("");
   const [content, setContent] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
-
-  function updateTitle(value: string) {
-    setTitle(value);
-    if (!slugWasEdited) setSlug(slugFromTitle(value));
-  }
 
   function insertMarkdown(command: MarkdownCommand) {
     const textarea = markdownRef.current;
@@ -89,7 +73,6 @@ export function ArticleEditor() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title,
-          slug,
           summary,
           tags: tagsFromValue(tagValue),
           content,
@@ -118,37 +101,16 @@ export function ArticleEditor() {
       <section className={styles.metadataPanel} aria-labelledby="article-basics-heading">
         <h2 id="article-basics-heading" className="sr-only">文章基本信息</h2>
 
-        <label className={styles.field} htmlFor="article-title">
+        <label className={`${styles.field} ${styles.wideField}`} htmlFor="article-title">
           <span className={styles.label}>标题</span>
           <input
             id="article-title"
             className={styles.input}
             value={title}
-            onChange={(event) => updateTitle(event.target.value)}
+            onChange={(event) => setTitle(event.target.value)}
             maxLength={160}
             required
           />
-        </label>
-
-        <label className={styles.field} htmlFor="article-slug">
-          <span className={styles.label}>Slug</span>
-          <input
-            id="article-slug"
-            className={styles.input}
-            value={slug}
-            onChange={(event) => {
-              setSlugWasEdited(true);
-              setSlug(event.target.value.toLowerCase());
-            }}
-            onBlur={() => setSlug(slugFromTitle(slug))}
-            pattern="[a-z0-9]+(?:-[a-z0-9]+)*"
-            maxLength={120}
-            aria-describedby="article-slug-hint"
-            required
-          />
-          <span id="article-slug-hint" className={styles.hint}>
-            用于网址，只能填写小写字母、数字和连字符，例如 rendering-notes。
-          </span>
         </label>
 
         <label className={`${styles.field} ${styles.wideField}`} htmlFor="article-summary">

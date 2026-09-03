@@ -1,5 +1,6 @@
 import "server-only";
 
+import { randomUUID } from "node:crypto";
 import { cache } from "react";
 import { isServerSupabaseConfigured } from "@/lib/supabase/config";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -47,11 +48,6 @@ function normalizeRequiredText(value: string, label: string, maximum: number) {
 }
 
 function normalizeCreateInput(input: ArticleCreateInput): ArticleCreateInput {
-  const slug = input.slug.trim().toLowerCase();
-  if (!SAFE_SLUG_PATTERN.test(slug) || slug.length > 120) {
-    throw new ArticleServiceError("Slug 只能包含小写字母、数字和单个连字符。", 400);
-  }
-
   const tags = [...new Set(input.tags.map((tag) => tag.trim()).filter(Boolean))];
   if (tags.length > MAXIMUM_TAGS) {
     throw new ArticleServiceError(`标签不能超过 ${MAXIMUM_TAGS} 个。`, 400);
@@ -61,7 +57,6 @@ function normalizeCreateInput(input: ArticleCreateInput): ArticleCreateInput {
   }
 
   return {
-    slug,
     title: normalizeRequiredText(input.title, "标题", MAXIMUM_TITLE_CHARACTERS),
     summary: normalizeRequiredText(input.summary, "摘要", MAXIMUM_SUMMARY_CHARACTERS),
     content: normalizeRequiredText(input.content, "正文", MAXIMUM_CONTENT_CHARACTERS),
@@ -119,28 +114,27 @@ export async function createArticle(input: ArticleCreateInput): Promise<ArticleD
 
   const normalized = normalizeCreateInput(input);
   const client = createServerSupabaseClient();
-  const { data, error } = await client
-    .from("articles")
-    .insert({
-      slug: normalized.slug,
-      title: normalized.title,
-      summary: normalized.summary,
-      content: normalized.content,
-      tags: normalized.tags,
-      is_published: true,
-    })
-    .select("id,slug,title,summary,content,tags,is_published,published_at,created_at,updated_at")
-    .single();
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const { data, error } = await client
+      .from("articles")
+      .insert({
+        slug: randomUUID(),
+        title: normalized.title,
+        summary: normalized.summary,
+        content: normalized.content,
+        tags: normalized.tags,
+        is_published: true,
+      })
+      .select("id,slug,title,summary,content,tags,is_published,published_at,created_at,updated_at")
+      .single();
 
-  if (error) {
-    if (error.code === "23505") {
-      throw new ArticleServiceError("这个 Slug 已经被使用，请换一个。", 409);
-    }
+    if (!error) return mapArticle(data as ArticleRow);
+    if (error.code === "23505") continue;
     if (isMissingArticleSchemaError(error)) {
       throw new ArticleServiceError("Articles 数据库迁移尚未执行。", 503);
     }
     throw new ArticleServiceError("文章发布失败，请稍后再试。", 500);
   }
 
-  return mapArticle(data as ArticleRow);
+  throw new ArticleServiceError("暂时无法生成唯一文章地址，请重新发布。", 503);
 }
