@@ -5,8 +5,8 @@ import { siteConfig } from "@/config/site";
 import "./globals.css";
 
 const morganite = localFont({
-  src: "./fonts/Morganite-Medium-8.woff2",
-  variable: "--font-morganite",
+  src: "./fonts/Aventa-Bold.woff2",
+  variable: "--font-aventa",
   weight: "500",
   style: "normal",
   display: "swap",

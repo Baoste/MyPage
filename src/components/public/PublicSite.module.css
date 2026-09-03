@@ -182,7 +182,7 @@
 
 .heroName {
   flex: 0 1 auto;
-  font-family: var(--font-morganite), Impact, "Arial Narrow", "Roboto Condensed", sans-serif;
+  font-family: var(--font-aventa), Impact, "Arial Narrow", "Roboto Condensed", sans-serif;
   font-size: var(--hero-name-size);
   font-stretch: condensed;
   font-weight: 500;
