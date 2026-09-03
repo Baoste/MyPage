@@ -566,7 +566,7 @@
   display: flex;
   inset: 0;
   justify-content: space-between;
-  padding: clamp(1rem, 2vw, 1.75rem);
+  padding: clamp(0.75rem, 1.4vw, 1.25rem);
   position: absolute;
   text-transform: uppercase;
 }
@@ -587,11 +587,10 @@
 }
 
 .featuredArticleInfo {
-  border-left: 1px solid var(--works-rule);
   display: flex;
   flex-direction: column;
   min-height: 13.5rem;
-  padding: clamp(1.25rem, 2.5vw, 2rem);
+  padding: clamp(0.85rem, 1.35vw, 1.15rem);
 }
 
 .featuredArticleMeta {
@@ -612,7 +611,7 @@
   font-weight: 900;
   letter-spacing: -0.025em;
   line-height: 0.98;
-  margin-top: 0.8rem;
+  margin-top: 0.65rem;
   text-wrap: balance;
 }
 
@@ -622,12 +621,12 @@
   gap: 0.4rem;
   list-style: none;
   margin: auto 0 0;
-  padding: 1.25rem 0 0;
+  padding: 0.85rem 0 0;
 }
 
 .featuredArticleTags li {
-  background: #b8e53d;
-  color: var(--public-ink);
+  background: var(--public-blue);
+  color: #fff;
   font-size: 0.55rem;
   font-weight: 800;
   letter-spacing: 0.05em;

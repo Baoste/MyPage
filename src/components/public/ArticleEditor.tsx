@@ -25,6 +25,15 @@ const MARKDOWN_COMMANDS: MarkdownCommand[] = [
   { label: "代码", before: "```\n", after: "\n```", placeholder: "code" },
 ];
 
+const HEADING_COMMANDS: MarkdownCommand[] = [
+  { label: "H1", before: "# ", placeholder: "一级标题" },
+  { label: "H2", before: "## ", placeholder: "二级标题" },
+  { label: "H3", before: "### ", placeholder: "三级标题" },
+  { label: "H4", before: "#### ", placeholder: "四级标题" },
+  { label: "H5", before: "##### ", placeholder: "五级标题" },
+  { label: "H6", before: "###### ", placeholder: "六级标题" },
+];
+
 const MAXIMUM_COVER_BYTES = 10 * 1024 * 1024;
 const ARTICLE_COVER_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 
@@ -225,7 +234,7 @@ export function ArticleEditor() {
             <span>Write</span>
           </div>
           <div className={styles.toolbar} role="toolbar" aria-label="Markdown 格式工具">
-            {MARKDOWN_COMMANDS.map((command) => (
+            {[...HEADING_COMMANDS, ...MARKDOWN_COMMANDS.filter((command) => !command.label.startsWith("H"))].map((command) => (
               <button
                 key={command.label}
                 type="button"
