@@ -217,6 +217,14 @@
   max-width: 35rem;
 }
 
+.heroDescriptionHighlight {
+  background: var(--public-yellow);
+  box-decoration-break: clone;
+  color: inherit;
+  padding-inline: 0.08em;
+  -webkit-box-decoration-break: clone;
+}
+
 .projectTag {
   border: 1.5px solid var(--public-blue);
   border-radius: 99rem;
@@ -363,7 +371,7 @@
 }
 
 .worksTitleTrack {
-  animation: works-title-marquee 30s linear infinite;
+  animation: works-title-marquee 60s linear infinite;
   display: flex;
   min-width: max-content;
   will-change: transform;

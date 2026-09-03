@@ -14,6 +14,28 @@ const PRIMARY_TOOLS = [
   { name: "Unreal Engine", icon: "/icons/technologies/unreal-engine.svg" },
 ] as const;
 
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function renderHighlightedDescription(description: string, highlights: readonly string[]) {
+  const uniqueHighlights = [...new Set(highlights.filter(Boolean))]
+    .sort((left, right) => right.length - left.length);
+
+  if (uniqueHighlights.length === 0) {
+    return description;
+  }
+
+  const highlightSet = new Set(uniqueHighlights);
+  const pattern = new RegExp(`(${uniqueHighlights.map(escapeRegExp).join("|")})`, "g");
+
+  return description.split(pattern).map((part, index) => (
+    highlightSet.has(part)
+      ? <mark key={`${part}-${index}`} className={styles.heroDescriptionHighlight}>{part}</mark>
+      : part
+  ));
+}
+
 export default function HomePage() {
   const projects = getPublishedProjects();
 
@@ -34,8 +56,13 @@ export default function HomePage() {
 
             <div className={styles.heroIntro}>
               <div>
-                <p className={styles.heroRole}>Creative developer</p>
-                <p className={styles.heroDescription}>{siteConfig.description}</p>
+                <p className={styles.heroRole} aria-hidden="true">&nbsp;</p>
+                <p className={styles.heroDescription}>
+                  {renderHighlightedDescription(
+                    siteConfig.description,
+                    siteConfig.descriptionHighlights,
+                  )}
+                </p>
               </div>
             </div>
           </div>
