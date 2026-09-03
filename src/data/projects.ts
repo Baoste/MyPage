@@ -19,7 +19,7 @@ export const projects = defineProjects([
     description:
       "A content-preserving style transfer and image editing framework that supports realistic and stylized references in any content–style combination. It introduces a self-distillation strategy to synthesize training triplets beyond the limitations of TeleStyle V1, together with Distribution Matching Distillation to preserve the foundation model’s general editing capability. A Qwen2.5-VL-7B-based prompt enhancer further improves content–style reference disambiguation. Experiments show strong style transfer quality and general image editing performance, matching Qwen-Image-Edit-2509-DMD and approaching leading commercial models.",
     coverFile: [
-      "telestyle-v2-0.jpg"
+      "telestyle-v2-0.png"
     ],
     tags: ["风格迁移", "图像编辑", "自蒸馏"],
     projectDate: "2026-03 - 2026-06",
