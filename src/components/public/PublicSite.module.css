@@ -156,7 +156,7 @@
 .heroKicker {
   align-items: center;
   display: flex;
-  font-size: 0.68rem;
+  font-size: clamp(0.85rem, 1.15vw, 1rem);
   font-weight: 800;
   gap: 0.6rem;
   letter-spacing: 0.09em;
@@ -166,8 +166,9 @@
 .heroKicker::before {
   background: var(--public-blue);
   content: "";
-  height: 0.65rem;
-  width: 0.65rem;
+  flex: 0 0 1em;
+  height: 1em;
+  width: 1em;
 }
 
 .heroIdentity {
