@@ -186,7 +186,7 @@
   font-size: var(--hero-name-size);
   font-stretch: condensed;
   font-weight: 900;
-  letter-spacing: -0.075em;
+  letter-spacing: 0;
   line-height: 0.73;
   margin: 0;
   max-width: 100%;
