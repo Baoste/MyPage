@@ -34,7 +34,7 @@ export const projects = defineProjects([
       "一个独立开发的卡牌游戏，探索了创新的游戏机制和策略深度。",
     coverFile: [
       "https://www.bilibili.com/video/BV1PEj161Exm", 
-      ["bust-0.png", "bust-0.png"],
+      ["bust-0.png", "bust-1.png"],
     ],
     tags: ["独立游戏", "卡牌游戏"],
     projectDate: "2026-02 - 2026-06",
