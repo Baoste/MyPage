@@ -1,16 +1,16 @@
 # Personal Portfolio
 
-一个基于 Next.js App Router 的长期维护型个人网站骨架。公开区域用于作品、文章和简历；`/yfxl99` 是仅限受邀账号访问的私密照片与美食记录。Works 使用本地 TypeScript 目录和服务器持久磁盘封面；Articles 使用 Supabase PostgreSQL 和密码保护的 Markdown 发布页；Private 区域的数据库、本地媒体目录、Supabase Storage 兼容层、RLS、账号密码和签名 Session 均已接入实际代码路径。
+一个基于 Next.js App Router 的长期维护型个人网站骨架。公开区域用于作品、文章和简历；`/yfxl99` 是仅限受邀账号访问的私密照片与美食记录。Works 使用本地 TypeScript 目录和服务器持久磁盘封面；Articles 使用 Supabase PostgreSQL、服务器本地封面和密码保护的 Markdown 发布页；Private 区域的数据库、本地媒体目录、Supabase Storage 兼容层、RLS、账号密码和签名 Session 均已接入实际代码路径。
 
 ## 已实现内容
 
 | 区域 | 实现 |
 | --- | --- |
-| Public | 首页 Hero、作品 Gallery、数据库文章列表、Markdown 编辑/预览/发布与文章详情、Resume、可移除的 Tools 故事编辑器、响应式导航 |
+| Public | 首页 Hero、作品 Gallery、最新 6 篇精选文章、数据库文章列表、带本地封面的 Markdown 编辑/预览/发布与文章详情、Resume、可移除的 Tools 故事编辑器、响应式导航 |
 | Private | `/yfxl99` 登录、照片活跃度驱动的 WebGL2 程序化像素树 Welcome、支持上传/翻面/长按原位展开/统计/修改删除/账号评论的 Photos、支持多图和账号评论的 Food 画廊、独立导航、Logout、Loading/Empty/Error 状态 |
 | Authentication | 账号 + bcrypt 密码、一次性邀请码注册、HS256 签名 Session、统一 Proxy/Auth Guard、HttpOnly Cookie、7 天过期、同源校验、简单登录限流 |
 | Data | Works 使用类型安全的本地 TypeScript 目录；Articles、账号/邀请、Photo/Food 记录与评论使用 Supabase Service Layer |
-| Storage | Project 封面及新 Photo/Food 图片写入各自持久磁盘目录；Project 经公开接口读取，Photo/Food 经鉴权接口读取；旧媒体继续兼容 Supabase Storage |
+| Storage | Project/Article 封面及新 Photo/Food 图片写入各自持久磁盘目录；Project/Article 经公开接口读取，Photo/Food 经鉴权接口读取；旧媒体继续兼容 Supabase Storage |
 | Database | Articles 与 Private 数据使用 migration、索引、约束、updated_at trigger 和 RLS；Works 不依赖数据库 |
 | Quality | TypeScript strict、Server/Client 边界、响应式、键盘焦点、语义 HTML、SEO、robots、sitemap、安全 Header |
 
@@ -23,7 +23,7 @@
 - Tailwind CSS 4
 - 原生 WebGL2（程序化像素树）+ Canvas 2D 静态降级
 - Supabase PostgreSQL + Storage（Articles、Private 数据与旧媒体兼容）
-- 服务器本地持久磁盘（Project 封面及新 Photo/Food 图片）
+- 服务器本地持久磁盘（Project/Article 封面及新 Photo/Food 图片）
 - `@supabase/supabase-js`
 - `bcryptjs`（密码哈希）
 - `jose`（签名 Session）
@@ -35,7 +35,7 @@
 
 ```text
 public/resume/                    Resume PDF
-scripts/                          安全邀请码生成脚本
+scripts/                          邀请码与文章密码哈希生成脚本
 src/
 ├── app/
 │   ├── (public)/                 公开页面与 Layout
@@ -104,6 +104,7 @@ npm start
 | `ARTICLE_PUBLISH_PASSWORD_HASH` | `/articles/new` 发布密码的 bcrypt 哈希；用 `npm run hash-article-password` 生成 | Server only |
 | `PRIVATE_MEDIA_SIGNED_URL_TTL_SECONDS` | Photo/旧 Food 私密 URL 有效期，默认 `300` | Server only |
 | `PROJECT_COVER_STORAGE_ROOT` | Project 封面的持久化根目录；默认 `.data/public-assets` | Server only |
+| `ARTICLE_COVER_STORAGE_ROOT` | Article 封面的持久化根目录；为空时回退到 Project 根目录 | Server only |
 | `FOOD_STORAGE_ROOT` | 新 Food 图片的持久化根目录；默认 `.data/private-media` | Server only |
 | `PHOTO_STORAGE_ROOT` | 新 Photo 图片的持久化根目录；空值时回退到 `FOOD_STORAGE_ROOT`，再回退到 `.data/private-media` | Server only |
 | `TOOLS_STORAGE_ROOT` | Tools 模块数据根目录；默认 `.data/tools`，生产环境应指向持久磁盘 | Server only |
@@ -160,6 +161,7 @@ npx supabase db push
 7. `supabase/migrations/202609010004_food_pagination_index.sql`
 8. `supabase/migrations/202609010005_photo_pagination_index.sql`
 9. `supabase/migrations/202609030001_articles.sql`
+10. `supabase/migrations/202609030002_article_covers.sql`
 
 第一份 Migration 创建：
 
@@ -203,7 +205,7 @@ npx supabase db push
 - 评论作者同样来自服务器 Session，并保留发布时的用户名快照；
 - Food 与 Photo 共用前端评论组件，但表、外键和接口彼此独立。
 
-第七、八份 Migration 为 Food 与 Photo 的稳定游标分页补充复合索引。第九份 Migration 创建 `articles` 表、Markdown 正文、公开文章排序索引、字段约束和 `updated_at` trigger；浏览器角色不能直接访问该表，文章读取和发布统一经过 Next.js service-role 服务层。
+第七、八份 Migration 为 Food 与 Photo 的稳定游标分页补充复合索引。第九份 Migration 创建 `articles` 表、Markdown 正文、公开文章排序索引、字段约束和 `updated_at` trigger；第十份为文章增加服务器本地封面 URL 字段及格式约束。浏览器角色不能直接访问该表，文章读取和发布统一经过 Next.js service-role 服务层。
 
 代码部署早于第二/第三份 Migration 时，Food/Photos 页面都会安全回退到旧字段继续浏览，并显示 Migration 提示、禁用写操作。账号版代码部署前必须先执行第四份 Migration 并创建至少一个邀请码，否则原共享密码将停止工作，注册/登录会返回服务不可用。评论版代码部署前应执行第五、六份 Migration；缺失时画廊仍可浏览，但对应评论接口会明确提示应执行的文件。执行账号 Migration 后再部署代码，旧的共享密码 Session 会自然失效。
 
@@ -213,7 +215,7 @@ npx supabase db push
 
 Migration 已创建：
 
-- `public-assets`：Public，保留给 `articles/` 和旧公开资源；新 Project 封面不再写入该 Bucket；
+- `public-assets`：Public，仅保留给旧 Article 和其他公开资源；新 Project/Article 封面都不再写入该 Bucket；
 - `private-diary`：Private；旧 Photo 使用 `photos/YYYY/MM/`，切换前上传的 Food 路径继续兼容读取和删除。
 
 Dashboard 中必须确认 `private-diary` 的 Public 开关关闭。两个 Bucket 均限制为 JPEG、PNG、WebP，单文件最大 10 MB。
@@ -364,7 +366,7 @@ coverFile: [
 
 ### 添加 Article
 
-先执行 `supabase/migrations/202609030001_articles.sql`，运行 `npm run hash-article-password`，并把输出的 bcrypt 哈希配置为仅服务端可见的 `ARTICLE_PUBLISH_PASSWORD_HASH`。打开 `/articles`，点击右下角“+”进入 `/articles/new`，填写标题、摘要、标签和 Markdown 正文，确认右侧实时预览后输入原密码发布。Slug 由服务端随机生成；发布成功会自动进入 `/articles/{slug}`，列表、详情 metadata 和 sitemap 都从数据库读取。
+先执行 `202609030001_articles.sql` 和 `202609030002_article_covers.sql`，运行 `npm run hash-article-password`，配置 `ARTICLE_PUBLISH_PASSWORD_HASH` 与持久化的 `ARTICLE_COVER_STORAGE_ROOT`。打开 `/articles/new`，选择 JPEG/PNG/WebP 封面，填写标题、摘要、标签和 Markdown 正文，确认预览后输入原密码发布。封面 URL 保存到数据库，图片写入服务器 `articles/` 子目录；首页自动展示最新 6 篇文章的封面、标题、日期和标签。
 
 原始 HTML 默认不会执行。完整字段、Markdown、密码安全、Migration、部署和故障排查见 [`docs/Articles.md`](docs/Articles.md)。
 
@@ -520,7 +522,7 @@ Browser
 
 1. 将一块持久云硬盘挂载到固定位置，例如 `/data`；
 2. 创建 `/data/mypage`，确保运行 Node.js 的系统用户拥有读写权限；
-3. 在生产环境设置 `PROJECT_COVER_STORAGE_ROOT=/data/mypage/public-assets`、`PHOTO_STORAGE_ROOT=/data/mypage`、`FOOD_STORAGE_ROOT=/data/mypage` 与 `TOOLS_STORAGE_ROOT=/data/mypage/tools`；媒体与 Tools 数据分别写入各自子目录；
+3. 在生产环境设置 `PROJECT_COVER_STORAGE_ROOT=/data/mypage/public-assets`、`ARTICLE_COVER_STORAGE_ROOT=/data/mypage/public-assets`、`PHOTO_STORAGE_ROOT=/data/mypage`、`FOOD_STORAGE_ROOT=/data/mypage` 与 `TOOLS_STORAGE_ROOT=/data/mypage/tools`；媒体与 Tools 数据分别写入各自子目录；
 4. 如果使用 Docker，把宿主机持久目录挂载到容器内相同的配置路径；
 5. 配置 Supabase、Articles 密码和 Session 环境变量，按顺序执行全部 Migration，并创建第一个邀请码；
 6. 使用 HTTPS 反向代理运行 `npm start`，并定期备份 `/data/mypage`。
@@ -536,15 +538,15 @@ npm start
 ```
 
 生产环境应置于 HTTPS 反向代理后。`NODE_ENV=production` 时 Session Cookie 使用 `Secure` 和 `__Host-` 前缀，因此 HTTPS 是必需的。
-Node 进程必须能读取 `PROJECT_COVER_STORAGE_ROOT`，并对 `PHOTO_STORAGE_ROOT`、`FOOD_STORAGE_ROOT` 和 `TOOLS_STORAGE_ROOT` 拥有持续读写权限。不要把生产路径设在源码目录、`.next`、系统临时目录或容器未挂载的可写层中。若希望删除按钮同时物理删除编辑器代码，Node 进程还需对部署目录中的 `tool-modules/story-editor/` 有删除权限；否则会采用上面的停用标记降级路径。
+Node 进程必须能读取 `PROJECT_COVER_STORAGE_ROOT`，并对 `ARTICLE_COVER_STORAGE_ROOT`、`PHOTO_STORAGE_ROOT`、`FOOD_STORAGE_ROOT` 和 `TOOLS_STORAGE_ROOT` 拥有持续读写权限。不要把生产路径设在源码目录、`.next`、系统临时目录或容器未挂载的可写层中。若希望删除按钮同时物理删除编辑器代码，Node 进程还需对部署目录中的 `tool-modules/story-editor/` 有删除权限；否则会采用上面的停用标记降级路径。
 
 ## 验收清单
 
 - [ ] 将 `.env.example` 复制为 `.env.local` 并填写真实值
-- [ ] 按顺序执行全部 migration，确认 `articles`、`private_users`、`private_invites`、升级后的 `photo_entries`、`food_entries`、`food_images`、`food_comments`、`photo_comments` 与两个 Buckets
+- [ ] 按顺序执行全部 migration，确认 `articles.cover_url`、`private_users`、`private_invites`、升级后的 `photo_entries`、`food_entries`、`food_images`、`food_comments`、`photo_comments` 与两个 Buckets
 - [ ] 用 `npm run hash-article-password` 生成 bcrypt 哈希，在 `.env.local` 配置 `ARTICLE_PUBLISH_PASSWORD_HASH`，确认发布页能写入 Markdown 文章
 - [ ] 确认 `private-diary` 为 Private，所有私密表匿名查询失败
-- [ ] 将 `PROJECT_COVER_STORAGE_ROOT` / `PHOTO_STORAGE_ROOT` / `FOOD_STORAGE_ROOT` 指向持久磁盘，确认 Node 进程权限并配置目录备份
+- [ ] 将 `PROJECT_COVER_STORAGE_ROOT` / `ARTICLE_COVER_STORAGE_ROOT` / `PHOTO_STORAGE_ROOT` / `FOOD_STORAGE_ROOT` 指向持久磁盘，确认 Node 进程权限并配置目录备份
 - [ ] 将 `TOOLS_STORAGE_ROOT` 指向持久磁盘，并确认 Tools 删除后的停用标记可持续保存
 - [ ] 用 `npm run generate-invite` 生成高熵邀请码，只把摘要写入 `private_invites`
 - [x] `npm run lint`

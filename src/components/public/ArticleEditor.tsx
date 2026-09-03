@@ -1,8 +1,9 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { type FormEvent, useRef, useState } from "react";
+import { type ChangeEvent, type FormEvent, useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import styles from "./ArticleEditor.module.css";
@@ -24,6 +25,9 @@ const MARKDOWN_COMMANDS: MarkdownCommand[] = [
   { label: "代码", before: "```\n", after: "\n```", placeholder: "code" },
 ];
 
+const MAXIMUM_COVER_BYTES = 10 * 1024 * 1024;
+const ARTICLE_COVER_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+
 function tagsFromValue(value: string) {
   return [...new Set(
     value
@@ -39,10 +43,43 @@ export function ArticleEditor() {
   const [title, setTitle] = useState("");
   const [summary, setSummary] = useState("");
   const [tagValue, setTagValue] = useState("");
+  const [coverFile, setCoverFile] = useState<File | null>(null);
+  const [coverPreviewUrl, setCoverPreviewUrl] = useState<string | null>(null);
   const [content, setContent] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => () => {
+    if (coverPreviewUrl) URL.revokeObjectURL(coverPreviewUrl);
+  }, [coverPreviewUrl]);
+
+  function selectCover(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0] ?? null;
+    setMessage("");
+    if (!file) {
+      setCoverFile(null);
+      setCoverPreviewUrl(null);
+      return;
+    }
+    if (!ARTICLE_COVER_MIME_TYPES.has(file.type)) {
+      event.target.value = "";
+      setCoverFile(null);
+      setCoverPreviewUrl(null);
+      setMessage("封面只支持 JPEG、PNG 和 WebP 图片。");
+      return;
+    }
+    if (file.size > MAXIMUM_COVER_BYTES) {
+      event.target.value = "";
+      setCoverFile(null);
+      setCoverPreviewUrl(null);
+      setMessage("文章封面不能超过 10 MB。");
+      return;
+    }
+
+    setCoverFile(file);
+    setCoverPreviewUrl(URL.createObjectURL(file));
+  }
 
   function insertMarkdown(command: MarkdownCommand) {
     const textarea = markdownRef.current;
@@ -64,20 +101,28 @@ export function ArticleEditor() {
   async function publishArticle(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (submitting) return;
+    if (!coverFile) {
+      setMessage("请选择文章封面。");
+      return;
+    }
+    if (new TextEncoder().encode(password).byteLength > 72) {
+      setMessage("发布密码不能超过 72 个 UTF-8 字节。");
+      return;
+    }
     setSubmitting(true);
     setMessage("");
 
     try {
+      const payload = new FormData();
+      payload.set("title", title);
+      payload.set("summary", summary);
+      payload.set("tags", JSON.stringify(tagsFromValue(tagValue)));
+      payload.set("content", content);
+      payload.set("password", password);
+      payload.set("cover", coverFile);
       const response = await fetch("/api/articles", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title,
-          summary,
-          tags: tagsFromValue(tagValue),
-          content,
-          password,
-        }),
+        body: payload,
       });
       const result = await response.json() as {
         ok?: boolean;
@@ -112,6 +157,38 @@ export function ArticleEditor() {
             required
           />
         </label>
+
+        <div className={`${styles.field} ${styles.wideField}`}>
+          <label className={styles.label} htmlFor="article-cover">封面</label>
+          <input
+            id="article-cover"
+            className={styles.fileInput}
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            onChange={selectCover}
+            required
+          />
+          {coverPreviewUrl && coverFile ? (
+            <figure className={styles.coverPreview}>
+              <div className={styles.coverPreviewImage}>
+                <Image
+                  src={coverPreviewUrl}
+                  alt="待发布文章封面预览"
+                  fill
+                  sizes="(max-width: 767px) 100vw, 70vw"
+                  unoptimized
+                />
+              </div>
+              <figcaption>
+                <span>{coverFile.name}</span>
+                <span>{(coverFile.size / 1024 / 1024).toFixed(2)} MB</span>
+              </figcaption>
+            </figure>
+          ) : (
+            <p className={styles.coverPlaceholder}>选择一张横向图片，首页会以 16:10 比例展示。</p>
+          )}
+          <span className={styles.hint}>支持 JPEG、PNG、WebP，最大 10 MB。</span>
+        </div>
 
         <label className={`${styles.field} ${styles.wideField}`} htmlFor="article-summary">
           <span className={styles.label}>摘要</span>

@@ -36,7 +36,8 @@
 
 .input,
 .summary,
-.passwordInput {
+.passwordInput,
+.fileInput {
   background: #fff;
   border: 1.5px solid #797979;
   border-radius: 0;
@@ -61,11 +62,79 @@
 .input:focus-visible,
 .summary:focus-visible,
 .passwordInput:focus-visible,
+.fileInput:focus-visible,
 .markdownInput:focus-visible,
 .toolButton:focus-visible,
 .publishButton:focus-visible {
   outline: 3px solid var(--public-blue);
   outline-offset: 2px;
+}
+
+.fileInput {
+  min-height: 3.25rem;
+  padding: 0.55rem;
+}
+
+.fileInput::file-selector-button {
+  background: var(--public-ink);
+  border: 0;
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.7rem;
+  font-weight: 900;
+  margin-right: 0.85rem;
+  min-height: 2rem;
+  padding-inline: 0.9rem;
+  text-transform: uppercase;
+}
+
+.coverPreview {
+  background: #d1d1d1;
+  border: 1.5px solid var(--public-line);
+  margin: 0;
+  max-width: 52rem;
+  width: 100%;
+}
+
+.coverPreviewImage {
+  aspect-ratio: 16 / 10;
+  overflow: hidden;
+  position: relative;
+}
+
+.coverPreviewImage img {
+  object-fit: cover;
+}
+
+.coverPreview figcaption {
+  align-items: center;
+  background: #fff;
+  border-top: 1.5px solid var(--public-line);
+  display: flex;
+  font-size: 0.68rem;
+  font-weight: 700;
+  gap: 1rem;
+  justify-content: space-between;
+  min-height: 2.5rem;
+  overflow-wrap: anywhere;
+  padding: 0.55rem 0.75rem;
+}
+
+.coverPlaceholder {
+  align-items: center;
+  aspect-ratio: 16 / 4;
+  background: #d1d1d1;
+  border: 1.5px solid var(--public-line);
+  color: #575757;
+  display: flex;
+  font-size: 0.78rem;
+  justify-content: center;
+  margin: 0;
+  max-width: 52rem;
+  padding: 1rem;
+  text-align: center;
+  width: 100%;
 }
 
 .hint {

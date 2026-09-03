@@ -1,4 +1,11 @@
+import { revalidatePath } from "next/cache";
 import { NextRequest, NextResponse } from "next/server";
+import {
+  ARTICLE_COVER_MAXIMUM_BYTES,
+  ArticleCoverStorageError,
+  deleteLocalArticleCover,
+  writeLocalArticleCover,
+} from "@/lib/article/local-storage";
 import {
   clearArticlePublishAttempts,
   consumeArticlePublishAttempt,
@@ -10,8 +17,13 @@ import { ArticleServiceError, createArticle } from "@/services/articleService";
 import type { ArticleCreateInput } from "@/types";
 
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
-const MAXIMUM_REQUEST_BYTES = 256 * 1_024;
+const MAXIMUM_METADATA_BYTES = 256 * 1_024;
+const MAXIMUM_MULTIPART_OVERHEAD_BYTES = 64 * 1_024;
+const MAXIMUM_REQUEST_BYTES = ARTICLE_COVER_MAXIMUM_BYTES
+  + MAXIMUM_METADATA_BYTES
+  + MAXIMUM_MULTIPART_OVERHEAD_BYTES;
 
 function jsonError(message: string, status: number, retryAfterSeconds?: number) {
   const response = NextResponse.json(
@@ -29,25 +41,33 @@ export async function POST(request: NextRequest) {
 
   const declaredLength = Number(request.headers.get("content-length"));
   if (Number.isFinite(declaredLength) && declaredLength > MAXIMUM_REQUEST_BYTES) {
-    return jsonError("文章内容过大。", 413);
+    return jsonError("文章内容或封面过大。", 413);
   }
 
-  let body: Record<string, unknown>;
+  if (!request.headers.get("content-type")?.toLowerCase().startsWith("multipart/form-data;")) {
+    return jsonError("请求内容格式不正确。", 415);
+  }
+
+  let formData: FormData;
   try {
-    const text = await request.text();
-    if (new TextEncoder().encode(text).byteLength > MAXIMUM_REQUEST_BYTES) {
-      return jsonError("文章内容过大。", 413);
-    }
-    const parsed = JSON.parse(text) as unknown;
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      return jsonError("请求内容格式不正确。", 400);
-    }
-    body = parsed as Record<string, unknown>;
+    formData = await request.formData();
   } catch {
     return jsonError("请求内容格式不正确。", 400);
   }
 
-  const { password, title, summary, content, tags } = body;
+  const password = formData.get("password");
+  const title = formData.get("title");
+  const summary = formData.get("summary");
+  const content = formData.get("content");
+  const tagsValue = formData.get("tags");
+  const cover = formData.get("cover");
+  let tags: unknown;
+  try {
+    tags = typeof tagsValue === "string" ? JSON.parse(tagsValue) : null;
+  } catch {
+    tags = null;
+  }
+
   if (
     typeof password !== "string"
     || password.length === 0
@@ -57,8 +77,19 @@ export async function POST(request: NextRequest) {
     || typeof content !== "string"
     || !Array.isArray(tags)
     || !tags.every((tag) => typeof tag === "string")
+    || !(cover instanceof File)
+    || cover.size === 0
   ) {
-    return jsonError("请完整填写文章内容和发布密码。", 400);
+    return jsonError("请完整填写文章内容、封面和发布密码。", 400);
+  }
+  const metadataBytes = new TextEncoder().encode(
+    `${title}\n${summary}\n${content}\n${tagsValue}`,
+  ).byteLength;
+  if (metadataBytes > MAXIMUM_METADATA_BYTES) {
+    return jsonError("文章内容过大。", 413);
+  }
+  if (cover.size > ARTICLE_COVER_MAXIMUM_BYTES) {
+    return jsonError("文章封面不能超过 10 MB。", 413);
   }
 
   if (!isArticlePublishConfigured()) {
@@ -75,18 +106,32 @@ export async function POST(request: NextRequest) {
   }
   clearArticlePublishAttempts(clientKey);
 
+  let storedCover: Awaited<ReturnType<typeof writeLocalArticleCover>> | null = null;
   try {
+    const coverBytes = new Uint8Array(await cover.arrayBuffer());
+    storedCover = await writeLocalArticleCover(coverBytes, cover.type.toLowerCase());
     const article = await createArticle({
       title,
       summary,
       content,
       tags,
+      coverUrl: storedCover.url,
     } satisfies ArticleCreateInput);
+    revalidatePath("/");
+    revalidatePath("/articles");
     return NextResponse.json(
       { ok: true, article: { slug: article.slug } },
       { status: 201, headers: { "Cache-Control": "no-store" } },
     );
   } catch (error) {
+    if (storedCover) {
+      await deleteLocalArticleCover(storedCover.storagePath).catch((cleanupError) => {
+        console.error("Unable to remove an unused article cover.", cleanupError);
+      });
+    }
+    if (error instanceof ArticleCoverStorageError) {
+      return jsonError(error.message, error.status);
+    }
     if (error instanceof ArticleServiceError) {
       return jsonError(error.message, error.status);
     }

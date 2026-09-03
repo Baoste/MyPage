@@ -15,7 +15,7 @@ export default function NewArticlePage() {
         <div>
           <h1 className="display-type text-5xl md:text-7xl">Write & publish</h1>
           <p className="mt-5 max-w-2xl text-sm leading-6 text-[#62635c] md:text-base md:leading-7">
-            填写文章信息，在 Markdown 编辑区完成正文并确认预览，最后输入发布密码。
+            选择封面、填写文章信息，在 Markdown 编辑区完成正文并确认预览，最后输入发布密码。
           </p>
         </div>
       </header>

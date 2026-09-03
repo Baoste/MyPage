@@ -1,12 +1,16 @@
 import Image from "next/image";
+import { connection } from "next/server";
+import { FeaturedArticles } from "@/components/public/FeaturedArticles";
 import { ProfilePortrait } from "@/components/public/ProfilePortrait";
 import { ProjectGallery } from "@/components/public/ProjectGallery";
 import styles from "@/components/public/PublicSite.module.css";
 import { siteConfig } from "@/config/site";
 import { parseHighlightMarkers } from "@/lib/highlight-markers";
+import { getLatestArticles } from "@/services/articleService";
 import { getPublishedProjects } from "@/services/projectService";
 
 const WORKS_TITLE = "Selected works · 精选作品 ·\u00A0";
+const ARTICLES_TITLE = "Selected articles · 精选文章 ·\u00A0";
 const WORKS_TITLE_REPEAT_COUNT = 6;
 const PRIMARY_TOOLS = [
   { name: "C++", icon: "/icons/technologies/cpp.svg" },
@@ -27,8 +31,31 @@ function renderHighlightedDescription(description: string) {
   ));
 }
 
-export default function HomePage() {
+function MarqueeTitle({ id, label }: { id: string; label: string }) {
+  return (
+    <header className={styles.worksHeader}>
+      <h2 id={id} className={styles.worksTitle} aria-label={label}>
+        <span className={styles.worksTitleTrack} aria-hidden="true">
+          {[0, 1].map((groupIndex) => (
+            <span key={groupIndex} className={styles.worksTitleGroup}>
+              {Array.from({ length: WORKS_TITLE_REPEAT_COUNT }, (_, itemIndex) => (
+                <span key={itemIndex} className={styles.worksTitleText}>{label}</span>
+              ))}
+            </span>
+          ))}
+        </span>
+      </h2>
+    </header>
+  );
+}
+
+export default async function HomePage() {
+  await connection();
   const projects = getPublishedProjects();
+  const articles = await getLatestArticles(6).catch((error) => {
+    console.error("Unable to load featured articles on the homepage.", error);
+    return [];
+  });
 
   return (
     <>
@@ -92,29 +119,17 @@ export default function HomePage() {
       </section>
 
       <section id="works" aria-labelledby="works-heading" className={styles.works}>
-        <header className={styles.worksHeader}>
-          <h2
-            id="works-heading"
-            className={styles.worksTitle}
-            aria-label={WORKS_TITLE}
-          >
-            <span className={styles.worksTitleTrack} aria-hidden="true">
-              {[0, 1].map((groupIndex) => (
-                <span key={groupIndex} className={styles.worksTitleGroup}>
-                  {Array.from({ length: WORKS_TITLE_REPEAT_COUNT }, (_, itemIndex) => (
-                    <span key={itemIndex} className={styles.worksTitleText}>
-                      {WORKS_TITLE}
-                    </span>
-                  ))}
-                </span>
-              ))}
-            </span>
-          </h2>
-          {/* <Link href="/articles" className={styles.worksCount}>
-            {String(projects.length).padStart(2, '0')} Projects&nbsp; ↗
-          </Link> */}
-        </header>
+        <MarqueeTitle id="works-heading" label={WORKS_TITLE} />
         <ProjectGallery projects={projects} />
+      </section>
+
+      <section
+        id="featured-articles"
+        aria-labelledby="featured-articles-heading"
+        className={styles.featuredArticles}
+      >
+        <MarqueeTitle id="featured-articles-heading" label={ARTICLES_TITLE} />
+        <FeaturedArticles articles={articles} />
       </section>
     </>
   );

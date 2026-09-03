@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
@@ -26,6 +27,7 @@ export async function generateMetadata({ params }: ArticlePageProps): Promise<Me
       description: article.summary,
       publishedTime: article.createdAt,
       modifiedTime: article.updatedAt,
+      images: article.coverUrl ? [{ url: article.coverUrl }] : undefined,
     },
   };
 }
@@ -51,6 +53,17 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
           {formatDate(article.createdAt)}
         </time>
       </header>
+      {article.coverUrl ? (
+        <div className="relative mx-auto mt-10 aspect-[16/10] max-w-5xl overflow-hidden border-2 border-black bg-[#bdbdbd]">
+          <Image
+            src={article.coverUrl}
+            alt={`${article.title} 的封面`}
+            fill
+            sizes="(max-width: 1100px) 100vw, 1024px"
+            className="object-cover"
+          />
+        </div>
+      ) : null}
       <div className="article-body mx-auto mt-12 max-w-[44rem]">
         <ReactMarkdown remarkPlugins={[remarkGfm]}>{article.content}</ReactMarkdown>
       </div>

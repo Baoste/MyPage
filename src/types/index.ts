@@ -47,7 +47,7 @@ export interface Article {
   slug: string;
   title: string;
   summary: string;
-  cover?: string;
+  coverUrl?: string;
   tags: string[];
   createdAt: string;
   updatedAt?: string;
@@ -57,12 +57,12 @@ export interface ArticleDocument extends Article {
   content: string;
 }
 
-export interface ArticleRow {
+export interface ArticleSummaryRow {
   id: string;
   slug: string;
   title: string;
   summary: string;
-  content: string;
+  cover_url: string | null;
   tags: string[] | null;
   is_published: boolean;
   published_at: string;
@@ -70,11 +70,16 @@ export interface ArticleRow {
   updated_at: string;
 }
 
+export interface ArticleRow extends ArticleSummaryRow {
+  content: string;
+}
+
 export interface ArticleCreateInput {
   title: string;
   summary: string;
   content: string;
   tags: string[];
+  coverUrl: string;
 }
 
 export interface PrivateAccountSummary {
