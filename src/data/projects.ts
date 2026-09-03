@@ -27,7 +27,7 @@ export const projects = defineProjects([
   },
   {
     id: "emo-dialogue-dataset",
-    title: "EmotionDialogCN",
+    title: "EmoDialogCN",
     description:
       "A large-scale audiovisual–emotional dataset for authentic face-to-face communication. It contains 21,880 dialogue sessions from 119 professional actors across 20 everyday scenarios, covering 18 emotion categories and over 400 hours of recordings. A minimally intrusive collection framework supports natural emotional expression, while the dataset achieves a low emotion distribution deviation of 0.64 and consistent subject framing. Experiments further demonstrate stable unimodal and multimodal performance with strong cross-modal complementarity.",
     coverFile: [
