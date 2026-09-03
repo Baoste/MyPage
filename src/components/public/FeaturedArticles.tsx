@@ -15,7 +15,8 @@ export function FeaturedArticles({ articles }: { articles: Article[] }) {
   }
 
   return (
-    <div className={styles.featuredArticleGrid}>
+    <>
+      <div className={styles.featuredArticleGrid}>
       {articles.map((article) => {
         const visibleTags = article.tags.slice(0, 3);
         const hiddenTagCount = article.tags.length - visibleTags.length;
@@ -33,7 +34,7 @@ export function FeaturedArticles({ articles }: { articles: Article[] }) {
                     src={article.coverUrl}
                     alt=""
                     fill
-                    sizes="(max-width: 767px) 100vw, (max-width: 1100px) 50vw, 33vw"
+                    sizes="(max-width: 767px) 34vw, (max-width: 1100px) 17vw, 12rem"
                   />
                 ) : (
                   <div className={styles.featuredArticleFallback} aria-hidden="true">
@@ -60,6 +61,12 @@ export function FeaturedArticles({ articles }: { articles: Article[] }) {
           </article>
         );
       })}
-    </div>
+      </div>
+      <div className={styles.featuredArticlesFooter}>
+        <Link href="/articles" className={styles.featuredArticlesViewAll}>
+          View all <span aria-hidden="true">↗</span>
+        </Link>
+      </div>
+    </>
   );
 }
