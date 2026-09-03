@@ -171,8 +171,8 @@
 }
 
 .heroIdentity {
-  --hero-name-size: clamp(5rem, 10.5vw, 11rem);
-  --hero-name-height: clamp(4.1rem, 8.6vw, 9rem);
+  --hero-name-size: clamp(5rem, 13.5vw, 13.5rem);
+  --hero-name-height: clamp(4.1rem, 11.1vw, 11.1rem);
   align-items: center;
   display: flex;
   gap: clamp(1.25rem, 2.5vw, 3rem);
@@ -652,8 +652,8 @@
   }
 
   .heroIdentity {
-    --hero-name-size: clamp(4.2rem, 18vw, 7.3rem);
-    --hero-name-height: clamp(3.45rem, 14.75vw, 6rem);
+    --hero-name-size: clamp(4.2rem, 23vw, 7.3rem);
+    --hero-name-height: clamp(3.45rem, 18.9vw, 6rem);
     align-items: center;
     gap: 1rem;
     margin-block: 3.25rem 2.5rem;
