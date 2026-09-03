@@ -211,6 +211,7 @@
 }
 
 .heroDescription {
+  color: #575757;
   font-size: clamp(0.95rem, 1.4vw, 1.15rem);
   line-height: 1.55;
   margin-top: 0.8rem;
@@ -228,14 +229,14 @@
   -webkit-box-decoration-break: clone;
 }
 
-.projectTag {
-  border: 1.5px solid var(--public-blue);
-  border-radius: 99rem;
-  color: var(--public-blue);
-  font-size: 0.62rem;
+.projectTag,
+.featuredArticleTags li {
+  background: var(--public-blue);
+  color: #fff;
+  font-size: 0.55rem;
   font-weight: 800;
-  letter-spacing: 0.04em;
-  padding: 0.32rem 0.85rem;
+  letter-spacing: 0.05em;
+  padding: 0.22rem 0.5rem;
   text-transform: uppercase;
 }
 
@@ -272,6 +273,7 @@
 
 .toolItem {
   align-items: center;
+  color: #575757;
   display: flex;
   font-size: clamp(0.7rem, 1vw, 0.9rem);
   font-weight: 800;
@@ -429,7 +431,8 @@
   border-right: 1px solid var(--works-rule);
   display: flex;
   min-width: 0;
-  padding: clamp(1.25rem, 2.5vw, 2.2rem);
+  padding-block: clamp(1.75rem, 3.5vw, 3.25rem);
+  padding-inline: clamp(1.25rem, 2.5vw, 2.2rem);
 }
 
 .projectMedia > * {
@@ -474,6 +477,7 @@
 }
 
 .projectDescription {
+  color: #575757;
   font-size: clamp(0.85rem, 1.15vw, 1rem);
   line-height: 1.55;
   margin-top: 1.15rem;
@@ -622,16 +626,6 @@
   list-style: none;
   margin: auto 0 0;
   padding: 0.85rem 0 0;
-}
-
-.featuredArticleTags li {
-  background: var(--public-blue);
-  color: #fff;
-  font-size: 0.55rem;
-  font-weight: 800;
-  letter-spacing: 0.05em;
-  padding: 0.22rem 0.5rem;
-  text-transform: uppercase;
 }
 
 .featuredArticlesFooter {
@@ -898,7 +892,8 @@
   .projectCard:nth-child(even) .projectMedia {
     grid-column: 1;
     grid-row: 1;
-    padding: 1rem;
+    padding-block: 1.5rem;
+    padding-inline: 1rem;
   }
 
   .projectContent,
