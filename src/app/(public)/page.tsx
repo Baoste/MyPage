@@ -23,17 +23,20 @@ export default function HomePage() {
         <div className={styles.heroMain}>
           <div>
             <p className={styles.heroKicker}>独立作品集</p>
-            <h1 id="home-heading" className={styles.heroName}>{siteConfig.name}</h1>
+
+            <div className={styles.heroIdentity}>
+              <h1 id="home-heading" className={styles.heroName}>{siteConfig.name}</h1>
+              <ProfilePortrait
+                src={siteConfig.avatar}
+                alt={`${siteConfig.name} 的头像`}
+              />
+            </div>
 
             <div className={styles.heroIntro}>
               <div>
                 <p className={styles.heroRole}>Creative developer</p>
                 <p className={styles.heroDescription}>{siteConfig.description}</p>
               </div>
-              <ProfilePortrait
-                src={siteConfig.avatar}
-                alt={`${siteConfig.name} 的头像`}
-              />
             </div>
           </div>
 
