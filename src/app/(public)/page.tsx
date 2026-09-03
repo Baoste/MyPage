@@ -5,13 +5,13 @@ import styles from "@/components/public/PublicSite.module.css";
 import { siteConfig } from "@/config/site";
 import { getPublishedProjects } from "@/services/projectService";
 
-const WORKS_TITLE = "Selected works · 精选作品 · ";
+const WORKS_TITLE = "Selected works · 精选作品 ·\u00A0";
 const WORKS_TITLE_REPEAT_COUNT = 6;
 const PRIMARY_TOOLS = [
   { name: "C++", icon: "/icons/technologies/cpp.svg" },
   { name: "Python", icon: "/icons/technologies/python.svg" },
   { name: "Unity", icon: "/icons/technologies/unity.svg" },
-  { name: "AI", icon: "/icons/technologies/ai.svg" },
+  { name: "Unreal Engine", icon: "/icons/technologies/unreal-engine.svg" },
 ] as const;
 
 export default function HomePage() {
