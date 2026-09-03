@@ -215,6 +215,9 @@
   line-height: 1.55;
   margin-top: 0.8rem;
   max-width: 35rem;
+  text-align: justify;
+  text-align-last: left;
+  text-justify: inter-ideograph;
 }
 
 .heroDescriptionHighlight {
