@@ -8,10 +8,11 @@ interface SafeImageProps {
   alt: string;
   sizes: string;
   ratio?: "landscape" | "portrait" | "square" | "wide";
-  priority?: boolean;
+  preload?: boolean;
   className?: string;
   fallbackIndex?: number;
   preserveAspectRatio?: boolean;
+  onAspectRatioChange?: (aspectRatio: number) => void;
 }
 
 const ratios = {
@@ -26,10 +27,11 @@ export function SafeImage({
   alt,
   sizes,
   ratio = "landscape",
-  priority = false,
+  preload = false,
   className = "",
   fallbackIndex = 0,
   preserveAspectRatio = false,
+  onAspectRatioChange,
 }: SafeImageProps) {
   const [hasError, setHasError] = useState(false);
   const [naturalAspectRatio, setNaturalAspectRatio] = useState<string>();
@@ -55,7 +57,7 @@ export function SafeImage({
         alt={alt}
         fill
         sizes={sizes}
-        priority={priority}
+        preload={preload}
         className={preserveAspectRatio
           ? "object-contain"
           : "object-cover transition-transform duration-500 group-hover:scale-[1.025]"}
@@ -63,7 +65,9 @@ export function SafeImage({
           if (!preserveAspectRatio) return;
           const { naturalWidth, naturalHeight } = event.currentTarget;
           if (naturalWidth > 0 && naturalHeight > 0) {
+            const aspectRatio = naturalWidth / naturalHeight;
             setNaturalAspectRatio(`${naturalWidth} / ${naturalHeight}`);
+            onAspectRatioChange?.(aspectRatio);
           }
         }}
         onError={() => setHasError(true)}

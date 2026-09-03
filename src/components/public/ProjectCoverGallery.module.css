@@ -13,3 +13,19 @@
 .item > * {
   width: 100%;
 }
+
+.row {
+  align-items: flex-end;
+  display: flex;
+  gap: clamp(0.55rem, 1vw, 0.9rem);
+  width: 100%;
+}
+
+.rowItem {
+  flex-basis: 0;
+  min-width: 0;
+}
+
+.rowItem > * {
+  width: 100%;
+}

@@ -35,6 +35,15 @@ function validateUrl(projectId: string, label: string, value?: string) {
   }
 }
 
+function getCoverSourceGroups(coverFile: Project["coverFile"]): string[][] {
+  if (!coverFile) return [];
+  if (typeof coverFile === "string") return [[coverFile]];
+
+  return coverFile.map((entry) => (
+    typeof entry === "string" ? [entry] : [...entry]
+  ));
+}
+
 export function defineProjects(items: readonly Project[]): readonly Project[] {
   const ids = new Set<string>();
   const coverFiles = new Set<string>();
@@ -55,13 +64,20 @@ export function defineProjects(items: readonly Project[]): readonly Project[] {
       projectError(projectId, "description cannot contain surrounding spaces.");
     }
 
-    if (Array.isArray(project.coverFile) && project.coverFile.length === 0) {
+    if (
+      project.coverFile !== undefined
+      && typeof project.coverFile !== "string"
+      && project.coverFile.length === 0
+    ) {
       projectError(projectId, "coverFile list cannot be empty.");
     }
 
-    const coverSources = typeof project.coverFile === "string"
-      ? [project.coverFile]
-      : project.coverFile ?? [];
+    const coverGroups = getCoverSourceGroups(project.coverFile);
+    if (coverGroups.some((group) => group.length === 0)) {
+      projectError(projectId, "coverFile row lists cannot be empty.");
+    }
+
+    const coverSources = coverGroups.flat();
     if (coverSources.length > 8) {
       projectError(projectId, "coverFile supports at most 8 image or video items per project.");
     }

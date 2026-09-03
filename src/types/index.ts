@@ -1,8 +1,14 @@
+export type ProjectCoverSource = string;
+export type ProjectCoverRow = readonly ProjectCoverSource[];
+export type ProjectCoverFile =
+  | ProjectCoverSource
+  | readonly (ProjectCoverSource | ProjectCoverRow)[];
+
 export interface Project {
   id: string;
   title: string;
   description?: string;
-  coverFile?: string | readonly string[];
+  coverFile?: ProjectCoverFile;
   tags?: readonly string[];
   projectDate?: string;
   projectUrl?: string;
@@ -23,6 +29,7 @@ export interface ProjectVideoCover {
 }
 
 export type ProjectCoverMedia = ProjectImageCover | ProjectVideoCover;
+export type ProjectCoverMediaGroup = ProjectCoverMedia[];
 
 export interface ProjectViewModel {
   id: string;
@@ -32,7 +39,7 @@ export interface ProjectViewModel {
   projectDate?: string;
   projectUrl?: string;
   githubUrl?: string;
-  coverMedia: ProjectCoverMedia[];
+  coverMedia: ProjectCoverMediaGroup[];
 }
 
 export interface Article {

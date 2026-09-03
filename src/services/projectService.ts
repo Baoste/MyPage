@@ -3,13 +3,38 @@ import "server-only";
 import { projects } from "@/data/projects";
 import { projectCoverUrl } from "@/lib/project/local-storage";
 import { parseProjectVideoUrl } from "@/lib/project/video";
-import type { Project, ProjectCoverMedia, ProjectViewModel } from "@/types";
+import type {
+  Project,
+  ProjectCoverMedia,
+  ProjectCoverMediaGroup,
+  ProjectViewModel,
+} from "@/types";
+
+function getCoverSourceGroups(coverFile: Project["coverFile"]): string[][] {
+  if (!coverFile) return [];
+  if (typeof coverFile === "string") return [[coverFile]];
+
+  return coverFile.map((entry) => (
+    typeof entry === "string" ? [entry] : [...entry]
+  ));
+}
+
+function toCoverMedia(coverSource: string): ProjectCoverMedia | null {
+  const coverVideo = parseProjectVideoUrl(coverSource);
+  if (coverVideo) {
+    return {
+      type: "video",
+      provider: coverVideo.provider,
+      sourceUrl: coverVideo.sourceUrl,
+      embedUrl: coverVideo.embedUrl,
+    };
+  }
+
+  const coverUrl = projectCoverUrl(`projects/${coverSource}`);
+  return coverUrl ? { type: "image", url: coverUrl } : null;
+}
 
 function toViewModel(project: Project): ProjectViewModel {
-  const coverSources = typeof project.coverFile === "string"
-    ? [project.coverFile]
-    : project.coverFile ?? [];
-
   return {
     id: project.id,
     title: project.title,
@@ -18,20 +43,12 @@ function toViewModel(project: Project): ProjectViewModel {
     projectDate: project.projectDate,
     projectUrl: project.projectUrl,
     githubUrl: project.githubUrl,
-    coverMedia: coverSources.flatMap<ProjectCoverMedia>((coverSource) => {
-      const coverVideo = parseProjectVideoUrl(coverSource);
-      if (coverVideo) {
-        return [{
-          type: "video" as const,
-          provider: coverVideo.provider,
-          sourceUrl: coverVideo.sourceUrl,
-          embedUrl: coverVideo.embedUrl,
-        }];
-      }
-
-      const coverUrl = projectCoverUrl(`projects/${coverSource}`);
-      return coverUrl ? [{ type: "image" as const, url: coverUrl }] : [];
-    }),
+    coverMedia: getCoverSourceGroups(project.coverFile)
+      .map<ProjectCoverMediaGroup>((group) => group.flatMap((coverSource) => {
+        const media = toCoverMedia(coverSource);
+        return media ? [media] : [];
+      }))
+      .filter((group) => group.length > 0),
   };
 }
 
