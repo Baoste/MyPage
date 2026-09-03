@@ -137,19 +137,20 @@
 }
 
 .hero {
+  --hero-bottom-space: clamp(3.5rem, 6vw, 6rem);
   border-bottom: 2px solid var(--public-line);
   display: grid;
   grid-template-columns: minmax(0, 4.2fr) minmax(13.5rem, 0.92fr);
   margin-inline: auto;
   max-width: 100rem;
-  min-height: clamp(34rem, 60vw, 45rem);
+  min-height: calc(clamp(34rem, 60vw, 45rem) + var(--hero-bottom-space));
 }
 
 .heroMain {
   display: grid;
   grid-template-rows: 1fr auto;
   min-width: 0;
-  padding: clamp(2.25rem, 5vw, 5rem) clamp(1.25rem, 4.8vw, 4.75rem) 0;
+  padding: clamp(2.25rem, 5vw, 5rem) clamp(1.25rem, 4.8vw, 4.75rem) var(--hero-bottom-space);
 }
 
 .heroKicker {
@@ -222,7 +223,6 @@
   align-self: end;
   aspect-ratio: 1;
   background: #ededed;
-  border: 5px solid var(--public-ink);
   border-radius: 50%;
   overflow: hidden;
   position: relative;
@@ -321,7 +321,6 @@
   --works-rule: #737373;
   margin-inline: auto;
   max-width: 100rem;
-  padding-top: clamp(3.5rem, 6vw, 6rem);
 }
 
 .worksHeader {
@@ -363,7 +362,6 @@
 
 .worksTitleText {
   display: block;
-  padding-right: clamp(3.5rem, 7vw, 7rem);
 }
 
 @keyframes works-title-marquee {
@@ -414,7 +412,7 @@
 }
 
 .projectContent {
-  align-self: center;
+  align-self: start;
   min-width: 0;
   padding: clamp(2rem, 4vw, 4.25rem);
 }
@@ -630,7 +628,7 @@
 
   .heroMain {
     display: block;
-    padding: 2rem 1.25rem 0;
+    padding: 2rem 1.25rem var(--hero-bottom-space);
   }
 
   .heroName {
