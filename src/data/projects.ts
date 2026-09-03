@@ -73,6 +73,6 @@ export const projects = defineProjects([
       "game-throwdowns.png"
     ],
     tags: ["独立游戏", "双人本地对战"],
-    projectDate: "2025-12 - 2026-01",
+    projectDate: "2025-04 - 2025-06",
   },
 ]);
