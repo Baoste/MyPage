@@ -484,6 +484,9 @@
   line-height: 1.55;
   margin-top: 1.15rem;
   max-width: 63rem;
+  text-align: justify;
+  text-align-last: left;
+  text-justify: inter-character;
 }
 
 .projectMeta {
