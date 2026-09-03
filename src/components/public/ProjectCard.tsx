@@ -36,7 +36,7 @@ export function ProjectCard({ project, index }: ProjectCardProps) {
             {formatProjectPeriod(project.projectDate)}
           </p>
         ) : null}
-        {project.projectUrl || project.githubUrl ? (
+        {project.projectUrl || project.githubUrl || project.paperUrl ? (
           <div className={styles.projectActions}>
             {project.projectUrl ? (
               <Link className={styles.projectAction} href={project.projectUrl} target="_blank" rel="noreferrer">
@@ -46,6 +46,11 @@ export function ProjectCard({ project, index }: ProjectCardProps) {
             {project.githubUrl ? (
               <Link className={`${styles.projectAction} ${styles.projectActionSecondary}`} href={project.githubUrl} target="_blank" rel="noreferrer">
                 查看源码 <span aria-hidden="true">↗</span>
+              </Link>
+            ) : null}
+            {project.paperUrl ? (
+              <Link className={`${styles.projectAction} ${styles.projectActionSecondary}`} href={project.paperUrl} target="_blank" rel="noreferrer">
+                查看论文 <span aria-hidden="true">↗</span>
               </Link>
             ) : null}
           </div>

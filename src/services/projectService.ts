@@ -43,6 +43,7 @@ function toViewModel(project: Project): ProjectViewModel {
     projectDate: project.projectDate,
     projectUrl: project.projectUrl,
     githubUrl: project.githubUrl,
+    paperUrl: project.paperUrl,
     coverMedia: getCoverSourceGroups(project.coverFile)
       .map<ProjectCoverMediaGroup>((group) => group.flatMap((coverSource) => {
         const media = toCoverMedia(coverSource);

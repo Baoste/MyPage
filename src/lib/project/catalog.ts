@@ -107,6 +107,7 @@ export function defineProjects(items: readonly Project[]): readonly Project[] {
     validateProjectPeriod(projectId, project.projectDate);
     validateUrl(projectId, "projectUrl", project.projectUrl);
     validateUrl(projectId, "githubUrl", project.githubUrl);
+    validateUrl(projectId, "paperUrl", project.paperUrl);
 
     const tags = project.tags ?? [];
     const normalizedTags = new Set<string>();

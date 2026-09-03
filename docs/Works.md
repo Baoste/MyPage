@@ -100,6 +100,7 @@ Copy-Item .\personal-knowledge-base.webp .data/public-assets/projects\
   projectDate: "2026-01 - 2026-09",
   projectUrl: "https://example.com",
   githubUrl: "https://github.com/your-name/project",
+  paperUrl: "https://example.com/paper.pdf",
 },
 ```
 
@@ -171,6 +172,7 @@ coverFile: [
 | `projectDate` | 否 | `YYYY-MM - YYYY-MM` 格式的起止月份，开始月份不能晚于结束月份。 |
 | `projectUrl` | 否 | 作品在线地址，必须以 `http://` 或 `https://` 开头。 |
 | `githubUrl` | 否 | 源代码地址，必须以 `http://` 或 `https://` 开头。 |
+| `paperUrl` | 否 | 论文或技术报告地址，必须以 `http://` 或 `https://` 开头；填写后首页显示“查看论文”入口。 |
 | `published` | 否 | 默认为公开；设置为 `false` 时不在首页显示。 |
 
 不要再填写数据库时代的字段，例如 `cover_path`、`sort_order`、`is_published`、`created_at` 或 `updated_at`。

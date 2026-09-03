@@ -13,6 +13,7 @@ export interface Project {
   projectDate?: string;
   projectUrl?: string;
   githubUrl?: string;
+  paperUrl?: string;
   published?: boolean;
 }
 
@@ -39,6 +40,7 @@ export interface ProjectViewModel {
   projectDate?: string;
   projectUrl?: string;
   githubUrl?: string;
+  paperUrl?: string;
   coverMedia: ProjectCoverMediaGroup[];
 }
 

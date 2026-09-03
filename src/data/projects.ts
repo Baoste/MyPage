@@ -14,6 +14,31 @@ import { defineProjects } from "@/lib/project/catalog";
  */
 export const projects = defineProjects([
   {
+    id: "emo-dialogue-dataset",
+    title: "EmotionDialogCN",
+    description:
+      "A large-scale audiovisual–emotional dataset for authentic face-to-face communication. It contains 21,880 dialogue sessions from 119 professional actors across 20 everyday scenarios, covering 18 emotion categories and over 400 hours of recordings. A minimally intrusive collection framework supports natural emotional expression, while the dataset achieves a low emotion distribution deviation of 0.64 and consistent subject framing. Experiments further demonstrate stable unimodal and multimodal performance with strong cross-modal complementarity.",
+    coverFile: [
+      "emo-dialogue-dataset-0.jpg"
+    ],
+    tags: ["多模态数据", "情感表达"],
+    projectDate: "2024-10 - 2025-12",
+    paperUrl: "https://arxiv.org/html/2608.20905v1",
+  },
+  {
+    id: "motion-capture-system",
+    title: "动捕数据采集系统",
+    description:
+      "围绕多模态动捕数据采集流程，对动作、表情与声音数据的采集、处理、对齐及验证环节进行工具化与自动化优化。独立开发 MotionBuilder 自动骨骼对齐插件，基于梯度下降算法将原本约 20 分钟的人工逐步对齐流程缩短至数秒，显著提升批量采集效率与结果一致性；同时开发 Unreal Engine 插件，打通 ARKit 表情数据处理、可视化与视频输出流程，用于实验参数快速调试和采集结果验证，提升整体 QA 效率与多模态数据生产流程的稳定性。",
+    coverFile: [
+      "motion-capture-system-0.png",
+      "motion-capture-system-1.png",
+      "motion-capture-system-2.png"
+    ],
+    tags: ["动作捕捉", "多模态数据", "工作流"],
+    projectDate: "2024-07 - 2025-01",
+  },
+  {
     id: "cuda-path-tracing",
     title: "CUDA Path Tracing",
     description:
@@ -51,28 +76,28 @@ export const projects = defineProjects([
     tags: ["现场试玩", "玩家反馈", "周边设计"],
     projectDate: "2026-06 - 2026-06",
   },
-  {
-    id: "sss-shallow-water",
-    title: "次表面散射与浅水模拟",
-    description:
-      "基于 Unity URP 与 HLSL 实现次表面材质与水体渲染系统；基于浅水波动方程和有限差分法实现可交互水面模拟，并使用 PCG 求解排水修正，结合屏幕空间折射、环境反射与菲涅尔混合完成水体渲染。通过基于深度的雾效与屏幕空间雨滴后处理构建动态天气效果。",
-    coverFile: [
-      ["sss-shallow-water-0.png", "sss-shallow-water-1.png"],
-      ["sss-shallow-water-2.png", "sss-shallow-water-3.png"]
-    ],
-    tags: ["图形学", "物理模拟"],
-    projectDate: "2025-12 - 2026-01",
-  },
-  {
-    id: "game-throwdowns",
-    title: "Throwdowns",
-    description:
-      "基于 Unity 开发双人本地对战游戏，围绕“投掷武器+ 元素反应”设计核心玩法，实现剑体碰撞、元素组合与战斗反馈等系统；作品获中国传媒大学校内游戏评选最高人气票数。",
-    coverFile: [
-      "https://www.bilibili.com/video/BV1HnTkzsEyq",
-      "game-throwdowns-0.png"
-    ],
-    tags: ["独立游戏", "双人本地对战"],
-    projectDate: "2025-04 - 2025-06",
-  },
+  // {
+  //   id: "sss-shallow-water",
+  //   title: "次表面散射与浅水模拟",
+  //   description:
+  //     "基于 Unity URP 与 HLSL 实现次表面材质与水体渲染系统；基于浅水波动方程和有限差分法实现可交互水面模拟，并使用 PCG 求解排水修正，结合屏幕空间折射、环境反射与菲涅尔混合完成水体渲染。通过基于深度的雾效与屏幕空间雨滴后处理构建动态天气效果。",
+  //   coverFile: [
+  //     ["sss-shallow-water-0.png", "sss-shallow-water-1.png"],
+  //     ["sss-shallow-water-2.png", "sss-shallow-water-3.png"]
+  //   ],
+  //   tags: ["图形学", "物理模拟"],
+  //   projectDate: "2025-12 - 2026-01",
+  // },
+  // {
+  //   id: "game-throwdowns",
+  //   title: "Throwdowns",
+  //   description:
+  //     "基于 Unity 开发双人本地对战游戏，围绕“投掷武器+ 元素反应”设计核心玩法，实现剑体碰撞、元素组合与战斗反馈等系统；作品获中国传媒大学校内游戏评选最高人气票数。",
+  //   coverFile: [
+  //     "https://www.bilibili.com/video/BV1HnTkzsEyq",
+  //     "game-throwdowns-0.png"
+  //   ],
+  //   tags: ["独立游戏", "双人本地对战"],
+  //   projectDate: "2025-04 - 2025-06",
+  // },
 ]);

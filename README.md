@@ -335,6 +335,7 @@ src/components/private/tree/
   projectDate: "2026-01 - 2026-08",
   projectUrl: "https://example.com",
   githubUrl: "https://github.com/example/repo",
+  paperUrl: "https://example.com/paper.pdf",
 },
 ```
 
