@@ -823,11 +823,16 @@
   }
 
   .heroIdentity {
-    --hero-name-size: clamp(4.2rem, 23vw, 7.3rem);
+    --hero-name-size: clamp(3.8rem, 20vw, 6.5rem);
     --hero-name-height: clamp(3.45rem, 18.9vw, 6rem);
-    align-items: center;
+    align-items: flex-start;
     gap: 1rem;
+    flex-direction: column;
     margin-block: 3.25rem 2.5rem;
+  }
+
+  .heroIdentity .portrait {
+    align-self: flex-start;
   }
 
   .heroRole {
