@@ -57,8 +57,8 @@ export const projects = defineProjects([
     description:
       "基于 Unity URP 与 HLSL 实现次表面材质与水体渲染系统；基于浅水波动方程和有限差分法实现可交互水面模拟，并使用 PCG 求解排水修正，结合屏幕空间折射、环境反射与菲涅尔混合完成水体渲染。通过基于深度的雾效与屏幕空间雨滴后处理构建动态天气效果。",
     coverFile: [
-      ["sss-shallow-water-0.jpg", "sss-shallow-water-1.png"],
-      ["sss-shallow-water-2.jpg", "sss-shallow-water-3.png"]
+      ["sss-shallow-water-0.png", "sss-shallow-water-1.png"],
+      ["sss-shallow-water-2.png", "sss-shallow-water-3.png"]
     ],
     tags: ["图形学", "物理模拟"],
     projectDate: "2025-12 - 2026-01",
@@ -70,7 +70,7 @@ export const projects = defineProjects([
       "基于 Unity 开发双人本地对战游戏，围绕“投掷武器+ 元素反应”设计核心玩法，实现剑体碰撞、元素组合与战斗反馈等系统；作品获中国传媒大学校内游戏评选最高人气票数。",
     coverFile: [
       "https://www.bilibili.com/video/BV1HnTkzsEyq",
-      "game-throwdowns.png"
+      "game-throwdowns-0.png"
     ],
     tags: ["独立游戏", "双人本地对战"],
     projectDate: "2025-04 - 2025-06",
