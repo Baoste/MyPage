@@ -19,10 +19,6 @@ export function ProjectCard({ project, index }: ProjectCardProps) {
 
   return (
     <article className={`${styles.projectCard} group`}>
-      <div className={styles.projectNumber} aria-hidden="true">
-        <span>{String(index + 1).padStart(2, "0")}</span>
-      </div>
-
       <div className={styles.projectMedia}>
         {videoCover ? (
           <ProjectCoverVideo title={project.title} video={videoCover} />
