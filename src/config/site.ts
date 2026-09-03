@@ -1,5 +1,6 @@
 export const siteConfig = {
   name: "Yifan Xu",
+  avatar: "/profile/avatar.jpg",
   title: "个人作品集",
   description:
     "Hi！我是徐一帆，一名热衷于创造的开发者，专注于 AI 和游戏开发。曾在快手视频模型组、电信 AI 研究院参与实习，积累了丰富的前端开发、交互体验和 AI 项目经验。我热衷于探索创新的技术和设计理念，致力于将创意转化为实际的产品和体验。",

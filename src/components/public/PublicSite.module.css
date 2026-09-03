@@ -207,16 +207,6 @@
   max-width: 35rem;
 }
 
-.skillList {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.55rem;
-  list-style: none;
-  margin: 1.25rem 0 0;
-  padding: 0;
-}
-
-.skillPill,
 .projectTag {
   border: 1.5px solid var(--public-blue);
   border-radius: 99rem;
@@ -230,9 +220,18 @@
 
 .portrait {
   align-self: end;
-  display: block;
-  height: auto;
+  aspect-ratio: 1;
+  background: #ededed;
+  border: 5px solid var(--public-ink);
+  border-radius: 50%;
+  overflow: hidden;
+  position: relative;
   width: 100%;
+}
+
+.portraitImage {
+  object-fit: cover;
+  object-position: center;
 }
 
 .toolRow {
@@ -253,19 +252,12 @@
   white-space: nowrap;
 }
 
-.toolMark {
-  align-items: center;
-  border: 2px solid var(--public-ink);
-  display: inline-flex;
-  font-size: 0.55rem;
-  height: 1.35rem;
-  justify-content: center;
-  transform: rotate(45deg);
-  width: 1.35rem;
-}
-
-.toolMark span {
-  transform: rotate(-45deg);
+.toolIcon {
+  display: block;
+  flex: 0 0 auto;
+  height: 1.75rem;
+  object-fit: contain;
+  width: 1.75rem;
 }
 
 .heroRail {
@@ -329,6 +321,7 @@
   --works-rule: #737373;
   margin-inline: auto;
   max-width: 100rem;
+  padding-top: clamp(3.5rem, 6vw, 6rem);
 }
 
 .worksHeader {
@@ -658,11 +651,6 @@
 
   .heroDescription {
     font-size: 0.9rem;
-  }
-
-  .skillPill {
-    font-size: 0.55rem;
-    padding-inline: 0.6rem;
   }
 
   .toolRow {

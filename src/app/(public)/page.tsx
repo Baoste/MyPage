@@ -1,11 +1,18 @@
-import { GeometricPortrait } from "@/components/public/GeometricPortrait";
+import Image from "next/image";
+import { ProfilePortrait } from "@/components/public/ProfilePortrait";
 import { ProjectGallery } from "@/components/public/ProjectGallery";
 import styles from "@/components/public/PublicSite.module.css";
 import { siteConfig } from "@/config/site";
 import { getPublishedProjects } from "@/services/projectService";
 
-const WORKS_TITLE = "Selected works · 精选作品";
+const WORKS_TITLE = "Selected works · 精选作品 · ";
 const WORKS_TITLE_REPEAT_COUNT = 6;
+const PRIMARY_TOOLS = [
+  { name: "C++", icon: "/icons/technologies/cpp.svg" },
+  { name: "Python", icon: "/icons/technologies/python.svg" },
+  { name: "Unity", icon: "/icons/technologies/unity.svg" },
+  { name: "AI", icon: "/icons/technologies/ai.svg" },
+] as const;
 
 export default function HomePage() {
   const projects = getPublishedProjects();
@@ -22,21 +29,26 @@ export default function HomePage() {
               <div>
                 <p className={styles.heroRole}>Creative developer</p>
                 <p className={styles.heroDescription}>{siteConfig.description}</p>
-                <ul className={styles.skillList} aria-label="工作方向">
-                  {['前端开发', '交互体验', 'AI', '游戏'].map((skill) => (
-                    <li key={skill} className={styles.skillPill}>{skill}</li>
-                  ))}
-                </ul>
               </div>
-              <GeometricPortrait />
+              <ProfilePortrait
+                src={siteConfig.avatar}
+                alt={`${siteConfig.name} 的头像`}
+              />
             </div>
           </div>
 
           <ul className={styles.toolRow} aria-label="主要技术">
-            {['C++', 'Python', 'Unity', 'AI'].map((tool, index) => (
-              <li key={tool} className={styles.toolItem}>
-                <span className={styles.toolMark} aria-hidden="true"><span>{index + 1}</span></span>
-                {tool}
+            {PRIMARY_TOOLS.map((tool) => (
+              <li key={tool.name} className={styles.toolItem}>
+                <Image
+                  className={styles.toolIcon}
+                  src={tool.icon}
+                  alt=""
+                  width={28}
+                  height={28}
+                  aria-hidden="true"
+                />
+                {tool.name}
               </li>
             ))}
           </ul>
