@@ -33,8 +33,8 @@ export const projects = defineProjects([
     description:
       "一个独立开发的卡牌游戏，探索了创新的游戏机制和策略深度。",
     coverFile: [
-      "https://www.bilibili.com/video/BV1PEj161Exm", 
-      ["bust-0.png", "bust-1.png"],
+      ["https://www.bilibili.com/video/BV1PEj161Exm", "bust-0.png"],
+      ["bust-1.png", "bust-2.png", "bust-3.png"],
     ],
     tags: ["独立游戏", "卡牌游戏"],
     projectDate: "2026-02 - 2026-06",
@@ -45,7 +45,8 @@ export const projects = defineProjects([
     description:
       "我们的游戏在展会上获得了积极的反馈，玩家们对游戏机制和艺术风格表示了高度赞赏。",
     coverFile: [
-      ["gallery-bust-0.jpg", "gallery-bust-1.jpg"]
+      ["gallery-bust-0.jpg", "gallery-bust-1.jpg"],
+      ["gallery-bust-2.png", "gallery-bust-3.png", "gallery-bust-4.png"]
     ],
     tags: ["展会", "玩家反馈"],
     projectDate: "2026-06 - 2026-08",
