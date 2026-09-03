@@ -338,7 +338,7 @@
   display: flex;
   justify-content: space-between;
   min-height: 4.35rem;
-  padding-inline: clamp(1.25rem, 3vw, 3rem);
+  overflow: hidden;
 }
 
 .worksTitle {
@@ -347,7 +347,36 @@
   font-stretch: condensed;
   font-weight: 900;
   letter-spacing: -0.035em;
+  min-width: 0;
+  overflow: hidden;
   text-transform: uppercase;
+  white-space: nowrap;
+  width: 100%;
+}
+
+.worksTitleTrack {
+  animation: works-title-marquee 30s linear infinite;
+  display: flex;
+  min-width: max-content;
+  will-change: transform;
+}
+
+.worksTitleGroup {
+  align-items: center;
+  display: flex;
+  flex-shrink: 0;
+  min-height: 4.35rem;
+}
+
+.worksTitleText {
+  display: block;
+  padding-right: clamp(3.5rem, 7vw, 7rem);
+}
+
+@keyframes works-title-marquee {
+  to {
+    transform: translate3d(-50%, 0, 0);
+  }
 }
 
 .worksCount {
@@ -673,6 +702,10 @@
     min-height: 3.8rem;
   }
 
+  .worksTitleGroup {
+    min-height: 3.8rem;
+  }
+
   .worksCount {
     font-size: 0.6rem;
   }
@@ -763,5 +796,19 @@
   .footerAction span,
   .projectCard .projectMedia > * {
     transition: none;
+  }
+
+  .worksTitle {
+    padding-inline: clamp(1.25rem, 3vw, 3rem);
+  }
+
+  .worksTitleTrack {
+    animation: none;
+    transform: none;
+  }
+
+  .worksTitleGroup:nth-child(2),
+  .worksTitleText:not(:first-child) {
+    display: none;
   }
 }

@@ -4,6 +4,9 @@ import styles from "@/components/public/PublicSite.module.css";
 import { siteConfig } from "@/config/site";
 import { getPublishedProjects } from "@/services/projectService";
 
+const WORKS_TITLE = "Selected works · 精选作品";
+const WORKS_TITLE_REPEAT_COUNT = 6;
+
 export default function HomePage() {
   const projects = getPublishedProjects();
 
@@ -60,7 +63,23 @@ export default function HomePage() {
 
       <section id="works" aria-labelledby="works-heading" className={styles.works}>
         <header className={styles.worksHeader}>
-          <h2 id="works-heading" className={styles.worksTitle}>Selected works · 精选作品</h2>
+          <h2
+            id="works-heading"
+            className={styles.worksTitle}
+            aria-label={WORKS_TITLE}
+          >
+            <span className={styles.worksTitleTrack} aria-hidden="true">
+              {[0, 1].map((groupIndex) => (
+                <span key={groupIndex} className={styles.worksTitleGroup}>
+                  {Array.from({ length: WORKS_TITLE_REPEAT_COUNT }, (_, itemIndex) => (
+                    <span key={itemIndex} className={styles.worksTitleText}>
+                      {WORKS_TITLE}
+                    </span>
+                  ))}
+                </span>
+              ))}
+            </span>
+          </h2>
           {/* <Link href="/articles" className={styles.worksCount}>
             {String(projects.length).padStart(2, '0')} Projects&nbsp; ↗
           </Link> */}

@@ -330,7 +330,7 @@ src/components/private/tree/
 },
 ```
 
-多媒体作品将 `coverFile` 改为数组即可；图片和视频会按照数组顺序同时铺成画廊，单项仍可直接使用字符串：
+多媒体作品将 `coverFile` 改为数组即可；图片和视频会按照数组顺序同时铺成全宽纵向画廊。图片保持原始长宽比，所有媒体左右边缘对齐；单项仍可直接使用字符串：
 
 ```ts
 coverFile: ["project-name-01.webp", "project-name-02.webp", "project-name-03.webp"],

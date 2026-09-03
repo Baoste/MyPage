@@ -17,7 +17,12 @@ export const projects = defineProjects([
     title: "CUDA Path Tracing",
     description:
       "一个自制的光线追踪渲染器，使用 CUDA 进行 GPU 加速，支持多种材质和光照模型。",
-    coverFile: ["cuda-path-tracing-0.jpg", "cuda-path-tracing-1.png", "cuda-path-tracing-2.png", "cuda-path-tracing-3.jpg"],
+    coverFile: [
+      "cuda-path-tracing-0.jpg",
+      "cuda-path-tracing-1.png",
+      "cuda-path-tracing-2.png",
+      "cuda-path-tracing-3.jpg"
+    ],
     tags: ["图形学", "光线追踪"],
     projectDate: "2025-06 - 2025-09",
     githubUrl: "https://github.com/Baoste/CudaPathTracing",
@@ -27,7 +32,10 @@ export const projects = defineProjects([
     title: "Bust",
     description:
       "一个独立开发的卡牌游戏，探索了创新的游戏机制和策略深度。",
-    coverFile: ["https://www.bilibili.com/video/BV1PEj161Exm", "bust-0.png"],
+    coverFile: [
+      "https://www.bilibili.com/video/BV1PEj161Exm",
+      "bust-0.png"
+    ],
     tags: ["独立游戏", "卡牌游戏"],
     projectDate: "2026-02 - 2026-06",
   },
@@ -36,7 +44,10 @@ export const projects = defineProjects([
     title: "参展反馈",
     description:
       "我们的游戏在展会上获得了积极的反馈，玩家们对游戏机制和艺术风格表示了高度赞赏。",
-    coverFile: ["gallery-bust-0.jpg", "gallery-bust-1.jpg"],
+    coverFile: [
+      "gallery-bust-0.jpg",
+      "gallery-bust-1.jpg"
+    ],
     tags: ["展会", "玩家反馈"],
     projectDate: "2026-06 - 2026-08",
   },

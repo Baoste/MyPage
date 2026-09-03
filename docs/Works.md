@@ -25,8 +25,8 @@ PROJECT_COVER_STORAGE_ROOT/projects/*.webp
 相关文件的职责：
 
 - `src/data/projects.ts`：唯一的作品信息来源；数组顺序就是首页顺序。
-- `src/lib/project/catalog.ts`：在开发和构建时检查 ID、日期、链接、标签和封面文件名。
-- `src/services/projectService.ts`：过滤未发布作品，并将封面文件名转换为本地图片接口地址。
+- `src/lib/project/catalog.ts`：在开发和构建时检查 ID、日期、链接、标签和图片／视频媒体项。
+- `src/services/projectService.ts`：过滤未发布作品，并将有序媒体项转换为本地图片或 B 站播放器数据。
 - `src/lib/project/local-storage.ts`：限制允许访问的目录、扩展名和文件大小。
 - `src/app/api/projects/covers/[...path]/route.ts`：从服务器磁盘读取并返回封面。
 
@@ -36,7 +36,7 @@ Supabase 即使不可用，首页 Works 也能正常显示。Private 私密区�
 
 ### 第一步：准备封面
 
-支持 `.jpg`、`.jpeg`、`.png` 和 `.webp`，单张不超过 10 MB。建议使用比例一致的 16:9 WebP 图片，并采用容易识别的英文文件名，例如：
+支持 `.jpg`、`.jpeg`、`.png` 和 `.webp`，单张不超过 10 MB。图片不需要裁成统一比例，页面会按原始长宽比展示；建议优先使用体积较小的 WebP，并采用容易识别的英文文件名，例如：
 
 ```text
 personal-knowledge-base.webp
@@ -115,7 +115,7 @@ coverFile: [
 ],
 ```
 
-数组中的图片会按照填写顺序同时显示为画廊，不再使用左右滑动或圆点导航。桌面端通常每行两项，项目总数为奇数时第一项会跨两列成为主视觉；移动端改为单列连续展示。只有一项时仍然显示为单幅封面。
+数组中的图片会按照填写顺序同时显示为纵向画廊，不再使用左右滑动或圆点导航。每一项使用相同的总宽度并保持左右边缘对齐；图片加载后按自身原始长宽比完整展示，不再强制裁成 16:9，因此画廊总高度会随图片比例与数量变化。只有一项时仍然显示为单幅封面。
 
 如果作品更适合用视频展示，`coverFile` 也可以直接填写完整的 B 站视频地址：
 

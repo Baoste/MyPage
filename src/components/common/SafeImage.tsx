@@ -11,6 +11,7 @@ interface SafeImageProps {
   priority?: boolean;
   className?: string;
   fallbackIndex?: number;
+  preserveAspectRatio?: boolean;
 }
 
 const ratios = {
@@ -28,8 +29,10 @@ export function SafeImage({
   priority = false,
   className = "",
   fallbackIndex = 0,
+  preserveAspectRatio = false,
 }: SafeImageProps) {
   const [hasError, setHasError] = useState(false);
+  const [naturalAspectRatio, setNaturalAspectRatio] = useState<string>();
   const frameClass = `relative overflow-hidden bg-[#ddd7ca] ${ratios[ratio]} ${className}`;
 
   if (!src || hasError) {
@@ -43,14 +46,26 @@ export function SafeImage({
   }
 
   return (
-    <div className={frameClass}>
+    <div
+      className={frameClass}
+      style={naturalAspectRatio ? { aspectRatio: naturalAspectRatio } : undefined}
+    >
       <Image
         src={src}
         alt={alt}
         fill
         sizes={sizes}
         priority={priority}
-        className="object-cover transition-transform duration-500 group-hover:scale-[1.025]"
+        className={preserveAspectRatio
+          ? "object-contain"
+          : "object-cover transition-transform duration-500 group-hover:scale-[1.025]"}
+        onLoad={(event) => {
+          if (!preserveAspectRatio) return;
+          const { naturalWidth, naturalHeight } = event.currentTarget;
+          if (naturalWidth > 0 && naturalHeight > 0) {
+            setNaturalAspectRatio(`${naturalWidth} / ${naturalHeight}`);
+          }
+        }}
         onError={() => setHasError(true)}
       />
     </div>
