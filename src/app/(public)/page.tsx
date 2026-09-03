@@ -3,6 +3,7 @@ import { ProfilePortrait } from "@/components/public/ProfilePortrait";
 import { ProjectGallery } from "@/components/public/ProjectGallery";
 import styles from "@/components/public/PublicSite.module.css";
 import { siteConfig } from "@/config/site";
+import { parseHighlightMarkers } from "@/lib/highlight-markers";
 import { getPublishedProjects } from "@/services/projectService";
 
 const WORKS_TITLE = "Selected works · 精选作品 ·\u00A0";
@@ -14,25 +15,15 @@ const PRIMARY_TOOLS = [
   { name: "Unreal Engine", icon: "/icons/technologies/unreal-engine.svg" },
 ] as const;
 
-function escapeRegExp(value: string) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-function renderHighlightedDescription(description: string, highlights: readonly string[]) {
-  const uniqueHighlights = [...new Set(highlights.filter(Boolean))]
-    .sort((left, right) => right.length - left.length);
-
-  if (uniqueHighlights.length === 0) {
-    return description;
-  }
-
-  const highlightSet = new Set(uniqueHighlights);
-  const pattern = new RegExp(`(${uniqueHighlights.map(escapeRegExp).join("|")})`, "g");
-
-  return description.split(pattern).map((part, index) => (
-    highlightSet.has(part)
-      ? <mark key={`${part}-${index}`} className={styles.heroDescriptionHighlight}>{part}</mark>
-      : part
+function renderHighlightedDescription(description: string) {
+  return parseHighlightMarkers(description).map((segment, index) => (
+    segment.highlighted
+      ? (
+          <mark key={index} className={styles.heroDescriptionHighlight}>
+            {segment.text}
+          </mark>
+        )
+      : segment.text
   ));
 }
 
@@ -58,10 +49,7 @@ export default function HomePage() {
               <div>
                 <p className={styles.heroRole} aria-hidden="true">&nbsp;</p>
                 <p className={styles.heroDescription}>
-                  {renderHighlightedDescription(
-                    siteConfig.description,
-                    siteConfig.descriptionHighlights,
-                  )}
+                  {renderHighlightedDescription(siteConfig.description)}
                 </p>
               </div>
             </div>

@@ -3,10 +3,7 @@ export const siteConfig = {
   avatar: "/profile/avatar.jpg",
   title: "个人作品集",
   description:
-    "Hi！我是徐一帆，一名热衷于创造的开发者，专注于 AI 和游戏开发。曾在快手视频模型组、电信 AI 研究院参与实习，积累了丰富的前端开发、交互体验和 AI 项目经验。我热衷于探索创新的技术和设计理念，致力于将创意转化为实际的产品和体验。",
-  descriptionHighlights: [
-    "AI 和游戏开发",
-  ],
+    "Hi！我是徐一帆，一名热爱创造的开发者，专注于 @@AI 与游戏开发@@。我曾在快手视频模型组和电信 AI 研究院实习，参与多个 AI 相关项目，积累了扎实的技术实践经验。大学期间，我也主持开发了多款游戏，在游戏设计与制作方面进行了深入探索。我始终对创新技术与设计理念保持热情，喜欢将技术、创意与实际需求结合起来，并致力于把有趣的想法转化为真正可落地的产品与体验。",
   email: "594096787@qq.com",
   github: "https://github.com/Baoste",
   url: process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000",

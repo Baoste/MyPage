@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import type { ReactNode } from "react";
 import { siteConfig } from "@/config/site";
+import { stripHighlightMarkers } from "@/lib/highlight-markers";
 import "./globals.css";
 
 const morganite = localFont({
@@ -12,19 +13,21 @@ const morganite = localFont({
   display: "swap",
 });
 
+const siteDescription = stripHighlightMarkers(siteConfig.description);
+
 export const metadata: Metadata = {
   metadataBase: new URL(siteConfig.url),
   title: {
     default: `${siteConfig.name} — ${siteConfig.title}`,
     template: `%s — ${siteConfig.name}`,
   },
-  description: siteConfig.description,
+  description: siteDescription,
   openGraph: {
     type: "website",
     locale: siteConfig.locale,
     siteName: siteConfig.name,
     title: `${siteConfig.name} — ${siteConfig.title}`,
-    description: siteConfig.description,
+    description: siteDescription,
     url: siteConfig.url,
   },
 };
