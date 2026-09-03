@@ -171,16 +171,19 @@
 }
 
 .heroIdentity {
+  --hero-name-size: clamp(5rem, 10.5vw, 11rem);
+  --hero-name-height: clamp(4.1rem, 8.6vw, 9rem);
   align-items: center;
-  display: grid;
-  gap: clamp(1.75rem, 4vw, 4.5rem);
-  grid-template-columns: minmax(0, 1fr) minmax(10rem, 16rem);
+  display: flex;
+  gap: clamp(1.25rem, 2.5vw, 3rem);
+  justify-content: flex-start;
   margin: clamp(3.5rem, 7vw, 6.5rem) 0 clamp(2.5rem, 4vw, 4rem);
 }
 
 .heroName {
+  flex: 0 1 auto;
   font-family: Impact, "Arial Narrow", "Roboto Condensed", sans-serif;
-  font-size: clamp(5rem, 10.5vw, 11rem);
+  font-size: var(--hero-name-size);
   font-stretch: condensed;
   font-weight: 900;
   letter-spacing: -0.075em;
@@ -189,6 +192,7 @@
   max-width: 100%;
   overflow-wrap: anywhere;
   text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .heroIntro {
@@ -237,6 +241,13 @@
 .portraitImage {
   object-fit: cover;
   object-position: center;
+}
+
+.heroIdentity .portrait {
+  align-self: center;
+  flex: 0 0 var(--hero-name-height);
+  height: var(--hero-name-height);
+  width: var(--hero-name-height);
 }
 
 .toolRow {
@@ -637,14 +648,14 @@
   }
 
   .heroName {
-    font-size: clamp(4.2rem, 18vw, 7.3rem);
     line-height: 0.78;
   }
 
   .heroIdentity {
+    --hero-name-size: clamp(4.2rem, 18vw, 7.3rem);
+    --hero-name-height: clamp(3.45rem, 14.75vw, 6rem);
     align-items: center;
     gap: 1rem;
-    grid-template-columns: minmax(0, 1fr) minmax(7.25rem, 9rem);
     margin-block: 3.25rem 2.5rem;
   }
 
@@ -750,15 +761,6 @@
 }
 
 @media (max-width: 430px) {
-  .heroIdentity {
-    grid-template-columns: minmax(0, 1fr) minmax(6.5rem, 8rem);
-  }
-
-  .portrait {
-    margin: 0;
-    max-width: none;
-  }
-
   .railStatement {
     gap: 0.8rem;
   }
