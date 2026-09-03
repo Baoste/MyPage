@@ -8,7 +8,7 @@ export function ArticleList({ articles }: { articles: Article[] }) {
     return (
       <EmptyState
         title="No articles yet."
-        message="New writing can be added as a Markdown file."
+        message="数据库中还没有已发布的文章。点击右下角的加号开始写作。"
       />
     );
   }

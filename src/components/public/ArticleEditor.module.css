@@ -1,0 +1,247 @@
+.composer {
+  display: grid;
+  gap: 2rem;
+}
+
+.metadataPanel,
+.publishPanel,
+.workspace {
+  border: 2px solid var(--public-line);
+}
+
+.metadataPanel {
+  background: var(--public-paper);
+  display: grid;
+  gap: 1.25rem;
+  grid-template-columns: minmax(0, 1fr) minmax(14rem, 0.7fr);
+  padding: clamp(1.25rem, 3vw, 2.25rem);
+}
+
+.field {
+  display: grid;
+  gap: 0.55rem;
+  min-width: 0;
+}
+
+.wideField {
+  grid-column: 1 / -1;
+}
+
+.label {
+  font-size: 0.7rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.input,
+.summary,
+.passwordInput {
+  background: #fff;
+  border: 1.5px solid #797979;
+  border-radius: 0;
+  color: var(--public-ink);
+  font: inherit;
+  width: 100%;
+}
+
+.input,
+.passwordInput {
+  min-height: 3rem;
+  padding-inline: 0.85rem;
+}
+
+.summary {
+  line-height: 1.55;
+  min-height: 6.5rem;
+  padding: 0.75rem 0.85rem;
+  resize: vertical;
+}
+
+.input:focus-visible,
+.summary:focus-visible,
+.passwordInput:focus-visible,
+.markdownInput:focus-visible,
+.toolButton:focus-visible,
+.publishButton:focus-visible {
+  outline: 3px solid var(--public-blue);
+  outline-offset: 2px;
+}
+
+.hint {
+  color: #62635c;
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
+.workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  min-height: 42rem;
+}
+
+.writePane,
+.previewPane {
+  min-width: 0;
+}
+
+.previewPane {
+  border-left: 2px solid var(--public-line);
+}
+
+.paneHeading {
+  align-items: center;
+  background: var(--public-yellow);
+  border-bottom: 2px solid var(--public-line);
+  display: flex;
+  font-size: 0.75rem;
+  font-weight: 900;
+  justify-content: space-between;
+  letter-spacing: 0.07em;
+  min-height: 3.25rem;
+  padding-inline: 1rem;
+  text-transform: uppercase;
+}
+
+.previewPane .paneHeading {
+  background: var(--public-blue);
+  color: #fff;
+}
+
+.toolbar {
+  align-items: center;
+  background: #efefef;
+  border-bottom: 1px solid #9b9b9b;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  padding: 0.65rem;
+}
+
+.toolButton {
+  background: #fff;
+  border: 1px solid #777;
+  color: var(--public-ink);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.7rem;
+  font-weight: 800;
+  min-height: 2rem;
+  min-width: 2rem;
+  padding-inline: 0.55rem;
+}
+
+.toolButton:hover {
+  background: var(--public-yellow);
+}
+
+.markdownInput {
+  background: #fff;
+  border: 0;
+  border-radius: 0;
+  color: var(--public-ink);
+  display: block;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 0.88rem;
+  line-height: 1.65;
+  min-height: 36rem;
+  padding: 1.25rem;
+  resize: vertical;
+  width: 100%;
+}
+
+.previewBody {
+  overflow-wrap: anywhere;
+  padding: clamp(1.25rem, 3vw, 2.25rem);
+}
+
+.emptyPreview {
+  color: #77766e;
+  font-size: 0.88rem;
+  line-height: 1.6;
+  padding: 2rem;
+}
+
+.publishPanel {
+  align-items: end;
+  background: var(--public-yellow);
+  display: grid;
+  gap: 1.25rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: clamp(1.25rem, 3vw, 2.25rem);
+}
+
+.passwordField {
+  max-width: 30rem;
+}
+
+.passwordInput {
+  border-color: var(--public-ink);
+}
+
+.publishButton {
+  align-items: center;
+  background: var(--public-ink);
+  border: 2px solid var(--public-ink);
+  color: #fff;
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 900;
+  gap: 0.7rem;
+  justify-content: center;
+  min-height: 3rem;
+  padding-inline: 1.35rem;
+  text-transform: uppercase;
+}
+
+.publishButton:disabled {
+  cursor: wait;
+  opacity: 0.62;
+}
+
+.message {
+  font-size: 0.82rem;
+  font-weight: 700;
+  grid-column: 1 / -1;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.errorMessage {
+  color: #a31612;
+}
+
+@media (max-width: 850px) {
+  .workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .previewPane {
+    border-left: 0;
+    border-top: 2px solid var(--public-line);
+  }
+}
+
+@media (max-width: 640px) {
+  .metadataPanel,
+  .publishPanel {
+    grid-template-columns: 1fr;
+  }
+
+  .wideField {
+    grid-column: auto;
+  }
+
+  .publishButton {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toolButton,
+  .publishButton {
+    transition: none;
+  }
+}

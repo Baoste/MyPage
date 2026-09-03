@@ -1,6 +1,8 @@
 import type { MetadataRoute } from "next";
 import { siteConfig } from "@/config/site";
-import { getAllArticles } from "@/lib/articles";
+import { getAllArticles } from "@/services/articleService";
+
+export const dynamic = "force-dynamic";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const articles = await getAllArticles();

@@ -1,21 +1,18 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { connection } from "next/server";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { getAllArticles, getArticleBySlug } from "@/lib/articles";
 import { formatDate } from "@/lib/format";
+import { getArticleBySlug } from "@/services/articleService";
 
 interface ArticlePageProps {
   params: Promise<{ slug: string }>;
 }
 
-export async function generateStaticParams() {
-  const articles = await getAllArticles();
-  return articles.map(({ slug }) => ({ slug }));
-}
-
 export async function generateMetadata({ params }: ArticlePageProps): Promise<Metadata> {
+  await connection();
   const { slug } = await params;
   const article = await getArticleBySlug(slug);
   if (!article) return { title: "Article not found" };
@@ -34,6 +31,7 @@ export async function generateMetadata({ params }: ArticlePageProps): Promise<Me
 }
 
 export default async function ArticlePage({ params }: ArticlePageProps) {
+  await connection();
   const { slug } = await params;
   const article = await getArticleBySlug(slug);
   if (!article) notFound();

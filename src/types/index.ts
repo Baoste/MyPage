@@ -57,6 +57,27 @@ export interface ArticleDocument extends Article {
   content: string;
 }
 
+export interface ArticleRow {
+  id: string;
+  slug: string;
+  title: string;
+  summary: string;
+  content: string;
+  tags: string[] | null;
+  is_published: boolean;
+  published_at: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ArticleCreateInput {
+  slug: string;
+  title: string;
+  summary: string;
+  content: string;
+  tags: string[];
+}
+
 export interface PrivateAccountSummary {
   id: string;
   username: string;

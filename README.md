@@ -1,17 +1,17 @@
 # Personal Portfolio
 
-一个基于 Next.js App Router 的长期维护型个人网站骨架。公开区域用于作品、文章和简历；`/yfxl99` 是仅限受邀账号访问的私密照片与美食记录。Works 使用本地 TypeScript 目录和服务器持久磁盘封面；Private 区域的数据库、本地媒体目录、Supabase Storage 兼容层、RLS、账号密码和签名 Session 均已接入实际代码路径。
+一个基于 Next.js App Router 的长期维护型个人网站骨架。公开区域用于作品、文章和简历；`/yfxl99` 是仅限受邀账号访问的私密照片与美食记录。Works 使用本地 TypeScript 目录和服务器持久磁盘封面；Articles 使用 Supabase PostgreSQL 和密码保护的 Markdown 发布页；Private 区域的数据库、本地媒体目录、Supabase Storage 兼容层、RLS、账号密码和签名 Session 均已接入实际代码路径。
 
 ## 已实现内容
 
 | 区域 | 实现 |
 | --- | --- |
-| Public | 首页 Hero、3/2/1 列作品 Gallery、文章列表、Markdown 文章详情、Resume、可移除的 Tools 故事编辑器、响应式导航 |
+| Public | 首页 Hero、作品 Gallery、数据库文章列表、Markdown 编辑/预览/发布与文章详情、Resume、可移除的 Tools 故事编辑器、响应式导航 |
 | Private | `/yfxl99` 登录、照片活跃度驱动的 WebGL2 程序化像素树 Welcome、支持上传/翻面/长按原位展开/统计/修改删除/账号评论的 Photos、支持多图和账号评论的 Food 画廊、独立导航、Logout、Loading/Empty/Error 状态 |
 | Authentication | 账号 + bcrypt 密码、一次性邀请码注册、HS256 签名 Session、统一 Proxy/Auth Guard、HttpOnly Cookie、7 天过期、同源校验、简单登录限流 |
-| Data | Works 使用类型安全的本地 TypeScript 目录；账号/邀请、Photo/Food 记录与评论继续使用 Supabase Service Layer |
+| Data | Works 使用类型安全的本地 TypeScript 目录；Articles、账号/邀请、Photo/Food 记录与评论使用 Supabase Service Layer |
 | Storage | Project 封面及新 Photo/Food 图片写入各自持久磁盘目录；Project 经公开接口读取，Photo/Food 经鉴权接口读取；旧媒体继续兼容 Supabase Storage |
-| Database | Private 数据使用完整 migration、索引、约束、updated_at trigger、RLS 与 Storage policies；Works 不依赖数据库 |
+| Database | Articles 与 Private 数据使用 migration、索引、约束、updated_at trigger 和 RLS；Works 不依赖数据库 |
 | Quality | TypeScript strict、Server/Client 边界、响应式、键盘焦点、语义 HTML、SEO、robots、sitemap、安全 Header |
 
 没有实现通用 Admin Dashboard 或 Supabase Auth；受邀用户在 `/yfxl99` 注册，Photos 和 Food 页面各自包含私密上传流程，新上传记录会展示上传账号。
@@ -22,24 +22,24 @@
 - React 19 + TypeScript
 - Tailwind CSS 4
 - 原生 WebGL2（程序化像素树）+ Canvas 2D 静态降级
-- Supabase PostgreSQL + Storage（Private 数据与旧媒体兼容）
+- Supabase PostgreSQL + Storage（Articles、Private 数据与旧媒体兼容）
 - 服务器本地持久磁盘（Project 封面及新 Photo/Food 图片）
 - `@supabase/supabase-js`
 - `bcryptjs`（密码哈希）
 - `jose`（签名 Session）
-- `gray-matter` + `react-markdown`（文章）
+- `react-markdown` + `remark-gfm`（文章编辑预览与详情渲染）
 
 要求 Node.js 22 或更高版本。
 
 ## 目录结构
 
 ```text
-content/articles/                 Markdown 文章
 public/resume/                    Resume PDF
 scripts/                          安全邀请码生成脚本
 src/
 ├── app/
 │   ├── (public)/                 公开页面与 Layout
+│   ├── api/articles/             密码保护的文章发布 API
 │   ├── api/private/              Register / Login / Logout 与私密媒体 API
 │   ├── yfxl99/                   私密入口与受保护路由组
 │   ├── robots.ts                 robots.txt
@@ -57,11 +57,11 @@ src/
 │   ├── project/                  Works 目录校验、封面本地存储
 │   ├── tree/                     照片活跃度纯函数
 │   └── supabase/                 Private Server Client 与旧 Storage 兼容
-├── services/                     Works 映射 / Photo / Food 数据访问与私密草稿发布
+├── services/                     Articles / Works / Photo / Food 数据访问与发布
 ├── types/                        Entity、数据库 Row、ViewModel 类型
 └── proxy.ts                      私密页面 307 / 私密 API 401 入口保护
 supabase/
-├── migrations/                   Private Schema、Bucket、RLS、Policy（含旧 Project 兼容表）
+├── migrations/                   Articles、Private Schema、Bucket、RLS、Policy（含旧 Project 兼容表）
 └── seed.sql                      说明文件；Works 不需要数据库 seed
 ```
 
@@ -89,7 +89,7 @@ npm run build
 npm start
 ```
 
-没有配置 Supabase 时，首页 Works、文章和 Resume 仍能正常工作；账号注册、登录和私密 Gallery 不可用。私密空间需要 Supabase 数据库、service-role key 与 Session Secret。
+没有配置 Supabase 时，首页 Works 和 Resume 仍能正常工作；Articles 列表显示为空且无法发布，账号注册、登录和私密 Gallery 也不可用。Articles 和私密空间都需要 Supabase URL 与 service-role key。
 
 ## 环境变量
 
@@ -99,8 +99,9 @@ npm start
 | --- | --- | --- |
 | `NEXT_PUBLIC_SITE_URL` | 站点绝对 URL，用于 metadata/sitemap | Public |
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase Project URL | Public |
-| `SUPABASE_SERVICE_ROLE_KEY` | 私密 DB、Photo/旧 Food Storage 与 Signed URL | Server only |
+| `SUPABASE_SERVICE_ROLE_KEY` | Articles、私密 DB、Photo/旧 Food Storage 与 Signed URL | Server only |
 | `SESSION_SECRET` | Session 签名密钥，至少 32 字符 | Server only |
+| `ARTICLE_PUBLISH_PASSWORD` | `/articles/new` 发布文章时校验的固定密码 | Server only |
 | `PRIVATE_MEDIA_SIGNED_URL_TTL_SECONDS` | Photo/旧 Food 私密 URL 有效期，默认 `300` | Server only |
 | `PROJECT_COVER_STORAGE_ROOT` | Project 封面的持久化根目录；默认 `.data/public-assets` | Server only |
 | `FOOD_STORAGE_ROOT` | 新 Food 图片的持久化根目录；默认 `.data/private-media` | Server only |
@@ -156,6 +157,9 @@ npx supabase db push
 4. `supabase/migrations/202609010001_private_accounts_and_ownership.sql`
 5. `supabase/migrations/202609010002_food_comments.sql`
 6. `supabase/migrations/202609010003_photo_comments.sql`
+7. `supabase/migrations/202609010004_food_pagination_index.sql`
+8. `supabase/migrations/202609010005_photo_pagination_index.sql`
+9. `supabase/migrations/202609030001_articles.sql`
 
 第一份 Migration 创建：
 
@@ -199,6 +203,8 @@ npx supabase db push
 - 评论作者同样来自服务器 Session，并保留发布时的用户名快照；
 - Food 与 Photo 共用前端评论组件，但表、外键和接口彼此独立。
 
+第七、八份 Migration 为 Food 与 Photo 的稳定游标分页补充复合索引。第九份 Migration 创建 `articles` 表、Markdown 正文、公开文章排序索引、字段约束和 `updated_at` trigger；浏览器角色不能直接访问该表，文章读取和发布统一经过 Next.js service-role 服务层。
+
 代码部署早于第二/第三份 Migration 时，Food/Photos 页面都会安全回退到旧字段继续浏览，并显示 Migration 提示、禁用写操作。账号版代码部署前必须先执行第四份 Migration 并创建至少一个邀请码，否则原共享密码将停止工作，注册/登录会返回服务不可用。评论版代码部署前应执行第五、六份 Migration；缺失时画廊仍可浏览，但对应评论接口会明确提示应执行的文件。执行账号 Migration 后再部署代码，旧的共享密码 Session 会自然失效。
 
 `supabase/seed.sql` 不再写入作品。Works 的唯一数据源是 `src/data/projects.ts`，不需要在 SQL Editor 中添加或更新 Project。
@@ -220,7 +226,7 @@ Project 图片封面位于 `PROJECT_COVER_STORAGE_ROOT/projects/{filename}.{ext}
 
 - 第一份历史 Migration 仍保留 `projects` 的只读 RLS policy，但首页不会发起该查询；
 - Works 不通过 anon/authenticated 角色读写数据库；
-- `private_users`、`private_invites`、`photo_entries`、`food_entries`、`food_images`、`food_comments` 与 `photo_comments` 没有 anon/authenticated policy，因此不能匿名 CRUD；
+- `articles`、`private_users`、`private_invites`、`photo_entries`、`food_entries`、`food_images`、`food_comments` 与 `photo_comments` 没有 anon/authenticated policy，因此不能由浏览器直接 CRUD；
 - `public-assets` 允许匿名读取；
 - `private-diary` 没有公开读取 policy；
 - 私密数据仅由 Next.js server 的 service-role client 在 Session 验证后访问。
@@ -358,22 +364,9 @@ coverFile: [
 
 ### 添加 Article
 
-在 `content/articles/` 新建安全的 kebab-case 文件名，例如 `a-new-note.md`：
+先执行 `supabase/migrations/202609030001_articles.sql`，并在 `.env.local` 配置仅服务端可见的 `ARTICLE_PUBLISH_PASSWORD`。打开 `/articles`，点击右下角“+”进入 `/articles/new`，填写标题、Slug、摘要、标签和 Markdown 正文，确认右侧实时预览后输入密码发布。发布成功会自动进入 `/articles/{slug}`；列表、详情 metadata 和 sitemap 都从数据库读取。
 
-```markdown
----
-id: a-new-note
-title: A new note
-summary: One concise sentence.
-tags:
-  - Design
-createdAt: 2026-08-18
----
-
-Markdown content starts here.
-```
-
-不需要新建 React 页面；列表、详情、metadata 和 sitemap 会自动生成。原始 HTML 默认不会执行。
+原始 HTML 默认不会执行。完整字段、Markdown、密码安全、Migration、部署和故障排查见 [`docs/Articles.md`](docs/Articles.md)。
 
 ### 添加 Photo
 
@@ -529,7 +522,7 @@ Browser
 2. 创建 `/data/mypage`，确保运行 Node.js 的系统用户拥有读写权限；
 3. 在生产环境设置 `PROJECT_COVER_STORAGE_ROOT=/data/mypage/public-assets`、`PHOTO_STORAGE_ROOT=/data/mypage`、`FOOD_STORAGE_ROOT=/data/mypage` 与 `TOOLS_STORAGE_ROOT=/data/mypage/tools`；媒体与 Tools 数据分别写入各自子目录；
 4. 如果使用 Docker，把宿主机持久目录挂载到容器内相同的配置路径；
-5. 配置 Supabase 和 Session 环境变量，按顺序执行六份 Migration，并创建第一个邀请码；
+5. 配置 Supabase、Articles 密码和 Session 环境变量，按顺序执行全部 Migration，并创建第一个邀请码；
 6. 使用 HTTPS 反向代理运行 `npm start`，并定期备份 `/data/mypage`。
 
 以后更换磁盘位置时，修改对应存储根目录并把原目录内容完整复制到新目录；Works 的 `coverFile` 以及数据库内的 `photos/...`、`food/...` 相对路径不需要修改。
@@ -548,7 +541,8 @@ Node 进程必须能读取 `PROJECT_COVER_STORAGE_ROOT`，并对 `PHOTO_STORAGE_
 ## 验收清单
 
 - [ ] 将 `.env.example` 复制为 `.env.local` 并填写真实值
-- [ ] 按顺序执行六份 migration，确认 `private_users`、`private_invites`、升级后的 `photo_entries`、`food_entries`、`food_images`、`food_comments`、`photo_comments` 与两个 Buckets
+- [ ] 按顺序执行全部 migration，确认 `articles`、`private_users`、`private_invites`、升级后的 `photo_entries`、`food_entries`、`food_images`、`food_comments`、`photo_comments` 与两个 Buckets
+- [ ] 在 `.env.local` 配置 `ARTICLE_PUBLISH_PASSWORD`，确认发布页能写入 Markdown 文章
 - [ ] 确认 `private-diary` 为 Private，所有私密表匿名查询失败
 - [ ] 将 `PROJECT_COVER_STORAGE_ROOT` / `PHOTO_STORAGE_ROOT` / `FOOD_STORAGE_ROOT` 指向持久磁盘，确认 Node 进程权限并配置目录备份
 - [ ] 将 `TOOLS_STORAGE_ROOT` 指向持久磁盘，并确认 Tools 删除后的停用标记可持续保存
@@ -584,7 +578,7 @@ Supabase、生产 Secret 和持久磁盘步骤需要项目所有者在自己的 
 - 交付机原本没有 Node.js；使用未安装到系统的官方便携版 Node.js `22.23.2` 完成验证，并生成 `package-lock.json`。
 - `npm run lint`：通过，0 error / 0 warning。
 - `npm run typecheck`：通过，TypeScript strict 无错误。
-- `npm run build`：通过；首页、Articles、Resume 静态生成，两个 Markdown 详情 SSG，私密页面/API 动态渲染，Proxy 生效。
+- `npm run build`：通过；首页、文章编辑页和 Resume 静态生成，Articles 列表/详情/sitemap 按请求读取数据库，私密页面/API 动态渲染，Proxy 生效。
 - 历史共享密码版曾完成 Production 冒烟；切换到账号版后，生产构建已通过，但注册、邀请码消耗和上传署名仍需在执行第四份 Migration 的目标环境中按上方验收清单复核。
 - Rate Limit：同一客户端连续 6 次错误请求状态为 `401, 401, 401, 401, 401, 429`。
 - 静态安全扫描：账号密码与 Session Secret 不存在于源码；Tools 删除口令按需求仅存在于 server-only 注册表，扫描 `.next/static` 浏览器文件未发现该口令或 server-only 环境变量名。

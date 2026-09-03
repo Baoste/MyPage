@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
+import { connection } from "next/server";
 import { ArticleList } from "@/components/public/ArticleList";
-import { getAllArticles } from "@/lib/articles";
+import { ArticlePublishButton } from "@/components/public/ArticlePublishButton";
+import { getAllArticles } from "@/services/articleService";
 
 export const metadata: Metadata = {
   title: "Articles",
@@ -8,6 +10,7 @@ export const metadata: Metadata = {
 };
 
 export default async function ArticlesPage() {
+  await connection();
   const articles = await getAllArticles();
 
   return (
@@ -22,6 +25,7 @@ export default async function ArticlesPage() {
         </div>
       </header>
       <ArticleList articles={articles} />
+      <ArticlePublishButton />
     </div>
   );
 }
