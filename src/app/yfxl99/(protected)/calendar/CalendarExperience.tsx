@@ -20,6 +20,14 @@ const FONT_CSS_VARIABLES: Record<CalendarTextFont, string> = {
 const TEXT_FONT_SIZES = [16, 18, 20, 24, 28, 32, 36, 42, 48, 56, 64, 72, 96, 120, 144, 160];
 type PointLayer = { type: "text" } | { type: "sticker"; index: number };
 type TextResizeDirection = "n" | "ne" | "e" | "se" | "s" | "sw" | "w" | "nw";
+type JournalLaunchOrigin = {
+  date: string;
+  image: string;
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+};
 
 const TEXT_RESIZE_HANDLES: Array<{ direction: TextResizeDirection; label: string; className: string }> = [
   { direction: "nw", label: "从左上角调整文字框", className: styles.resizeNorthWest },
@@ -111,6 +119,7 @@ export default function CalendarExperience({ year, month, today, initialDays }: 
   const [day, setDay] = useState<CalendarDayPayload | null>(null);
   const [loading, setLoading] = useState(false);
   const [journalLaunch, setJournalLaunch] = useState(false);
+  const [launchOrigin, setLaunchOrigin] = useState<JournalLaunchOrigin | null>(null);
   const [openHasEntry, setOpenHasEntry] = useState(false);
   const [error, setError] = useState("");
   const requestAbortRef = useRef<AbortController | null>(null);
@@ -125,12 +134,22 @@ export default function CalendarExperience({ year, month, today, initialDays }: 
 
   useEffect(() => () => requestAbortRef.current?.abort(), []);
 
-  async function open(value: string, entry: CalendarEntryView | null) {
+  async function open(value: string, entry: CalendarEntryView | null, anchor: HTMLButtonElement) {
     requestAbortRef.current?.abort();
     const controller = new AbortController();
     requestAbortRef.current = controller;
-    const launchFromThumbnail = Boolean(entry?.layout && preview(entry));
+    const launchImage = preview(entry);
+    const launchFromThumbnail = Boolean(entry?.layout && launchImage);
+    const anchorRect = anchor.getBoundingClientRect();
     setJournalLaunch(launchFromThumbnail);
+    setLaunchOrigin(launchFromThumbnail && launchImage ? {
+      date: value,
+      image: launchImage,
+      left: anchorRect.left,
+      top: anchorRect.top,
+      width: anchorRect.width,
+      height: anchorRect.height,
+    } : null);
     setOpenHasEntry(Boolean(entry?.layout));
     setOpenDate(value);
     setLoading(true);
@@ -172,6 +191,7 @@ export default function CalendarExperience({ year, month, today, initialDays }: 
       setDay(null);
       setLoading(false);
       setJournalLaunch(false);
+      setLaunchOrigin(null);
       setOpenHasEntry(false);
     });
   }
@@ -204,10 +224,9 @@ export default function CalendarExperience({ year, month, today, initialDays }: 
             const isToday = year === today.year && month === today.month && value === today.day;
             const isLaunching = journalLaunch && loading && openDate === date;
             const isViewing = journalLaunch && !loading && openDate === date && Boolean(day?.entry?.layout);
-            return <button key={date} type="button" className={`${styles.dayCell} ${active ? styles.hasContent : ""} ${isToday ? styles.today : ""}`} onClick={() => active && open(date, info?.entry ?? null)} disabled={!active || isLaunching} aria-busy={isLaunching || undefined} aria-label={`${date}${active ? `，${info?.photoCount ?? 0} 张照片，${info?.foodCount ?? 0} 条美食记录` : "，暂无内容"}`}>
+            return <button key={date} type="button" className={`${styles.dayCell} ${active ? styles.hasContent : ""} ${isToday ? styles.today : ""}`} onClick={(event) => active && open(date, info?.entry ?? null, event.currentTarget)} disabled={!active || isLaunching} aria-busy={isLaunching || undefined} aria-label={`${date}${active ? `，${info?.photoCount ?? 0} 张照片，${info?.foodCount ?? 0} 条美食记录` : "，暂无内容"}`}>
               {image && !isViewing ? <div className={`${styles.cellPreviewFrame} ${isLaunching ? styles.launchingPreview : ""}`}>
-                <ViewTransition name={`calendar-journal-${date}`} share="morph" default="none"><div className={styles.cellSharedImage}><img src={image} alt="" className={styles.cellPreview} loading="lazy" decoding="async" /></div></ViewTransition>
-                {isLaunching ? <span className={styles.cellLoader} role="status" aria-label="正在加载手账"><i aria-hidden="true" /></span> : null}
+                {isLaunching ? <div className={styles.cellSharedImage}><img src={image} alt="" className={styles.cellPreview} loading="lazy" decoding="async" /></div> : <ViewTransition name={`calendar-journal-${date}`} share="morph" default="none"><div className={styles.cellSharedImage}><img src={image} alt="" className={styles.cellPreview} loading="lazy" decoding="async" /></div></ViewTransition>}
               </div> : null}
               <time dateTime={date} className={styles.dayNumber} style={dateNumberStyle ? { color: dateNumberStyle.color, fontFamily: FONT_FAMILIES[dateNumberStyle.font] } : undefined}>{value}</time>
               {info?.entry && !image ? <span className={styles.entryState}>{info.entry.status === "ready" ? "已保存" : info.entry.status === "failed" ? "生成失败" : "草稿"}</span> : null}
@@ -217,6 +236,10 @@ export default function CalendarExperience({ year, month, today, initialDays }: 
         </div>
       </div>
     </div>
+    {journalLaunch && loading && launchOrigin ? <div className={styles.floatingLaunchPreview} style={{ left: launchOrigin.left, top: launchOrigin.top, width: launchOrigin.width, height: launchOrigin.height }} aria-hidden="true">
+      <ViewTransition name={`calendar-journal-${launchOrigin.date}`} share="morph" default="none"><div className={styles.cellSharedImage}><img src={launchOrigin.image} alt="" className={styles.cellPreview} /></div></ViewTransition>
+      <span className={styles.cellLoader}><i /></span>
+    </div> : null}
     {openDate ? <DayDialog key={`${openDate}-${journalLaunch ? "journal" : loading}`} date={openDate} day={day} loading={loading} error={error} initialHasEntry={openHasEntry} viewerLaunch={journalLaunch} onClose={close} onEntryChange={entryChanged} onEntryDelete={entryDeleted} /> : null}
   </>;
 }

@@ -290,7 +290,6 @@
 }
 .dayCell.hasContent::after { border: 1px dashed rgb(40 42 39 / 55%); content: ""; inset: .32rem; pointer-events: none; position: absolute; transform: rotate(.25deg); }
 .dayCell:focus-visible { outline: 3px solid #282a27; outline-offset: -4px; z-index: 3; }
-.dayCell[aria-busy="true"] { z-index: 120; }
 .dayCell[aria-busy="true"]::before,
 .dayCell[aria-busy="true"]::after,
 .dayCell[aria-busy="true"] .dayNumber { opacity: 0; }
@@ -314,9 +313,15 @@
 }
 
 .launchingPreview {
-  box-shadow: 0 1.5rem 4rem rgb(0 0 0 / 38%);
+  opacity: 0;
+}
+
+.floatingLaunchPreview {
+  box-shadow: 0 1rem 2.6rem rgb(0 0 0 / 24%);
   isolation: isolate;
   overflow: hidden;
+  pointer-events: none;
+  position: fixed;
   z-index: 140;
 }
 
@@ -378,9 +383,7 @@
 .notice,
 .scrollHint,
 .notesPanel,
-.weekHeader,
-.dayCell,
-.emptyDay {
+.calendarScroll {
   transition: filter 700ms cubic-bezier(.4, 0, .2, 1);
 }
 
@@ -388,9 +391,7 @@
 :global(body.calendar-journal-viewer-open) .notice,
 :global(body.calendar-journal-viewer-open) .scrollHint,
 :global(body.calendar-journal-viewer-open) .notesPanel,
-:global(body.calendar-journal-viewer-open) .weekHeader,
-:global(body.calendar-journal-viewer-open) .dayCell:not([aria-busy="true"]),
-:global(body.calendar-journal-viewer-open) .emptyDay {
+:global(body.calendar-journal-viewer-open) .calendarScroll {
   filter: blur(12px);
 }
 
@@ -1293,6 +1294,7 @@
 @media (prefers-reduced-motion: reduce) {
   .journalViewerBackdrop,
   .journalViewerStage .viewerActions button,
+  .floatingLaunchPreview,
   .cellLoader i,
   .selectedLayer,
   .formatButton {
