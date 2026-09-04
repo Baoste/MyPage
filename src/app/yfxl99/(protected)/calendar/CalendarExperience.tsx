@@ -79,11 +79,12 @@ export default function CalendarExperience({ year, month, today, initialDays }: 
             const date = `${year}-${String(month).padStart(2, "0")}-${String(value).padStart(2, "0")}`;
             const info = dayMap.get(date);
             const image = preview(info?.entry ?? null);
+            const dateNumberStyle = info?.entry?.layout?.dateNumber;
             const active = Boolean(info && (info.photoCount || info.foodCount || info.entry));
             const isToday = year === today.year && month === today.month && value === today.day;
             return <button key={date} type="button" className={`${styles.dayCell} ${active ? styles.hasContent : ""} ${isToday ? styles.today : ""}`} onClick={() => active && open(date)} disabled={!active} aria-label={`${date}${active ? `，${info?.photoCount ?? 0} 张照片，${info?.foodCount ?? 0} 条美食记录` : "，暂无内容"}`}>
               {image ? <img src={image} alt="" className={styles.cellPreview} /> : null}
-              <time dateTime={date} className={styles.dayNumber}>{value}</time>
+              <time dateTime={date} className={styles.dayNumber} style={dateNumberStyle ? { color: dateNumberStyle.color, fontFamily: FONT_FAMILIES[dateNumberStyle.font] } : undefined}>{value}</time>
               {info?.entry && !image ? <span className={styles.entryState}>{info.entry.status === "ready" ? "已保存" : info.entry.status === "failed" ? "生成失败" : "草稿"}</span> : null}
               {active && !image ? <span className={styles.sourceDots} aria-hidden="true">{info?.photoCount ? "PHOTO" : ""}{info?.foodCount ? " FOOD" : ""}</span> : null}
             </button>;
@@ -334,6 +335,11 @@ function JournalEditor({ entry, onSaved }: { entry: CalendarEntryView; onSaved: 
         <label>颜色<span className={styles.colorControl}><input type="color" value={layout.text.style.color} onChange={(event) => setLayout({ ...layout, text: { ...layout.text, style: { ...layout.text.style, color: event.target.value } } })} /><output>{layout.text.style.color}</output></span></label>
         <label>对齐<select value={layout.text.style.align} onChange={(event) => setLayout({ ...layout, text: { ...layout.text, style: { ...layout.text.style, align: event.target.value as "left" | "center" | "right" } } })}><option value="left">左对齐</option><option value="center">居中</option><option value="right">右对齐</option></select></label>
       </div>
+      <fieldset className={styles.dateStyleControls}>
+        <legend>日历日期数字</legend>
+        <label>字体<select value={layout.dateNumber.font} onChange={(event) => setLayout({ ...layout, dateNumber: { ...layout.dateNumber, font: event.target.value as CalendarTextFont } })}><option value="aventa">Aventa</option><option value="morganite">Morganite</option></select></label>
+        <label>颜色<span className={styles.colorControl}><input type="color" value={layout.dateNumber.color} onChange={(event) => setLayout({ ...layout, dateNumber: { ...layout.dateNumber, color: event.target.value } })} /><output>{layout.dateNumber.color}</output></span></label>
+      </fieldset>
       <div className={styles.controlRow}>
         <label>Cover 缩放<input type="range" min="1" max="4" step=".05" value={layout.cover.scale} onChange={(event) => setLayout({ ...layout, cover: { ...layout.cover, scale: Number(event.target.value) } })} /></label>
         {active ? <><label>贴纸大小<input type="range" min=".05" max=".7" step=".01" value={active.width} onChange={(event) => setLayout({ ...layout, stickers: layout.stickers.map((item, index) => index === activeIndex ? { ...item, width: Number(event.target.value) } : item) })} /></label><label>旋转<input type="range" min="-180" max="180" value={active.rotation} onChange={(event) => setLayout({ ...layout, stickers: layout.stickers.map((item, index) => index === activeIndex ? { ...item, rotation: Number(event.target.value) } : item) })} /></label></> : null}

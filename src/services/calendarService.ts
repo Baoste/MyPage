@@ -156,7 +156,7 @@ export async function generateEntry(userId: string, date: string, sourceIds: str
     const { error: assetError } = await client.from("calendar_assets").insert(rows);
     if (assetError) { if (old.data?.length) await client.from("calendar_assets").insert(old.data); throw assetError; }
     const coverId = rows[0].id as string, stickerIds = rows.slice(1).map((row) => row.id as string);
-    const layout: CalendarLayout = { version: 1, canvas: { aspectRatio: 1 }, cover: { assetId: coverId, cropX: .5, cropY: .5, scale: 1 }, text: { x: .08, y: .67, width: .84, rotation: 0, zIndex: 10, style: { align: "left", color: "#ffffff", font: "aventa" } }, stickers: stickerIds.map((assetId, index) => ({ assetId, x: .68 - index * .12, y: .08 + index * .1, width: .24, rotation: index % 2 ? 8 : -8, zIndex: 20 + index })) };
+    const layout: CalendarLayout = { version: 1, canvas: { aspectRatio: 1 }, cover: { assetId: coverId, cropX: .5, cropY: .5, scale: 1 }, dateNumber: { color: "#ffffff", font: "morganite" }, text: { x: .08, y: .67, width: .84, rotation: 0, zIndex: 10, style: { align: "left", color: "#ffffff", font: "aventa" } }, stickers: stickerIds.map((assetId, index) => ({ assetId, x: .68 - index * .12, y: .08 + index * .1, width: .24, rotation: index % 2 ? 8 : -8, zIndex: 20 + index })) };
     await client.from("calendar_entries").update({ status: "draft", generated_text: result.text, final_text: result.text, layout_json: layout, generation_meta: result.meta, last_error: null }).eq("id", entryData.id).eq("owner_user_id", userId);
     if (old.data?.length) await deletePrivateAssets(old.data.map((item) => item.storage_path)).catch(() => undefined);
     return getEntry(userId, date);
