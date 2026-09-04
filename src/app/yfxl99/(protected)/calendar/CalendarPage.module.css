@@ -398,8 +398,8 @@
 .journalViewerStage .viewerArtwork {
   border: 0;
   box-shadow:
-    0 2.2rem 5rem rgb(0 0 0 / 48%),
-    0 .25rem .8rem rgb(0 0 0 / 26%);
+    0 .85rem 2rem rgb(0 0 0 / 22%),
+    0 .12rem .4rem rgb(0 0 0 / 14%);
   max-width: none;
   z-index: 2;
 }
