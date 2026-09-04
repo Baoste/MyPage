@@ -112,7 +112,7 @@ export async function generateCalendarJournal(context: string, images: AiImageIn
     post("/responses", {
       model: config.textModel,
       input: [{ role: "user", content: [
-        { type: "input_text", text: `你是中文日历手账编辑。根据材料写一段 45～90 字、自然克制、有生活感的第一人称日记，只返回正文。\n\n${context}` },
+        { type: "input_text", text: `你是中文日历手账编辑。根据材料写一段 20 字以内、自然克制、有生活感的第一人称日记，只返回正文。\n\n${context}` },
         ...imageParts,
       ] }],
     }),

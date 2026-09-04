@@ -2,7 +2,7 @@ import "server-only";
 
 import { randomUUID } from "node:crypto";
 import {
-  CALENDAR_MAX_NOTE_LENGTH, CALENDAR_MAX_SOURCES, CALENDAR_MAX_TEXT_LENGTH, CALENDAR_TIMEZONE,
+  CALENDAR_MAX_IMAGES, CALENDAR_MAX_NOTE_LENGTH, CALENDAR_MAX_SOURCES, CALENDAR_MAX_TEXT_LENGTH, CALENDAR_TIMEZONE,
   type CalendarAssetRole, type CalendarDayPayload, type CalendarDaySource, type CalendarEntryView,
   type CalendarLayout, type CalendarMonthDay, isCalendarDate, isCalendarMonth,
   parseCalendarLayout,
@@ -26,7 +26,7 @@ function monthEnd(month: string) { const [year, value] = month.split("-").map(Nu
 function assetUrl(id: string) { return `/api/private/calendar/assets/${id}/file`; }
 
 function mapEntry(row: EntryRow, assets: AssetRow[]): CalendarEntryView {
-  const layout = row.layout_json && Object.keys(row.layout_json as object).length ? row.layout_json as CalendarLayout : null;
+  const layout = row.layout_json && Object.keys(row.layout_json as object).length ? parseCalendarLayout(row.layout_json) : null;
   return { id: row.id, date: row.entry_date, status: row.status, userNote: row.user_note, generatedText: row.generated_text, finalText: row.final_text, layout,
     assets: assets.map((asset) => ({ id: asset.id, role: asset.role, url: assetUrl(asset.id), width: asset.width, height: asset.height, sortOrder: asset.sort_order })),
     updatedAt: row.updated_at, lastError: row.last_error ?? undefined };
@@ -128,20 +128,24 @@ async function sourceImage(type: "photo" | "food", imageId: string) {
   }
 }
 
-export async function generateEntry(userId: string, date: string, sourceIds: string[], userNote: string) {
+export async function generateEntry(userId: string, date: string, sourceIds: string[], imageIds: string[], userNote: string) {
   if (!isCalendarDate(date) || !Array.isArray(sourceIds) || sourceIds.length < 1 || sourceIds.length > CALENDAR_MAX_SOURCES) throw new CalendarServiceError("请选择 1～12 条当天素材。", 400);
+  if (!Array.isArray(imageIds) || imageIds.length > CALENDAR_MAX_IMAGES || new Set(imageIds).size !== imageIds.length) throw new CalendarServiceError("最多选择 8 张不重复的图片。", 400);
   if (typeof userNote !== "string" || Array.from(userNote).length > CALENDAR_MAX_NOTE_LENGTH) throw new CalendarServiceError("补充文字不能超过 2000 字。", 400);
   if (!isCalendarAiAvailable()) throw new CalendarServiceError("Calendar AI 尚未配置。", 503);
   const day = await getCalendarDay(userId, date); const selected = day.sources.filter((source) => sourceIds.includes(`${source.type}:${source.id}`));
   if (!selected.length || selected.length !== new Set(sourceIds).size) throw new CalendarServiceError("所选素材无效或不属于当天。", 400);
+  const selectableImages = new Set(selected.flatMap((source) => source.imageIds));
+  if (!imageIds.every((imageId) => selectableImages.has(imageId))) throw new CalendarServiceError("所选图片无效或不属于已选素材。", 400);
   const client = createServerSupabaseClient();
   const previous = await client.from("calendar_entries").select("*").eq("owner_user_id", userId).eq("entry_date", date).maybeSingle();
-  const manifest = { version: 1, sources: selected.map((source) => ({ type: source.type, id: source.id, imageIds: source.imageIds, comments: source.comments })) };
+  const selectedImageSet = new Set(imageIds);
+  const manifest = { version: 1, sources: selected.map((source) => ({ type: source.type, id: source.id, imageIds: source.imageIds.filter((imageId) => selectedImageSet.has(imageId)), comments: source.comments })) };
   const { data: entryData, error: entryError } = await client.from("calendar_entries").upsert({ owner_user_id: userId, entry_date: date, timezone: CALENDAR_TIMEZONE, status: "generating", user_note: userNote.trim(), source_manifest: manifest, last_error: null }, { onConflict: "owner_user_id,entry_date" }).select("id").single();
   if (entryError || !entryData) throw new CalendarServiceError("无法创建生成任务。", 500);
   try {
     const context = selected.map((source) => `${source.type === "photo" ? "照片" : "美食"}：${source.title}。${source.description}。评论：${source.comments.map((item) => `${item.author}: ${item.content}`).join("；")}`).join("\n") + (userNote.trim() ? `\n用户补充：${userNote.trim()}` : "");
-    const imageRefs = selected.flatMap((source) => source.imageIds.map((id) => ({ type: source.type, id }))).slice(0, 8);
+    const imageRefs = selected.flatMap((source) => source.imageIds.filter((id) => selectedImageSet.has(id)).map((id) => ({ type: source.type, id })));
     const images = await Promise.all(imageRefs.map((image) => sourceImage(image.type, image.id)));
     const result = await generateCalendarJournal(context, images);
     const old = await client.from("calendar_assets").select("*").eq("calendar_entry_id", entryData.id).in("role", ["cover", "sticker"]);
@@ -152,7 +156,7 @@ export async function generateEntry(userId: string, date: string, sourceIds: str
     const { error: assetError } = await client.from("calendar_assets").insert(rows);
     if (assetError) { if (old.data?.length) await client.from("calendar_assets").insert(old.data); throw assetError; }
     const coverId = rows[0].id as string, stickerIds = rows.slice(1).map((row) => row.id as string);
-    const layout: CalendarLayout = { version: 1, canvas: { aspectRatio: 1 }, cover: { assetId: coverId, cropX: .5, cropY: .5, scale: 1 }, text: { x: .08, y: .67, width: .84, rotation: 0, zIndex: 10, style: { align: "left", color: "#ffffff" } }, stickers: stickerIds.map((assetId, index) => ({ assetId, x: .68 - index * .12, y: .08 + index * .1, width: .24, rotation: index % 2 ? 8 : -8, zIndex: 20 + index })) };
+    const layout: CalendarLayout = { version: 1, canvas: { aspectRatio: 1 }, cover: { assetId: coverId, cropX: .5, cropY: .5, scale: 1 }, text: { x: .08, y: .67, width: .84, rotation: 0, zIndex: 10, style: { align: "left", color: "#ffffff", font: "aventa" } }, stickers: stickerIds.map((assetId, index) => ({ assetId, x: .68 - index * .12, y: .08 + index * .1, width: .24, rotation: index % 2 ? 8 : -8, zIndex: 20 + index })) };
     await client.from("calendar_entries").update({ status: "draft", generated_text: result.text, final_text: result.text, layout_json: layout, generation_meta: result.meta, last_error: null }).eq("id", entryData.id).eq("owner_user_id", userId);
     if (old.data?.length) await deletePrivateAssets(old.data.map((item) => item.storage_path)).catch(() => undefined);
     return getEntry(userId, date);

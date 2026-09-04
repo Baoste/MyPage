@@ -7,7 +7,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ da
   try {
     const session = await calendarSession(request, true); enforceCalendarRateLimit(request, session.userId);
     if (Number(request.headers.get("content-length") ?? 0) > 32_000) return NextResponse.json({ error: "请求内容过大。" }, { status: 413 });
-    const body = await request.json() as { sourceIds?: string[]; userNote?: string }; const { date } = await context.params;
-    return NextResponse.json({ entry: await generateEntry(session.userId, date, body.sourceIds ?? [], body.userNote ?? "") });
+    const body = await request.json() as { sourceIds?: string[]; imageIds?: string[]; userNote?: string }; const { date } = await context.params;
+    return NextResponse.json({ entry: await generateEntry(session.userId, date, body.sourceIds ?? [], body.imageIds ?? [], body.userNote ?? "") });
   } catch (error) { return calendarServiceError(error); }
 }

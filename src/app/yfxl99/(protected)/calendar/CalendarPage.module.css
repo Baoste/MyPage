@@ -350,15 +350,40 @@
 .sourceCard { border-top: 1px solid rgb(40 42 39 / 35%); margin-top: 1rem; padding-top: 1rem; }
 .sourceCard > label { align-items: center; display: flex; font-size: .65rem; font-weight: 800; gap: .5rem; letter-spacing: .12em; text-transform: uppercase; }
 .sourceCard h3 { font-family: Georgia, serif; font-size: 1.2rem; font-weight: 400; margin: .7rem 0 .25rem; }.sourceCard p, .sourceCard blockquote { font-size: .76rem; line-height: 1.65; margin: .3rem 0; }.sourceCard blockquote { border-left: 2px solid #777b75; padding-left: .65rem; }
-.sourceImages { display: grid; gap: .3rem; grid-template-columns: repeat(3, 1fr); margin-top: .7rem; }.sourceImages img { aspect-ratio: 1; object-fit: cover; width: 100%; }
+.sourceImages { display: grid; gap: .45rem; grid-template-columns: repeat(3, 1fr); margin-top: .7rem; }
+.imageChoice { cursor: pointer; display: block; overflow: hidden; position: relative; }
+.imageChoice img { aspect-ratio: 1; display: block; filter: grayscale(.72); object-fit: cover; opacity: .58; transition: filter 160ms ease, opacity 160ms ease; width: 100%; }
+.imageChoice input { height: 1rem; left: .35rem; margin: 0; position: absolute; top: .35rem; width: 1rem; z-index: 2; }
+.imageChoice span { background: rgb(40 43 40 / 85%); bottom: .3rem; color: #f0f0ea; font-size: .52rem; font-weight: 700; letter-spacing: .08em; padding: .18rem .28rem; position: absolute; right: .3rem; text-transform: uppercase; }
+.imageSelected img { filter: none; opacity: 1; }
+.imageSelected::after { border: 2px solid #cabb5b; content: ""; inset: 0; pointer-events: none; position: absolute; }
 .creationColumn { padding: 1.25rem; }.blankCanvas, .canvas { aspect-ratio: 1; width: min(100%, 34rem); }
 .blankCanvas { align-items: center; background: #e9e9e4; border: 1px solid var(--calendar-line); display: flex; flex-direction: column; justify-content: center; margin-inline: auto; }.blankCanvas span { font-family: Georgia, serif; font-size: 5rem; }.blankCanvas p { font-family: Georgia, serif; line-height: 1.7; text-align: center; }
 .noteField, .editorControls > label, .controlRow label { display: grid; font-size: .66rem; font-weight: 700; gap: .4rem; letter-spacing: .08em; margin-top: 1rem; text-transform: uppercase; }.noteField textarea, .editorControls textarea { background: rgb(255 255 255 / 35%); border: 1px solid #72756f; color: #252724; font: .85rem/1.6 Arial, sans-serif; min-height: 5rem; padding: .7rem; resize: vertical; }
 .primaryButton { background: #282b28; border: 1px solid #181a18; color: #f0f0ea; cursor: pointer; font-size: .72rem; font-weight: 700; letter-spacing: .08em; margin-top: .8rem; min-height: 2.8rem; padding: .7rem 1rem; width: 100%; }.primaryButton:disabled { cursor: not-allowed; opacity: .5; }
 .helper, .dialogStatus { font-size: .72rem; line-height: 1.6; }.dialogStatus { padding: 2rem; }
 .canvas { background-color: #bfc0bc; background-repeat: no-repeat; border: 1px solid #3c3f3b; margin-inline: auto; overflow: hidden; position: relative; touch-action: none; }
-.textLayer, .stickerLayer { background: transparent; border: 1px solid transparent; cursor: grab; margin: 0; padding: 0; position: absolute; touch-action: none; }.textLayer { font-family: Georgia, "STSong", serif; font-size: clamp(.8rem, 1.8vw, 1.25rem); line-height: 1.55; padding: .2rem; transform: translateY(-50%); text-shadow: 0 2px 8px rgb(0 0 0 / 50%); }.stickerLayer img { display: block; width: 100%; }.selectedLayer { border: 1px dashed currentColor; outline: 2px solid rgb(255 255 255 / 75%); outline-offset: 2px; }
+.textLayer, .stickerLayer { background: transparent; border: 1px solid transparent; cursor: grab; margin: 0; padding: 0; position: absolute; touch-action: none; }.textLayer { font-size: clamp(.8rem, 1.8vw, 1.25rem); line-height: 1.55; padding: .2rem; transform: translateY(-50%); text-shadow: 0 2px 8px rgb(0 0 0 / 50%); }.stickerLayer img { display: block; width: 100%; }.selectedLayer { border: 1px dashed currentColor; outline: 2px solid rgb(255 255 255 / 75%); outline-offset: 2px; }
 .controlRow { display: grid; gap: .75rem; grid-template-columns: repeat(3, 1fr); }.controlRow input { width: 100%; }
+.textStyleControls { display: grid; gap: .75rem; grid-template-columns: repeat(3, 1fr); margin-top: 1rem; }
+.textStyleControls label { display: grid; font-size: .66rem; font-weight: 700; gap: .4rem; letter-spacing: .08em; text-transform: uppercase; }
+.textStyleControls select { background: rgb(255 255 255 / 35%); border: 1px solid #72756f; color: #252724; min-height: 2.35rem; padding: .35rem .5rem; }
+.colorControl { align-items: center; border: 1px solid #72756f; display: flex; min-height: 2.35rem; padding: .25rem .4rem; }
+.colorControl input { background: transparent; border: 0; height: 1.65rem; padding: 0; width: 2.4rem; }
+.colorControl output { font-family: monospace; font-size: .65rem; margin-left: .45rem; }
+
+.viewerDialog { max-width: 44rem; }
+.viewer { padding: clamp(1rem, 3vw, 2rem); }
+.viewerArtwork { aspect-ratio: 1; background-color: #c8cac5; background-repeat: no-repeat; border: 1px solid var(--calendar-line); display: grid; margin-inline: auto; max-width: 36rem; overflow: hidden; place-items: center; position: relative; width: 100%; }
+.viewerArtwork img { height: 100%; object-fit: cover; width: 100%; }
+.viewerArtwork p { font-family: Georgia, serif; }
+.viewerText { font-size: clamp(.9rem, 2.1vw, 1.45rem); line-height: 1.55; position: absolute; text-shadow: 0 2px 8px rgb(0 0 0 / 50%); transform: translateY(-50%); white-space: pre-wrap; z-index: 10; }
+.viewerArtwork .viewerSticker { height: auto; object-fit: contain; position: absolute; z-index: 20; }
+.viewerActions { display: grid; gap: .75rem; grid-template-columns: 1fr 1fr; margin: 1rem auto 0; max-width: 36rem; }
+.secondaryButton, .deleteButton { border: 1px solid #282b28; cursor: pointer; font-size: .72rem; font-weight: 700; letter-spacing: .1em; min-height: 2.8rem; text-transform: uppercase; }
+.secondaryButton { background: #282b28; color: #f0f0ea; }
+.deleteButton { background: transparent; color: #602b28; }
+.secondaryButton:disabled, .deleteButton:disabled { cursor: not-allowed; opacity: .5; }
 
 @media (max-width: 1023px) { .notice { margin-left: 0; }.dialogBody { grid-template-columns: 1fr; }.sourceColumn { border-bottom: 1px solid var(--calendar-line); border-right: 0; max-height: none; }.calendar { min-width: 54rem; } }
-@media (max-width: 640px) { .dialog { max-height: 100svh; }.backdrop { padding: 0; }.creationColumn, .sourceColumn { padding: .85rem; }.controlRow { grid-template-columns: 1fr; } }
+@media (max-width: 640px) { .dialog { max-height: 100svh; }.backdrop { padding: 0; }.creationColumn, .sourceColumn { padding: .85rem; }.controlRow, .textStyleControls { grid-template-columns: 1fr; } }

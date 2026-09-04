@@ -8,9 +8,10 @@
 - 不为每一天预建数据库记录。只有首次生成或保存手账时，才创建当天的 `calendar_entries`。
 - 有 Photo 或 Food 的日期格高亮；已有成品时优先显示扁平化 Preview。
 - 点击有素材或手账的日期，弹出卡牌浏览当天 Photo、Food、图片及评论。
-- 用户可取消不希望发送给 AI 的素材，并填写最多 2000 字的补充要求。
+- 用户可取消不希望发送给 AI 的素材，并在每组 Photo/Food 内继续选择具体图片（最多 8 张），再填写最多 2000 字的补充要求。
 - AI 根据选中图片、内容、评论和补充要求生成 Cover、手账文字及零张或多张贴纸。图片优先发送缩略图；缩略图不存在时回退发送原图。
-- 生成结果先进入草稿编辑器。文字和贴纸可拖动，贴纸可缩放、旋转，并支持方向键移动。
+- 生成结果先进入草稿编辑器。文字和贴纸可拖动，贴纸可缩放、旋转，并支持方向键移动；文字可切换项目本地 Aventa/Morganite 字体、颜色和对齐方式。
+- 再次点击已有手账的日期时默认只展示手账作品，下方提供“编辑”和“删除”；点击编辑后才进入素材与画布界面。
 - 编辑画布、Cover 裁切区域、保存后的 Preview 和日历日期格共享 `CALENDAR_ENTRY_ASPECT_RATIO = 1`，始终为 `1:1`。
 
 ## 数据库
@@ -62,6 +63,86 @@ CALENDAR_AI_IMAGE_MODEL=gpt-image-2
 ```
 
 环境变量仅在服务端读取。未配置 Key 时，素材浏览和已有手账仍可使用，生成按钮会明确显示不可用状态。
+
+## 添加手账字体
+
+日历字体使用 `next/font/local` 从项目本地读取。推荐使用体积较小的 `.woff2` 文件，并确保字体授权允许网站使用。以新增 `MyFont.woff2` 为例：
+
+### 1. 放置字体文件
+
+```text
+src/app/fonts/MyFont.woff2
+```
+
+### 2. 在根布局注册字体
+
+编辑 `src/app/layout.tsx`：
+
+```tsx
+const myFont = localFont({
+  src: "./fonts/MyFont.woff2",
+  variable: "--font-my-font",
+  weight: "400",
+  style: "normal",
+  display: "swap",
+});
+```
+
+将字体变量加入 `<html>`：
+
+```tsx
+<html
+  lang="zh-CN"
+  className={`${aventa.variable} ${morganite.variable} ${myFont.variable}`}
+>
+```
+
+如果一个字体包含多个字重，可将 `src` 写成数组，并为每个文件声明对应的 `weight` 和 `style`。
+
+### 3. 加入布局字体白名单
+
+编辑 `src/lib/calendar/contracts.ts`，把字体标识加入 `CalendarTextFont`：
+
+```ts
+export type CalendarTextFont =
+  | "aventa"
+  | "morganite"
+  | "my-font";
+```
+
+同时更新 `parseCalendarLayout()` 中的字体白名单或规范化逻辑。服务端只接受白名单中的字体，不能直接信任客户端提交的任意字体名称。
+
+### 4. 加入编辑器映射和选项
+
+编辑 `src/app/yfxl99/(protected)/calendar/CalendarExperience.tsx`：
+
+```ts
+const FONT_FAMILIES: Record<CalendarTextFont, string> = {
+  aventa: 'var(--font-aventa), "Microsoft YaHei", sans-serif',
+  morganite: 'var(--font-morganite), "Microsoft YaHei", sans-serif',
+  "my-font": 'var(--font-my-font), "Microsoft YaHei", sans-serif',
+};
+```
+
+在字体选择框中增加：
+
+```tsx
+<option value="my-font">My Font</option>
+```
+
+### 5. 同步扁平化 Preview
+
+编辑器保存时使用浏览器 Canvas 生成 Preview，因此还要在 `renderPreview()` 的字体变量映射中加入 `--font-my-font`。生成前应等待 `document.fonts.ready`，并从根元素读取字体变量：
+
+```ts
+await document.fonts.ready;
+const family = getComputedStyle(document.documentElement)
+  .getPropertyValue("--font-my-font")
+  .trim();
+context.font = `42px ${family}, "Microsoft YaHei", sans-serif`;
+```
+
+编辑器 DOM 和 Canvas Preview 必须使用同一个字体映射，否则保存后的日历缩略图可能与编辑画布不一致。字体名称储存在现有 `layout_json` 中，因此新增字体通常不需要数据库 Migration。
 
 ## 一致性约束
 
