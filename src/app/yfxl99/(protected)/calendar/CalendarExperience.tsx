@@ -1,7 +1,7 @@
 "use client";
 /* eslint-disable @next/next/no-img-element -- authenticated same-origin media must remain canvas-readable */
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { startTransition, useEffect, useMemo, useRef, useState, ViewTransition } from "react";
 import { CALENDAR_MAX_IMAGES, type CalendarDayPayload, type CalendarEntryView, type CalendarMonthDay, type CalendarTextFont } from "@/lib/calendar/contracts";
 import styles from "./CalendarPage.module.css";
 
@@ -29,6 +29,14 @@ function canvasBlob(canvas: HTMLCanvasElement, type: "image/png" | "image/webp",
     quality,
   ));
 }
+function preloadImage(url: string) {
+  return new Promise<void>((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => image.decode().then(() => resolve()).catch(() => resolve());
+    image.onerror = () => reject(new Error("手账图片加载失败。"));
+    image.src = url;
+  });
+}
 
 export default function CalendarExperience({ year, month, today, initialDays }: {
   year: number;
@@ -40,6 +48,8 @@ export default function CalendarExperience({ year, month, today, initialDays }: 
   const [openDate, setOpenDate] = useState<string | null>(null);
   const [day, setDay] = useState<CalendarDayPayload | null>(null);
   const [loading, setLoading] = useState(false);
+  const [journalLaunch, setJournalLaunch] = useState(false);
+  const [openHasEntry, setOpenHasEntry] = useState(false);
   const [error, setError] = useState("");
   const first = (new Date(Date.UTC(year, month - 1, 1)).getUTCDay() + 6) % 7;
   const count = new Date(Date.UTC(year, month, 0)).getUTCDate();
@@ -50,18 +60,39 @@ export default function CalendarExperience({ year, month, today, initialDays }: 
     return value >= 1 && value <= count ? value : null;
   });
 
-  async function open(value: string) {
+  async function open(value: string, entry: CalendarEntryView | null) {
+    const launchFromThumbnail = Boolean(entry?.layout && preview(entry));
+    setJournalLaunch(launchFromThumbnail);
+    setOpenHasEntry(Boolean(entry?.layout));
     setOpenDate(value);
     setLoading(true);
     setError("");
     setDay(null);
     try {
-      setDay(await jsonRequest(`/api/private/calendar/days/${value}`));
+      const request = jsonRequest<CalendarDayPayload>(`/api/private/calendar/days/${value}`);
+      const result = launchFromThumbnail
+        ? (await Promise.all([request, new Promise((resolve) => window.setTimeout(resolve, 240))]))[0]
+        : await request;
+      const displayImage = result.entry?.assets.find((asset) => asset.role === "preview")?.url
+        ?? result.entry?.assets.find((asset) => asset.role === "thumbnail")?.url;
+      if (launchFromThumbnail && displayImage) await preloadImage(displayImage).catch(() => undefined);
+      startTransition(() => {
+        setDay(result);
+        setLoading(false);
+      });
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "无法读取当天内容。");
-    } finally {
       setLoading(false);
     }
+  }
+  function close() {
+    startTransition(() => {
+      setOpenDate(null);
+      setDay(null);
+      setLoading(false);
+      setJournalLaunch(false);
+      setOpenHasEntry(false);
+    });
   }
   function entryChanged(entry: CalendarEntryView) {
     setDay((current) => current ? { ...current, entry } : current);
@@ -90,8 +121,13 @@ export default function CalendarExperience({ year, month, today, initialDays }: 
             const dateNumberStyle = info?.entry?.layout?.dateNumber;
             const active = Boolean(info && (info.photoCount || info.foodCount || info.entry));
             const isToday = year === today.year && month === today.month && value === today.day;
-            return <button key={date} type="button" className={`${styles.dayCell} ${active ? styles.hasContent : ""} ${isToday ? styles.today : ""}`} onClick={() => active && open(date)} disabled={!active} aria-label={`${date}${active ? `，${info?.photoCount ?? 0} 张照片，${info?.foodCount ?? 0} 条美食记录` : "，暂无内容"}`}>
-              {image ? <img src={image} alt="" className={styles.cellPreview} loading="lazy" decoding="async" /> : null}
+            const isLaunching = journalLaunch && loading && openDate === date;
+            const isViewing = journalLaunch && !loading && openDate === date && Boolean(day?.entry?.layout);
+            return <button key={date} type="button" className={`${styles.dayCell} ${active ? styles.hasContent : ""} ${isToday ? styles.today : ""}`} onClick={() => active && open(date, info?.entry ?? null)} disabled={!active || isLaunching} aria-busy={isLaunching || undefined} aria-label={`${date}${active ? `，${info?.photoCount ?? 0} 张照片，${info?.foodCount ?? 0} 条美食记录` : "，暂无内容"}`}>
+              {image && !isViewing ? <div className={`${styles.cellPreviewFrame} ${isLaunching ? styles.launchingPreview : ""}`}>
+                <ViewTransition name={`calendar-journal-${date}`} share="morph" default="none"><div className={styles.cellSharedImage}><img src={image} alt="" className={styles.cellPreview} loading="lazy" decoding="async" /></div></ViewTransition>
+                {isLaunching ? <span className={styles.cellLoader} role="status" aria-label="正在加载手账"><i aria-hidden="true" /></span> : null}
+              </div> : null}
               <time dateTime={date} className={styles.dayNumber} style={dateNumberStyle ? { color: dateNumberStyle.color, fontFamily: FONT_FAMILIES[dateNumberStyle.font] } : undefined}>{value}</time>
               {info?.entry && !image ? <span className={styles.entryState}>{info.entry.status === "ready" ? "已保存" : info.entry.status === "failed" ? "生成失败" : "草稿"}</span> : null}
               {active && !image ? <span className={styles.sourceDots} aria-hidden="true">{info?.photoCount ? "PHOTO" : ""}{info?.foodCount ? " FOOD" : ""}</span> : null}
@@ -100,20 +136,22 @@ export default function CalendarExperience({ year, month, today, initialDays }: 
         </div>
       </div>
     </div>
-    {openDate ? <DayDialog key={`${openDate}-${loading}`} date={openDate} day={day} loading={loading} error={error} onClose={() => setOpenDate(null)} onEntryChange={entryChanged} onEntryDelete={entryDeleted} /> : null}
+    {openDate ? <DayDialog key={`${openDate}-${journalLaunch ? "journal" : loading}`} date={openDate} day={day} loading={loading} error={error} initialHasEntry={openHasEntry} viewerLaunch={journalLaunch} onClose={close} onEntryChange={entryChanged} onEntryDelete={entryDeleted} /> : null}
   </>;
 }
 
-function DayDialog({ date, day, loading, error, onClose, onEntryChange, onEntryDelete }: {
+function DayDialog({ date, day, loading, error, initialHasEntry, viewerLaunch, onClose, onEntryChange, onEntryDelete }: {
   date: string;
   day: CalendarDayPayload | null;
   loading: boolean;
   error: string;
+  initialHasEntry: boolean;
+  viewerLaunch: boolean;
   onClose: () => void;
   onEntryChange: (entry: CalendarEntryView) => void;
   onEntryDelete: (date: string) => void;
 }) {
-  const [mode, setMode] = useState<"view" | "edit">(() => day?.entry?.layout ? "view" : "edit");
+  const [mode, setMode] = useState<"view" | "edit">(() => initialHasEntry ? "view" : "edit");
   const [selectedSources, setSelectedSources] = useState<string[]>(() => day?.sources.map((source) => `${source.type}:${source.id}`) ?? []);
   const [selectedImages, setSelectedImages] = useState<string[]>(() => day?.sources.flatMap((source) => source.imageIds).slice(0, CALENDAR_MAX_IMAGES) ?? []);
   const [note, setNote] = useState(() => day?.entry?.userNote ?? "");
@@ -125,6 +163,12 @@ function DayDialog({ date, day, loading, error, onClose, onEntryChange, onEntryD
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [onClose]);
+
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = previousOverflow; };
+  }, []);
 
   function toggleSource(sourceKey: string, imageIds: string[], checked: boolean) {
     setSelectedSources((current) => checked ? [...new Set([...current, sourceKey])] : current.filter((item) => item !== sourceKey));
@@ -139,6 +183,14 @@ function DayDialog({ date, day, loading, error, onClose, onEntryChange, onEntryD
     }
     setMessage("");
     setSelectedImages((current) => checked ? [...new Set([...current, imageId])] : current.filter((id) => id !== imageId));
+  }
+  function editEntry() {
+    if (day) {
+      setSelectedSources(day.sources.map((source) => `${source.type}:${source.id}`));
+      setSelectedImages(day.sources.flatMap((source) => source.imageIds).slice(0, CALENDAR_MAX_IMAGES));
+      setNote(day.entry?.userNote ?? "");
+    }
+    setMode("edit");
   }
   async function generate() {
     if (!selectedSources.length) return setMessage("请至少选择一条素材。");
@@ -178,13 +230,21 @@ function DayDialog({ date, day, loading, error, onClose, onEntryChange, onEntryD
     }
   }
 
+  if (mode === "view" && (viewerLaunch || day?.entry?.layout)) {
+    return <div className={styles.journalViewerBackdrop} onMouseDown={(event) => event.target === event.currentTarget && !loading && onClose()}>
+      {loading ? <p className={styles.srOnly} role="status">正在加载手账</p> : error ? <div className={styles.viewerError} role="alert"><p>{error}</p><button type="button" onClick={onClose}>返回日历</button></div> : day?.entry?.layout ? <section role="dialog" aria-modal="true" aria-label={`${date} 手账`} className={styles.journalViewerStage}>
+        <JournalViewer entry={day.entry} busy={busy} message={message} shared busyLabel="删除中…" onEdit={editEntry} onDelete={removeEntry} />
+      </section> : null}
+    </div>;
+  }
+
   return <div className={styles.backdrop} onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
     <section role="dialog" aria-modal="true" aria-labelledby="day-dialog-title" className={`${styles.dialog} ${mode === "view" ? styles.viewerDialog : ""}`}>
       <header className={styles.dialogHeader}>
         <div><p>{mode === "view" ? "Journal page" : "Daily archive"}</p><h2 id="day-dialog-title">{date}</h2></div>
         <button type="button" onClick={onClose} aria-label="关闭">×</button>
       </header>
-      {loading ? <p className={styles.dialogStatus}>正在翻找这一天…</p> : error ? <p className={styles.dialogStatus}>{error}</p> : day?.entry?.layout && mode === "view" ? <JournalViewer entry={day.entry} busy={busy} message={message} onEdit={() => setMode("edit")} onDelete={removeEntry} /> : day ? <div className={styles.dialogBody}>
+      {loading ? <p className={styles.dialogStatus}>正在翻找这一天…</p> : error ? <p className={styles.dialogStatus}>{error}</p> : day?.entry?.layout && mode === "view" ? <JournalViewer entry={day.entry} busy={busy} message={message} onEdit={editEntry} onDelete={removeEntry} /> : day ? <div className={styles.dialogBody}>
         <div className={styles.sourceColumn}>
           <div className={styles.sourceToolbar}>
             <div><p className={styles.sectionLabel}>当天素材</p><span>选择要参与生成的记录与图片</span></div>
@@ -225,18 +285,19 @@ function DayDialog({ date, day, loading, error, onClose, onEntryChange, onEntryD
   </div>;
 }
 
-function JournalViewer({ entry, busy, message, onEdit, onDelete }: { entry: CalendarEntryView; busy: boolean; message: string; onEdit: () => void; onDelete: () => void }) {
+function JournalViewer({ entry, busy, message, shared = false, busyLabel = "删除中…", onEdit, onDelete }: { entry: CalendarEntryView; busy: boolean; message: string; shared?: boolean; busyLabel?: string; onEdit: () => void; onDelete: () => void }) {
   const previewAsset = entry.assets.find((asset) => asset.role === "preview");
   const coverAsset = entry.assets.find((asset) => asset.role === "cover");
   const layout = entry.layout;
-  return <div className={styles.viewer}>
-    {previewAsset ? <div className={styles.viewerArtwork}><img src={previewAsset.url} alt={`${entry.date} 手账`} decoding="async" /></div> : layout ? <div className={styles.viewerArtwork} style={{ backgroundImage: coverAsset ? `url(${coverAsset.url})` : undefined, backgroundPosition: `${layout.cover.cropX * 100}% ${layout.cover.cropY * 100}%`, backgroundSize: `${layout.cover.scale * 100}%` }}>
+  const artwork = previewAsset ? <div className={styles.viewerArtwork}><img src={previewAsset.url} alt={`${entry.date} 手账`} decoding="async" /></div> : layout ? <div className={styles.viewerArtwork} style={{ backgroundImage: coverAsset ? `url(${coverAsset.url})` : undefined, backgroundPosition: `${layout.cover.cropX * 100}% ${layout.cover.cropY * 100}%`, backgroundSize: `${layout.cover.scale * 100}%` }}>
       <div className={styles.viewerText} style={{ left: `${layout.text.x * 100}%`, top: `${layout.text.y * 100}%`, width: `${layout.text.width * 100}%`, height: `${layout.text.height * 100}%`, color: layout.text.style.color, textAlign: layout.text.style.align, fontFamily: FONT_FAMILIES[layout.text.style.font], fontSize: `${layout.text.style.fontSize / 10.24}cqi`, textShadow: layout.text.style.shadow ? "0 2px 8px rgb(0 0 0 / 50%)" : "none" }}>{entry.finalText}</div>
       {layout.stickers.map((sticker) => { const asset = entry.assets.find((item) => item.id === sticker.assetId); return asset ? <img className={styles.viewerSticker} src={asset.url} alt="" key={sticker.assetId} style={{ left: `${sticker.x * 100}%`, top: `${sticker.y * 100}%`, width: `${sticker.width * 100}%`, transform: `translate(-50%, -50%) rotate(${sticker.rotation}deg)` }} /> : null; })}
-    </div> : <div className={styles.viewerArtwork}><p>手账预览暂不可用。</p></div>}
+    </div> : <div className={styles.viewerArtwork}><p>手账预览暂不可用。</p></div>;
+  return <div className={styles.viewer}>
+    {shared ? <ViewTransition name={`calendar-journal-${entry.date}`} share="morph" default="none">{artwork}</ViewTransition> : artwork}
     <div className={styles.viewerActions}>
       <button type="button" className={styles.secondaryButton} onClick={onEdit} disabled={busy}>编辑</button>
-      <button type="button" className={styles.deleteButton} onClick={onDelete} disabled={busy}>{busy ? "删除中…" : "删除"}</button>
+      <button type="button" className={styles.deleteButton} onClick={onDelete} disabled={busy}>{busy ? busyLabel : "删除"}</button>
     </div>
     {message ? <p className={styles.helper}>{message}</p> : null}
   </div>;

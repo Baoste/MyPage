@@ -290,7 +290,60 @@
 }
 .dayCell.hasContent::after { border: 1px dashed rgb(40 42 39 / 55%); content: ""; inset: .32rem; pointer-events: none; position: absolute; transform: rotate(.25deg); }
 .dayCell:focus-visible { outline: 3px solid #282a27; outline-offset: -4px; z-index: 3; }
-.cellPreview { height: 100%; inset: 0; object-fit: cover; position: absolute; width: 100%; }
+.dayCell[aria-busy="true"] { z-index: 120; }
+.dayCell[aria-busy="true"]::before,
+.dayCell[aria-busy="true"]::after,
+.dayCell[aria-busy="true"] .dayNumber { opacity: 0; }
+.cellPreviewFrame,
+.cellSharedImage {
+  height: 100%;
+  inset: 0;
+  position: absolute;
+  width: 100%;
+}
+
+.cellSharedImage {
+  overflow: hidden;
+}
+
+.cellPreview {
+  display: block;
+  height: 100%;
+  object-fit: cover;
+  width: 100%;
+}
+
+.launchingPreview {
+  box-shadow: 0 1.5rem 4rem rgb(0 0 0 / 38%);
+  isolation: isolate;
+  overflow: hidden;
+  z-index: 140;
+}
+
+.cellLoader {
+  align-items: center;
+  background: rgb(18 20 18 / 32%);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  position: absolute;
+  z-index: 2;
+}
+
+.cellLoader i {
+  animation: calendar-spinner 760ms linear infinite;
+  border: 2px solid rgb(255 255 255 / 30%);
+  border-radius: 50%;
+  border-top-color: #fff;
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 12%);
+  display: block;
+  height: clamp(1.5rem, 2.4vw, 2.2rem);
+  width: clamp(1.5rem, 2.4vw, 2.2rem);
+}
+
+@keyframes calendar-spinner {
+  to { transform: rotate(1turn); }
+}
 .dayNumber {
   background: none;
   display: inline-grid;
@@ -309,6 +362,97 @@
 }
 .entryState, .sourceDots { bottom: .6rem; font-size: .58rem; font-weight: 700; letter-spacing: .08em; position: absolute; text-transform: uppercase; z-index: 2; }
 .entryState { left: .65rem; }.sourceDots { background: #282b28; color: #f0f0ea; padding: .22rem .35rem; right: .65rem; }
+
+.journalViewerBackdrop {
+  align-items: center;
+  animation: journal-backdrop-in 260ms cubic-bezier(.2, 0, 0, 1) both;
+  backdrop-filter: blur(12px) brightness(.42) saturate(.72);
+  background:
+    radial-gradient(circle at 50% 46%, rgb(18 20 18 / 5%) 0 22rem, rgb(12 13 12 / 38%) 70%),
+    rgb(18 20 18 / 26%);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 1.5rem;
+  position: fixed;
+  z-index: 100;
+}
+
+@keyframes journal-backdrop-in {
+  from { backdrop-filter: blur(0) brightness(1) saturate(1); background-color: transparent; }
+}
+
+.journalViewerStage {
+  border: 0;
+  margin: 0;
+  outline: 0;
+  width: min(42rem, calc(100vw - 3rem), calc(100svh - 8.5rem));
+}
+
+.journalViewerStage .viewer {
+  padding: 0;
+}
+
+.journalViewerStage .viewerArtwork {
+  border: 0;
+  box-shadow:
+    0 2.2rem 5rem rgb(0 0 0 / 48%),
+    0 .25rem .8rem rgb(0 0 0 / 26%);
+  max-width: none;
+  z-index: 2;
+}
+
+.journalViewerStage .viewerActions {
+  margin-top: .7rem;
+  max-width: 24rem;
+  position: relative;
+  width: 62%;
+  z-index: 1;
+}
+
+.journalViewerStage .viewerActions button {
+  animation: journal-control-drop 480ms cubic-bezier(.22, 1, .36, 1) both;
+  box-shadow: 0 .7rem 1.5rem rgb(0 0 0 / 18%);
+  min-height: 2.65rem;
+  transform-origin: top center;
+}
+
+.journalViewerStage .viewerActions button:first-child { animation-delay: 360ms; }
+.journalViewerStage .viewerActions button:last-child { animation-delay: 420ms; }
+
+@keyframes journal-control-drop {
+  0% { opacity: 0; transform: translateY(-3.2rem) scale(.94); }
+  72% { opacity: 1; transform: translateY(.28rem) scale(1.01); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.journalViewerStage .secondaryButton {
+  background: rgb(239 239 232 / 94%);
+  color: #242724;
+}
+
+.journalViewerStage .deleteButton {
+  background: rgb(40 43 40 / 94%);
+  color: #f1eee7;
+}
+
+.journalViewerStage .secondaryButton:hover:not(:disabled),
+.journalViewerStage .deleteButton:hover:not(:disabled) {
+  transform: translateY(-2px);
+}
+
+.viewerError {
+  background: rgb(234 234 227 / 94%);
+  border: 1px solid rgb(255 255 255 / 38%);
+  box-shadow: 0 1.5rem 4rem rgb(0 0 0 / 34%);
+  color: #252724;
+  max-width: 24rem;
+  padding: 1.25rem;
+  text-align: center;
+}
+
+.viewerError p { font-size: .82rem; line-height: 1.6; }
+.viewerError button { background: #282b28; border: 0; color: #f0f0ea; cursor: pointer; min-height: 2.6rem; padding-inline: 1rem; }
 
 .backdrop {
   align-items: center;
@@ -936,4 +1080,17 @@
   .textStyleControls,
   .dateStyleControls,
   .rangeGrid { grid-template-columns: 1fr; }
+  .journalViewerBackdrop { padding: 1rem; }
+  .journalViewerStage { width: min(calc(100vw - 2rem), calc(100svh - 8rem)); }
+  .journalViewerStage .viewerActions { width: 90%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .journalViewerBackdrop,
+  .journalViewerStage .viewerActions button,
+  .cellLoader i {
+    animation-delay: 0s;
+    animation-duration: .01ms;
+    animation-iteration-count: 1;
+  }
 }
