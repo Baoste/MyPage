@@ -20,18 +20,57 @@ function settings() {
 
 export function isCalendarAiAvailable() { return Boolean(settings().apiKey); }
 
-async function post(path: string, body: unknown) {
+async function post(path: string, body: unknown, timeoutMs = 120_000) {
   const config = settings();
   if (!config.apiKey) throw new Error("尚未配置 Calendar AI API Key。");
   const response = await fetch(`${config.baseUrl}${path}`, {
     method: "POST",
     headers: { Authorization: `Bearer ${config.apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify(body),
-    signal: AbortSignal.timeout(120_000),
+    signal: AbortSignal.timeout(timeoutMs),
   });
   const payload = await response.json().catch(() => null) as Record<string, unknown> | null;
   if (!response.ok) throw new Error(`AI 服务暂时不可用（${response.status}）。`);
   return payload ?? {};
+}
+
+async function imageBytes(payload: Record<string, unknown>) {
+  const first = (Array.isArray(payload.data) ? payload.data[0] : null) as Record<string, unknown> | null;
+  if (first && typeof first.b64_json === "string") {
+    return Uint8Array.from(Buffer.from(first.b64_json, "base64"));
+  }
+  if (first && typeof first.url === "string") {
+    const response = await fetch(first.url, { signal: AbortSignal.timeout(60_000) });
+    if (!response.ok) throw new Error("AI 图片下载失败。");
+    const body = await response.arrayBuffer();
+    if (body.byteLength < 1 || body.byteLength > 10 * 1024 * 1024) throw new Error("AI 返回的图片大小无效。");
+    return new Uint8Array(body);
+  }
+  throw new Error("AI 未返回可用图片。");
+}
+
+async function postImageEdit(prompt: string, images: AiImageInput[], transparent: boolean) {
+  const config = settings();
+  if (!config.apiKey) throw new Error("尚未配置 Calendar AI API Key。");
+  const form = new FormData();
+  form.set("model", config.imageModel);
+  form.set("prompt", prompt);
+  form.set("size", "1024x1024");
+  form.set("quality", "medium");
+  form.set("background", transparent ? "transparent" : "opaque");
+  form.set("response_format", "b64_json");
+  for (const [index, image] of images.slice(0, 8).entries()) {
+    form.append("image[]", new Blob([new Uint8Array(image.bytes)], { type: image.mimeType }), `source-${index + 1}.${image.mimeType === "image/png" ? "png" : image.mimeType === "image/webp" ? "webp" : "jpg"}`);
+  }
+  const response = await fetch(`${config.baseUrl}/images/edits`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${config.apiKey}` },
+    body: form,
+    signal: AbortSignal.timeout(300_000),
+  });
+  const payload = await response.json().catch(() => null) as Record<string, unknown> | null;
+  if (!response.ok) throw new Error(`AI 图片生成暂时不可用（${response.status}）。`);
+  return imageBytes(payload ?? {});
 }
 
 function responseText(payload: Record<string, unknown>) {
@@ -48,19 +87,7 @@ function responseText(payload: Record<string, unknown>) {
 async function generateImage(prompt: string, transparent = false, images: AiImageInput[] = []) {
   const config = settings();
   if (images.length) {
-    const payload = await post("/responses", {
-      model: config.textModel,
-      input: [{ role: "user", content: [
-        { type: "input_text", text: prompt },
-        ...images.slice(0, 8).map((image) => ({ type: "input_image", image_url: `data:${image.mimeType};base64,${Buffer.from(image.bytes).toString("base64")}` })),
-      ] }],
-      tools: [{ type: "image_generation", size: "1024x1024", quality: "medium", background: transparent ? "transparent" : "opaque" }],
-      tool_choice: { type: "image_generation" },
-    });
-    const output = (Array.isArray(payload.output) ? payload.output : []) as Array<Record<string, unknown>>;
-    const result = output.find((item) => item.type === "image_generation_call")?.result;
-    if (typeof result === "string") return Uint8Array.from(Buffer.from(result, "base64"));
-    throw new Error("AI 未返回可用图片。");
+    return postImageEdit(prompt, images, transparent);
   }
   const payload = await post("/images/generations", {
     model: config.imageModel,
@@ -68,10 +95,9 @@ async function generateImage(prompt: string, transparent = false, images: AiImag
     size: "1024x1024",
     quality: "medium",
     background: transparent ? "transparent" : "opaque",
-  });
-  const first = (Array.isArray(payload.data) ? payload.data[0] : null) as Record<string, unknown> | null;
-  if (!first || typeof first.b64_json !== "string") throw new Error("AI 未返回可用图片。");
-  return Uint8Array.from(Buffer.from(first.b64_json, "base64"));
+    response_format: "b64_json",
+  }, 300_000);
+  return imageBytes(payload);
 }
 
 export async function generateCalendarJournal(context: string, images: AiImageInput[]): Promise<CalendarAiResult> {
@@ -80,17 +106,20 @@ export async function generateCalendarJournal(context: string, images: AiImageIn
     type: "input_image",
     image_url: `data:${image.mimeType};base64,${Buffer.from(image.bytes).toString("base64")}`,
   }));
-  const textPayload = await post("/responses", {
-    model: config.textModel,
-    input: [{ role: "user", content: [
-      { type: "input_text", text: `你是中文日历手账编辑。根据材料写一段 45～90 字、自然克制、有生活感的第一人称日记，只返回正文。\n\n${context}` },
-      ...imageParts,
-    ] }],
-  });
-  const text = responseText(textPayload).trim().slice(0, 4000);
   const coverPrompt = `Square editorial journal collage cover, restrained cool gray paper texture, hand-drawn scrapbook feeling, spacious composition, no readable text. Daily memory context: ${context.slice(0, 1200)}`;
   const stickerPrompt = `A small hand-drawn scrapbook sticker sheet inspired by this day: ${context.slice(0, 700)}. Two simple isolated motifs, black ink and muted warm accent, transparent background, no text.`;
-  const [cover, sticker] = await Promise.all([generateImage(coverPrompt, false, images), generateImage(stickerPrompt, true, images)]);
+  const [textPayload, cover, sticker] = await Promise.all([
+    post("/responses", {
+      model: config.textModel,
+      input: [{ role: "user", content: [
+        { type: "input_text", text: `你是中文日历手账编辑。根据材料写一段 45～90 字、自然克制、有生活感的第一人称日记，只返回正文。\n\n${context}` },
+        ...imageParts,
+      ] }],
+    }),
+    generateImage(coverPrompt, false, images),
+    generateImage(stickerPrompt, true, images),
+  ]);
+  const text = responseText(textPayload).trim().slice(0, 4000);
   return {
     text,
     cover: { bytes: cover, mimeType: "image/png" },
