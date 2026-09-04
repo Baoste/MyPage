@@ -10,12 +10,14 @@ const JOURNAL_BLUR_SETTLE_MS = 720;
 const FONT_FAMILIES: Record<CalendarTextFont, string> = {
   aventa: 'var(--font-aventa), "Microsoft YaHei", sans-serif',
   morganite: 'var(--font-morganite), "Microsoft YaHei", sans-serif',
-  chenyuluoyan: 'var(--font-chenyuluoyan), "Microsoft YaHei", sans-serif',
+  pingfang: 'var(--font-pingfang), "Microsoft YaHei", sans-serif',
+  bailutong: 'var(--font-bailutong), "Microsoft YaHei", sans-serif',
 };
 const FONT_CSS_VARIABLES: Record<CalendarTextFont, string> = {
   aventa: "--font-aventa",
   morganite: "--font-morganite",
-  chenyuluoyan: "--font-chenyuluoyan",
+  pingfang: "--font-pingfang",
+  bailutong: "--font-bailutong",
 };
 const TEXT_FONT_SIZES = [16, 18, 20, 24, 28, 32, 36, 42, 48, 56, 64, 72, 96, 120, 144, 160];
 type PointLayer = { type: "text" } | { type: "sticker"; index: number };
@@ -676,7 +678,7 @@ function JournalEditor({ entry, onSaved }: { entry: CalendarEntryView; onSaved: 
     }
   }
   return <div className={styles.editor}>
-    <span className={styles.srOnly} style={{ fontFamily: FONT_FAMILIES.chenyuluoyan }} aria-hidden="true">沉鱼落雁字体加载</span>
+    <span className={styles.srOnly} style={{ fontFamily: FONT_FAMILIES[layout.text.style.font] }} aria-hidden="true">手账字体加载</span>
     <div className={styles.panelHeading}><div><p>Journal editor</p><h3>手账排版</h3></div><span>1:1</span></div>
     <div className={styles.canvas} ref={canvasRef} style={{ backgroundImage: cover ? `url(${cover.url})` : undefined, backgroundPosition: `${layout.cover.cropX * 100}% ${layout.cover.cropY * 100}%`, backgroundSize: `${layout.cover.scale * 100}%` }}>
       <div className={`${styles.layerFrame} ${styles.textFrame} ${selected.type === "text" ? styles.selectedLayer : ""}`} style={{ left: `${layout.text.x * 100}%`, top: `${layout.text.y * 100}%`, width: `${layout.text.width * 100}%`, height: `${layout.text.height * 100}%`, zIndex: layout.text.zIndex }}>
@@ -700,7 +702,7 @@ function JournalEditor({ entry, onSaved }: { entry: CalendarEntryView; onSaved: 
         <div className={styles.controlHeading}><div><b>文字</b><span>像文档一样排版，再到画布中调整边界</span></div><output>{text.length}/4000</output></div>
         <label className={styles.textareaControl}><span className={styles.srOnly}>手账文字</span><textarea value={text} maxLength={4000} onChange={(event) => setText(event.target.value)} /></label>
         <div className={styles.formatToolbar} role="toolbar" aria-label="文字格式">
-          <label className={`${styles.toolbarField} ${styles.fontField}`}><span>字体</span><select value={layout.text.style.font} onChange={(event) => updateTextStyle({ font: event.target.value as CalendarTextFont })}><option value="aventa">Aventa</option><option value="morganite">Morganite</option><option value="chenyuluoyan">沉鱼落雁</option></select></label>
+          <label className={`${styles.toolbarField} ${styles.fontField}`}><span>字体</span><select value={layout.text.style.font} onChange={(event) => updateTextStyle({ font: event.target.value as CalendarTextFont })}><option value="aventa">Aventa</option><option value="morganite">Morganite</option><option value="pingfang">平方上上谦体</option><option value="bailutong">白路彤彤手写体</option></select></label>
           <label className={`${styles.toolbarField} ${styles.sizeField}`}><span>字号</span><select value={layout.text.style.fontSize} onChange={(event) => updateTextStyle({ fontSize: Number(event.target.value) })}>{fontSizes.map((size) => <option value={size} key={size}>{size}</option>)}</select></label>
           <label className={styles.toolbarColor} title="文字颜色"><span>颜色</span><i style={{ backgroundColor: layout.text.style.color }} aria-hidden="true" /><input type="color" value={layout.text.style.color} aria-label="文字颜色" onChange={(event) => updateTextStyle({ color: event.target.value })} /></label>
           <span className={styles.toolbarDivider} aria-hidden="true" />
@@ -721,7 +723,7 @@ function JournalEditor({ entry, onSaved }: { entry: CalendarEntryView; onSaved: 
         </div>
         <fieldset className={styles.dateStyleControls}>
           <legend>日历格日期数字</legend>
-          <label>字体<select value={layout.dateNumber.font} onChange={(event) => setLayout({ ...layout, dateNumber: { ...layout.dateNumber, font: event.target.value as CalendarTextFont } })}><option value="aventa">Aventa</option><option value="morganite">Morganite</option><option value="chenyuluoyan">沉鱼落雁</option></select></label>
+          <label>字体<select value={layout.dateNumber.font} onChange={(event) => setLayout({ ...layout, dateNumber: { ...layout.dateNumber, font: event.target.value as CalendarTextFont } })}><option value="aventa">Aventa</option><option value="morganite">Morganite</option><option value="pingfang">平方上上谦体</option><option value="bailutong">白路彤彤手写体</option></select></label>
           <label>颜色<span className={styles.colorControl}><input type="color" value={layout.dateNumber.color} onChange={(event) => setLayout({ ...layout, dateNumber: { ...layout.dateNumber, color: event.target.value } })} /><output>{layout.dateNumber.color}</output></span></label>
         </fieldset>
       </section>

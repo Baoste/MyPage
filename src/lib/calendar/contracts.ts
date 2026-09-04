@@ -8,7 +8,7 @@ export const CALENDAR_MAX_IMAGES = 8;
 export type CalendarEntryStatus = "draft" | "generating" | "ready" | "failed";
 export type CalendarAssetRole = "cover" | "sticker" | "preview" | "thumbnail";
 export type CalendarSourceType = "photo" | "food";
-export type CalendarTextFont = "aventa" | "morganite" | "chenyuluoyan";
+export type CalendarTextFont = "aventa" | "morganite" | "pingfang" | "bailutong";
 
 export interface CalendarAssetView { id: string; role: CalendarAssetRole; url: string; width: number; height: number; sortOrder: number; }
 export interface CalendarLayout {
@@ -56,7 +56,7 @@ function finiteBetween(value: unknown, min: number, max: number) {
   return typeof value === "number" && Number.isFinite(value) && value >= min && value <= max;
 }
 function isCalendarTextFont(value: unknown): value is CalendarTextFont {
-  return value === "aventa" || value === "morganite" || value === "chenyuluoyan";
+  return value === "aventa" || value === "morganite" || value === "pingfang" || value === "bailutong";
 }
 export function parseCalendarLayout(value: unknown): CalendarLayout {
   if (!value || typeof value !== "object") throw new Error("手账布局无效。");

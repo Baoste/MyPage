@@ -21,9 +21,18 @@ const morganite = localFont({
   display: "swap",
 });
 
-const chenyuluoyan = localFont({
-  src: "./fonts/ChenYuluoyan-Thin.woff2",
-  variable: "--font-chenyuluoyan",
+const pingfang = localFont({
+  src: "./fonts/平方上上谦体.woff2",
+  variable: "--font-pingfang",
+  weight: "500",
+  style: "normal",
+  display: "swap",
+  preload: false,
+});
+
+const bailutong = localFont({
+  src: "./fonts/白路彤彤手写体.woff2",
+  variable: "--font-bailutong",
   weight: "500",
   style: "normal",
   display: "swap",
@@ -56,7 +65,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (
-    <html lang="zh-CN" className={`${aventa.variable} ${morganite.variable} ${chenyuluoyan.variable}`}>
+    <html lang="zh-CN" className={`${aventa.variable} ${morganite.variable} ${pingfang.variable} ${bailutong.variable}`}>
       <body>{children}</body>
     </html>
   );
