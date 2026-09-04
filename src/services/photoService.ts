@@ -6,6 +6,8 @@ import { imageDimensionsFromBytes, imageSignatureMatches } from "@/lib/food/imag
 import {
   extensionForPhotoMimeType,
   formatPhotoLocation,
+  PHOTO_IMAGE_MIME_TYPES,
+  PHOTO_UPLOAD_LIMITS,
   photoDateInTimezone,
   type PhotoUpdateInput,
   type PhotoUploadRequestInput,
@@ -17,6 +19,7 @@ import {
   photoThumbnailStoragePath,
   readLocalPhotoFile,
   readLocalPhotoFileHeader,
+  writeLocalPhotoFile,
   writeLocalPhotoFiles,
 } from "@/lib/photo/local-storage";
 import {
@@ -230,26 +233,27 @@ async function mapWithConcurrency<T, R>(
   return results;
 }
 
-async function photoImageUrl(photoId: string, storagePath: string) {
+async function photoImageUrl(photoId: string, storagePath: string, version?: string) {
   return isLocalPhotoStoragePath(storagePath)
-    ? `/api/private/photos/images/${encodeURIComponent(photoId)}/file`
+    ? `/api/private/photos/images/${encodeURIComponent(photoId)}/file${version ? `?v=${encodeURIComponent(version)}` : ""}`
     : getPrivateSignedUrl(storagePath);
 }
 
-async function photoThumbnailUrl(photoId: string, storagePath: string) {
+async function photoThumbnailUrl(photoId: string, storagePath: string, version?: string) {
   if (!isLocalPhotoStoragePath(storagePath)) return getPrivateSignedUrl(storagePath);
   const thumbnailPath = photoThumbnailStoragePath(storagePath);
+  const suffix = version ? `&v=${encodeURIComponent(version)}` : "";
   return (await getLocalPhotoFileInfo(thumbnailPath))
-    ? `/api/private/photos/images/${encodeURIComponent(photoId)}/file?variant=thumbnail`
-    : `/api/private/photos/images/${encodeURIComponent(photoId)}/file`;
+    ? `/api/private/photos/images/${encodeURIComponent(photoId)}/file?variant=thumbnail${suffix}`
+    : `/api/private/photos/images/${encodeURIComponent(photoId)}/file${version ? `?v=${encodeURIComponent(version)}` : ""}`;
 }
 
 async function toViewModel(photo: PhotoEntry): Promise<PhotoViewModel> {
   try {
     return {
       ...photo,
-      imageUrl: await photoImageUrl(photo.id, photo.storagePath),
-      thumbnailUrl: await photoThumbnailUrl(photo.id, photo.storagePath),
+      imageUrl: await photoImageUrl(photo.id, photo.storagePath, photo.updatedAt),
+      thumbnailUrl: await photoThumbnailUrl(photo.id, photo.storagePath, photo.updatedAt),
     };
   } catch (error) {
     console.error("Unable to sign one photo.", { photoId: photo.id, error });
@@ -803,6 +807,123 @@ export async function updatePhoto(photoId: string, input: PhotoUpdateInput) {
     throw new PhotoServiceError("无法修改照片记录。", 500);
   }
   if (!data) throw new PhotoServiceError("照片不存在或当前不可修改。", 404);
+  return { photoId };
+}
+
+interface EditablePhotoImageInput {
+  bytes: Uint8Array;
+  thumbnailBytes: Uint8Array;
+  mimeType: string;
+  thumbnailMimeType: string;
+  width: number;
+  height: number;
+  capturedAt?: string;
+}
+
+function validateEditablePhotoImage(input: EditablePhotoImageInput) {
+  if (
+    !PHOTO_IMAGE_MIME_TYPES.includes(input.mimeType as PhotoImageMimeType)
+    || input.thumbnailMimeType !== input.mimeType
+    || input.bytes.byteLength < 1
+    || input.bytes.byteLength > PHOTO_UPLOAD_LIMITS.maximumImageBytes
+    || input.thumbnailBytes.byteLength < 1
+    || input.thumbnailBytes.byteLength > PHOTO_UPLOAD_LIMITS.maximumImageBytes
+    || !Number.isInteger(input.width)
+    || !Number.isInteger(input.height)
+    || input.width < 1
+    || input.height < 1
+    || input.width > 50_000
+    || input.height > 50_000
+    || !imageSignatureMatches(input.bytes, input.mimeType)
+    || !imageSignatureMatches(input.thumbnailBytes, input.thumbnailMimeType)
+  ) throw new PhotoServiceError("替换图片的格式、尺寸或大小无效。", 422);
+
+  const dimensions = imageDimensionsFromBytes(input.bytes, input.mimeType);
+  const thumbnailDimensions = imageDimensionsFromBytes(input.thumbnailBytes, input.thumbnailMimeType);
+  if (
+    !dimensions
+    || dimensions.width !== input.width
+    || dimensions.height !== input.height
+    || !thumbnailDimensions
+    || thumbnailDimensions.width > dimensions.width
+    || thumbnailDimensions.height > dimensions.height
+  ) throw new PhotoServiceError("替换图片的实际尺寸与提交信息不一致。", 422);
+
+  if (!input.capturedAt) return undefined;
+  const milliseconds = Date.parse(input.capturedAt);
+  if (
+    !Number.isFinite(milliseconds)
+    || milliseconds < Date.UTC(1900, 0, 1)
+    || milliseconds > Date.now() + 24 * 60 * 60 * 1_000
+  ) throw new PhotoServiceError("替换图片的拍摄时间无效。", 422);
+  return new Date(milliseconds).toISOString();
+}
+
+export async function replacePhotoImage(photoId: string, input: EditablePhotoImageInput) {
+  await requirePrivateSession();
+  assertConfigured();
+  assertUuid(photoId, "照片标识");
+  const capturedAt = validateEditablePhotoImage(input);
+  const photo = await selectPhoto(photoId);
+  if (!photo || photo.status !== "ready") throw new PhotoServiceError("照片不存在或当前不可修改。", 404);
+
+  const extension = extensionForPhotoMimeType(input.mimeType as PhotoImageMimeType);
+  const storagePath = `photos/${photoId}/${photoId}.${extension}`;
+  const thumbnailPath = photoThumbnailStoragePath(storagePath);
+  const replacesSameLocalPath = photo.storage_path === storagePath && isLocalPhotoStoragePath(photo.storage_path);
+  const previousBytes = replacesSameLocalPath ? await readLocalPhotoFile(photo.storage_path) : null;
+  const previousThumbnailInfo = replacesSameLocalPath
+    ? await getLocalPhotoFileInfo(photoThumbnailStoragePath(photo.storage_path))
+    : null;
+  const previousThumbnailBytes = previousThumbnailInfo
+    ? await readLocalPhotoFile(photoThumbnailStoragePath(photo.storage_path))
+    : null;
+
+  const rollbackFiles = async () => {
+    if (previousBytes) {
+      await writeLocalPhotoFile(storagePath, previousBytes);
+      if (previousThumbnailBytes) await writeLocalPhotoFile(thumbnailPath, previousThumbnailBytes);
+      else await deleteLocalPhotoFiles([thumbnailPath]);
+      return;
+    }
+    await deleteLocalPhotoFiles([storagePath, thumbnailPath]);
+  };
+
+  try {
+    await writeLocalPhotoFile(storagePath, input.bytes);
+    await writeLocalPhotoFile(thumbnailPath, input.thumbnailBytes);
+  } catch (error) {
+    await rollbackFiles().catch(() => undefined);
+    console.error("Unable to write a replacement photo.", { photoId, error });
+    throw new PhotoServiceError("无法写入替换图片，请检查图片存储目录。", 500);
+  }
+
+  const client = createServerSupabaseClient();
+  const { data, error } = await client
+    .from("photo_entries")
+    .update({
+      storage_path: storagePath,
+      width: input.width,
+      height: input.height,
+      mime_type: input.mimeType,
+      byte_size: input.bytes.byteLength,
+      captured_at: capturedAt ?? photo.captured_at,
+      legacy_record: false,
+    })
+    .eq("id", photoId)
+    .eq("status", "ready")
+    .select("id")
+    .maybeSingle();
+  if (error || !data) {
+    await rollbackFiles().catch(() => undefined);
+    throw new PhotoServiceError("无法保存替换图片。", 500);
+  }
+
+  if (photo.storage_path !== storagePath) {
+    await deletePhotoMedia(photo.storage_path).catch((cleanupError) => {
+      console.error("Unable to remove the replaced photo media.", { photoId, cleanupError });
+    });
+  }
   return { photoId };
 }
 

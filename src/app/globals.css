@@ -450,6 +450,79 @@ body.calendar-journal-viewer-open .private-navbar {
   will-change: transform, opacity;
 }
 
+.private-media-stage {
+  align-items: center;
+  display: grid;
+  gap: clamp(0.6rem, 1.5vw, 1.25rem);
+  grid-template-columns: 3.25rem minmax(0, 72rem) 3.25rem;
+  justify-content: center;
+  max-width: 82rem;
+  position: relative;
+  width: 100%;
+  z-index: 10;
+}
+
+.private-media-nav {
+  align-items: center;
+  backdrop-filter: blur(8px);
+  background: rgb(247 243 236 / 92%);
+  border: 1px solid rgb(215 208 196 / 92%);
+  border-radius: 999px;
+  box-shadow: 0 10px 30px rgb(24 20 15 / 18%);
+  color: #4b453d;
+  cursor: pointer;
+  display: flex;
+  height: 3.25rem;
+  justify-content: center;
+  transition: background-color 140ms ease, color 140ms ease, transform 140ms ease;
+  width: 3.25rem;
+}
+
+.private-media-nav svg {
+  fill: none;
+  height: 1.35rem;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.7;
+  width: 1.35rem;
+}
+
+.private-media-nav:hover:not(:disabled) {
+  background: #a64b2a;
+  color: #fffaf3;
+  transform: scale(1.05);
+}
+
+.private-media-nav:focus-visible {
+  outline: 2px solid #fffaf3;
+  outline-offset: 3px;
+}
+
+.private-media-nav:disabled {
+  cursor: default;
+  opacity: 0.24;
+}
+
+@media (max-width: 767px) {
+  .private-media-stage { display: block; }
+  .private-media-nav {
+    height: 2.75rem;
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 2.75rem;
+    z-index: 20;
+  }
+  .private-media-nav:hover:not(:disabled) { transform: translateY(-50%) scale(1.04); }
+  .private-media-nav-previous { left: -0.35rem; }
+  .private-media-nav-next { right: -0.35rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .private-media-nav { transition: none; }
+}
+
 @keyframes food-expanded-enter {
   from {
     opacity: 0.82;

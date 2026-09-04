@@ -4,7 +4,9 @@ import { randomUUID } from "node:crypto";
 import { requirePrivateSession } from "@/lib/auth/session";
 import {
   extensionForFoodMimeType,
+  FOOD_IMAGE_MIME_TYPES,
   foodDateInTimezone,
+  FOOD_UPLOAD_LIMITS,
   formatFoodLocation,
   type FoodGroupUpdateInput,
   type FoodUploadRequestInput,
@@ -16,6 +18,7 @@ import {
   foodThumbnailStoragePath,
   readLocalFoodFile,
   readLocalFoodFileHeader,
+  writeLocalFoodFile,
   writeLocalFoodFiles,
 } from "@/lib/food/local-storage";
 import {
@@ -234,8 +237,8 @@ async function toImageViewModel(image: FoodImage): Promise<FoodImageViewModel> {
   try {
     return {
       ...image,
-      imageUrl: await foodImageUrl(image.id, image.storagePath),
-      thumbnailUrl: await foodThumbnailUrl(image.id, image.storagePath),
+      imageUrl: await foodImageUrl(image.id, image.storagePath, image.updatedAt),
+      thumbnailUrl: await foodThumbnailUrl(image.id, image.storagePath, image.updatedAt),
     };
   } catch (error) {
     console.error("Unable to sign one food image.", { imageId: image.id, error });
@@ -243,18 +246,19 @@ async function toImageViewModel(image: FoodImage): Promise<FoodImageViewModel> {
   }
 }
 
-async function foodImageUrl(imageId: string, storagePath: string) {
+async function foodImageUrl(imageId: string, storagePath: string, version?: string) {
   return await getLocalFoodFileInfo(storagePath)
-    ? `/api/private/food/images/${encodeURIComponent(imageId)}/file`
+    ? `/api/private/food/images/${encodeURIComponent(imageId)}/file${version ? `?v=${encodeURIComponent(version)}` : ""}`
     : getPrivateSignedUrl(storagePath);
 }
 
-async function foodThumbnailUrl(imageId: string, storagePath: string) {
+async function foodThumbnailUrl(imageId: string, storagePath: string, version?: string) {
   if (!(await getLocalFoodFileInfo(storagePath))) return getPrivateSignedUrl(storagePath);
   const thumbnailPath = foodThumbnailStoragePath(storagePath);
+  const suffix = version ? `&v=${encodeURIComponent(version)}` : "";
   return (await getLocalFoodFileInfo(thumbnailPath))
-    ? `/api/private/food/images/${encodeURIComponent(imageId)}/file?variant=thumbnail`
-    : `/api/private/food/images/${encodeURIComponent(imageId)}/file`;
+    ? `/api/private/food/images/${encodeURIComponent(imageId)}/file?variant=thumbnail${suffix}`
+    : `/api/private/food/images/${encodeURIComponent(imageId)}/file${version ? `?v=${encodeURIComponent(version)}` : ""}`;
 }
 
 async function getLegacyFoodGroups(): Promise<FoodGroupViewModel[]> {
@@ -1008,6 +1012,232 @@ export async function updateFoodGroup(groupId: string, input: FoodGroupUpdateInp
   }
   if (!data) throw new FoodServiceError("美食记录不存在或当前不可修改。", 404);
   return { groupId };
+}
+
+interface EditableFoodImageInput {
+  bytes: Uint8Array;
+  thumbnailBytes: Uint8Array;
+  mimeType: string;
+  thumbnailMimeType: string;
+  width: number;
+  height: number;
+  capturedAt?: string;
+}
+
+function validateEditableFoodImage(input: EditableFoodImageInput) {
+  if (
+    !FOOD_IMAGE_MIME_TYPES.includes(input.mimeType as FoodImage["mimeType"])
+    || input.thumbnailMimeType !== input.mimeType
+    || input.bytes.byteLength < 1
+    || input.bytes.byteLength > FOOD_UPLOAD_LIMITS.maximumImageBytes
+    || input.thumbnailBytes.byteLength < 1
+    || input.thumbnailBytes.byteLength > FOOD_UPLOAD_LIMITS.maximumImageBytes
+    || !Number.isInteger(input.width)
+    || !Number.isInteger(input.height)
+    || input.width < 1
+    || input.height < 1
+    || input.width > 50_000
+    || input.height > 50_000
+    || !imageSignatureMatches(input.bytes, input.mimeType)
+    || !imageSignatureMatches(input.thumbnailBytes, input.thumbnailMimeType)
+  ) throw new FoodServiceError("图片的格式、尺寸或大小无效。", 422);
+
+  const dimensions = imageDimensionsFromBytes(input.bytes, input.mimeType);
+  const thumbnailDimensions = imageDimensionsFromBytes(input.thumbnailBytes, input.thumbnailMimeType);
+  if (
+    !dimensions
+    || dimensions.width !== input.width
+    || dimensions.height !== input.height
+    || !thumbnailDimensions
+    || thumbnailDimensions.width > dimensions.width
+    || thumbnailDimensions.height > dimensions.height
+  ) throw new FoodServiceError("图片的实际尺寸与提交信息不一致。", 422);
+
+  if (!input.capturedAt) return undefined;
+  const milliseconds = Date.parse(input.capturedAt);
+  if (
+    !Number.isFinite(milliseconds)
+    || milliseconds < Date.UTC(1900, 0, 1)
+    || milliseconds > Date.now() + 24 * 60 * 60 * 1_000
+  ) throw new FoodServiceError("图片拍摄时间无效。", 422);
+  return new Date(milliseconds).toISOString();
+}
+
+async function editableFoodGroup(groupId: string) {
+  const client = createServerSupabaseClient();
+  const { data, error } = await client
+    .from("food_entries")
+    .select("id,status,storage_path")
+    .eq("id", groupId)
+    .maybeSingle();
+  if (error) throw new FoodServiceError("无法读取美食记录。", 500);
+  if (!data || data.status !== "ready") throw new FoodServiceError("美食记录不存在或当前不可修改。", 404);
+  return { client, group: data as { id: string; status: string; storage_path: string | null } };
+}
+
+export async function addFoodImage(groupId: string, input: EditableFoodImageInput) {
+  await requirePrivateSession();
+  assertConfigured();
+  assertUuid(groupId, "美食组标识");
+  const capturedAt = validateEditableFoodImage(input);
+  const { client, group } = await editableFoodGroup(groupId);
+  const { data: imageData, error: imageError } = await client
+    .from("food_images")
+    .select("*")
+    .eq("food_entry_id", groupId)
+    .order("sort_order", { ascending: true });
+  if (imageError) throw new FoodServiceError("无法读取组内图片。", 500);
+  const images = (imageData ?? []) as FoodImageRow[];
+  if (images.length >= FOOD_UPLOAD_LIMITS.maximumImages) throw new FoodServiceError("每组最多保存 12 张图片。", 409);
+  if (images.reduce((total, image) => total + Number(image.byte_size), 0) + input.bytes.byteLength > FOOD_UPLOAD_LIMITS.maximumGroupBytes) {
+    throw new FoodServiceError("单组图片总大小不能超过 60MB。", 413);
+  }
+
+  const imageId = randomUUID();
+  const extension = extensionForFoodMimeType(input.mimeType as FoodImage["mimeType"]);
+  const storagePath = `food/${groupId}/${imageId}.${extension}`;
+  const thumbnailPath = foodThumbnailStoragePath(storagePath);
+  try {
+    await writeLocalFoodFile(storagePath, input.bytes);
+    await writeLocalFoodFile(thumbnailPath, input.thumbnailBytes);
+  } catch (error) {
+    await deleteLocalFoodFiles([storagePath, thumbnailPath]).catch(() => undefined);
+    console.error("Unable to write a new food image.", { groupId, imageId, error });
+    throw new FoodServiceError("无法写入新增图片，请检查图片存储目录。", 500);
+  }
+
+  const sortOrder = images.reduce((maximum, image) => Math.max(maximum, image.sort_order), -1) + 1;
+  const { data, error } = await client.from("food_images").insert({
+    id: imageId,
+    food_entry_id: groupId,
+    storage_path: storagePath,
+    sort_order: sortOrder,
+    width: input.width,
+    height: input.height,
+    mime_type: input.mimeType,
+    byte_size: input.bytes.byteLength,
+    captured_at: capturedAt ?? null,
+    legacy_path: false,
+  }).select("*").single();
+  if (error || !data) {
+    await deleteLocalFoodFiles([storagePath, thumbnailPath]).catch(() => undefined);
+    throw new FoodServiceError("无法保存新增图片。", 500);
+  }
+  if (!group.storage_path) await client.from("food_entries").update({ storage_path: storagePath }).eq("id", groupId);
+  return toImageViewModel(mapImage(data as FoodImageRow));
+}
+
+export async function replaceFoodImage(groupId: string, imageId: string, input: EditableFoodImageInput) {
+  await requirePrivateSession();
+  assertConfigured();
+  assertUuid(groupId, "美食组标识");
+  assertUuid(imageId, "图片标识");
+  const capturedAt = validateEditableFoodImage(input);
+  const { client, group } = await editableFoodGroup(groupId);
+  const { data: imageData, error: imageError } = await client
+    .from("food_images")
+    .select("*")
+    .eq("id", imageId)
+    .eq("food_entry_id", groupId)
+    .maybeSingle();
+  if (imageError) throw new FoodServiceError("无法读取待替换图片。", 500);
+  if (!imageData) throw new FoodServiceError("图片不存在。", 404);
+  const image = imageData as FoodImageRow;
+  const { data: groupImages, error: groupImagesError } = await client
+    .from("food_images")
+    .select("byte_size")
+    .eq("food_entry_id", groupId);
+  if (groupImagesError) throw new FoodServiceError("无法核对组内图片大小。", 500);
+  const nextTotalBytes = (groupImages ?? []).reduce((total, item) => total + Number(item.byte_size), 0)
+    - Number(image.byte_size) + input.bytes.byteLength;
+  if (nextTotalBytes > FOOD_UPLOAD_LIMITS.maximumGroupBytes) throw new FoodServiceError("单组图片总大小不能超过 60MB。", 413);
+
+  const extension = extensionForFoodMimeType(input.mimeType as FoodImage["mimeType"]);
+  const storagePath = `food/${groupId}/${imageId}.${extension}`;
+  const thumbnailPath = foodThumbnailStoragePath(storagePath);
+  const replacesSameLocalPath = image.storage_path === storagePath && Boolean(await getLocalFoodFileInfo(image.storage_path));
+  const previousBytes = replacesSameLocalPath ? await readLocalFoodFile(image.storage_path) : null;
+  const previousThumbnailInfo = replacesSameLocalPath
+    ? await getLocalFoodFileInfo(foodThumbnailStoragePath(image.storage_path))
+    : null;
+  const previousThumbnailBytes = previousThumbnailInfo
+    ? await readLocalFoodFile(foodThumbnailStoragePath(image.storage_path))
+    : null;
+  const rollbackFiles = async () => {
+    if (previousBytes) {
+      await writeLocalFoodFile(storagePath, previousBytes);
+      if (previousThumbnailBytes) await writeLocalFoodFile(thumbnailPath, previousThumbnailBytes);
+      else await deleteLocalFoodFiles([thumbnailPath]);
+      return;
+    }
+    await deleteLocalFoodFiles([storagePath, thumbnailPath]);
+  };
+
+  try {
+    await writeLocalFoodFile(storagePath, input.bytes);
+    await writeLocalFoodFile(thumbnailPath, input.thumbnailBytes);
+  } catch (error) {
+    await rollbackFiles().catch(() => undefined);
+    console.error("Unable to write a replacement food image.", { groupId, imageId, error });
+    throw new FoodServiceError("无法写入替换图片，请检查图片存储目录。", 500);
+  }
+
+  const { data, error } = await client.from("food_images").update({
+    storage_path: storagePath,
+    width: input.width,
+    height: input.height,
+    mime_type: input.mimeType,
+    byte_size: input.bytes.byteLength,
+    captured_at: capturedAt ?? image.captured_at,
+    legacy_path: false,
+  }).eq("id", imageId).eq("food_entry_id", groupId).select("*").maybeSingle();
+  if (error || !data) {
+    await rollbackFiles().catch(() => undefined);
+    throw new FoodServiceError("无法保存替换图片。", 500);
+  }
+  if (group.storage_path === image.storage_path && group.storage_path !== storagePath) {
+    await client.from("food_entries").update({ storage_path: storagePath }).eq("id", groupId);
+  }
+  if (image.storage_path !== storagePath) {
+    await deleteFoodMedia([image.storage_path]).catch((cleanupError) => {
+      console.error("Unable to remove replaced food media.", { groupId, imageId, cleanupError });
+    });
+  }
+  return toImageViewModel(mapImage(data as FoodImageRow));
+}
+
+export async function deleteFoodImage(groupId: string, imageId: string) {
+  await requirePrivateSession();
+  assertConfigured();
+  assertUuid(groupId, "美食组标识");
+  assertUuid(imageId, "图片标识");
+  const { client, group } = await editableFoodGroup(groupId);
+  const { data, error } = await client
+    .from("food_images")
+    .select("*")
+    .eq("food_entry_id", groupId)
+    .order("sort_order", { ascending: true });
+  if (error) throw new FoodServiceError("无法读取组内图片。", 500);
+  const images = (data ?? []) as FoodImageRow[];
+  const image = images.find((item) => item.id === imageId);
+  if (!image) throw new FoodServiceError("图片不存在。", 404);
+  if (images.length <= 1) throw new FoodServiceError("每组至少保留一张图片；如需全部删除，请删除整组记录。", 409);
+  const replacement = images.find((item) => item.id !== imageId)!;
+  if (group.storage_path === image.storage_path) {
+    const { error: groupError } = await client.from("food_entries").update({ storage_path: replacement.storage_path }).eq("id", groupId);
+    if (groupError) throw new FoodServiceError("无法更新美食记录的封面图片。", 500);
+  }
+  const { data: deleted, error: deleteError } = await client
+    .from("food_images")
+    .delete()
+    .eq("id", imageId)
+    .eq("food_entry_id", groupId)
+    .select("id")
+    .maybeSingle();
+  if (deleteError || !deleted) throw new FoodServiceError("无法删除图片。", 500);
+  await deleteFoodMedia([image.storage_path]).catch((cleanupError) => {
+    console.error("Unable to remove deleted food media.", { groupId, imageId, cleanupError });
+  });
 }
 
 export async function deleteFoodGroup(groupId: string) {

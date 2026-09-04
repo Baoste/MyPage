@@ -31,9 +31,17 @@ export function PhotoGallery({
   const hasMore = cursor !== null;
 
   const expandedPhoto = loadedPhotos.find((photo) => photo.id === expandedPhotoId) ?? null;
+  const expandedPhotoIndex = expandedPhoto
+    ? loadedPhotos.findIndex((photo) => photo.id === expandedPhoto.id)
+    : -1;
+  const hasPreviousPhoto = expandedPhotoIndex > 0;
+  const hasNextPhoto = expandedPhotoIndex >= 0 && (
+    expandedPhotoIndex < loadedPhotos.length - 1
+    || (expandedPhotoIndex === loadedPhotos.length - 1 && hasMore && !isLoading)
+  );
 
-  const loadMore = useCallback(async () => {
-    if (!cursor || loadingRef.current) return;
+  const loadMore = useCallback(async (): Promise<PhotoViewModel[]> => {
+    if (!cursor || loadingRef.current) return [];
 
     loadingRef.current = true;
     setIsLoading(true);
@@ -63,15 +71,29 @@ export function PhotoGallery({
         ];
       });
       setCursor(data.nextCursor);
+      return data.photos;
     } catch (error) {
-      if (error instanceof DOMException && error.name === "AbortError") return;
+      if (error instanceof DOMException && error.name === "AbortError") return [];
       setLoadError(error instanceof Error ? error.message : "Unable to load more photos.");
+      return [];
     } finally {
       if (requestControllerRef.current === controller) requestControllerRef.current = null;
       loadingRef.current = false;
       setIsLoading(false);
     }
   }, [cursor]);
+
+  async function moveExpandedPhoto(amount: number) {
+    const target = loadedPhotos[expandedPhotoIndex + amount];
+    if (target) {
+      setExpandedPhotoId(target.id);
+      return;
+    }
+    if (amount < 1 || !cursor) return;
+    const existingIds = new Set(loadedPhotos.map((photo) => photo.id));
+    const nextPhoto = (await loadMore()).find((photo) => !existingIds.has(photo.id));
+    if (nextPhoto) setExpandedPhotoId(nextPhoto.id);
+  }
 
   useEffect(() => {
     const sentinel = loadMoreRef.current;
@@ -169,12 +191,17 @@ export function PhotoGallery({
             className="absolute inset-0 bg-[#14120f]/52 backdrop-blur-md"
             onClick={() => setExpandedPhotoId(null)}
           />
-          <div className="private-media-panel relative z-10 w-[min(96vw,72rem)] max-h-[92svh] overflow-auto">
-            <PhotoExpandedCard
-              photo={expandedPhoto}
-              mutationsEnabled={mutationsEnabled}
-              onClose={() => setExpandedPhotoId(null)}
-            />
+          <div className="private-media-stage">
+            <button type="button" disabled={!hasPreviousPhoto} onClick={() => void moveExpandedPhoto(-1)} aria-label="上一组照片" className="private-media-nav private-media-nav-previous"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 5-7 7 7 7" /></svg></button>
+            <div className="private-media-panel max-h-[92svh] w-full overflow-auto">
+              <PhotoExpandedCard
+                key={expandedPhoto.id}
+                photo={expandedPhoto}
+                mutationsEnabled={mutationsEnabled}
+                onClose={() => setExpandedPhotoId(null)}
+              />
+            </div>
+            <button type="button" disabled={!hasNextPhoto} onClick={() => void moveExpandedPhoto(1)} aria-label="下一组照片" className="private-media-nav private-media-nav-next"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7" /></svg></button>
           </div>
         </div>
       ) : null}

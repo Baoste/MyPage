@@ -60,6 +60,7 @@ export function PhotoExperience({
           </p>
         ) : null}
         <PhotoGallery
+          key={photos.map((photo) => `${photo.id}:${photo.updatedAt}`).join("|")}
           photos={photos}
           nextCursor={nextCursor}
           mutationsEnabled={mutationsEnabled}

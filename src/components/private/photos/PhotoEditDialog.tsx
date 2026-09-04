@@ -1,10 +1,16 @@
 "use client";
 
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { FoodLocationPicker } from "@/components/private/food/FoodLocationPicker";
 import { chinaDateTimeLocalToIso, toDateTimeLocalValue } from "@/lib/food/image-metadata";
 import { chineseLocationText } from "@/lib/food/locations";
+import {
+  editableImageFormData,
+  prepareEditableImage,
+  type PreparedEditableImage,
+} from "@/lib/image/editable-client";
 import {
   PHOTO_TIMEZONE,
   type PhotoApiErrorResponse,
@@ -46,6 +52,8 @@ export function PhotoEditDialog({
 }) {
   const router = useRouter();
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const replacementRef = useRef<PreparedEditableImage | null>(null);
   const [title, setTitle] = useState(photo.title ?? "");
   const [description, setDescription] = useState(photo.description ?? "");
   const [location, setLocation] = useState<FoodLocation>(() => initialLocation(photo));
@@ -53,6 +61,8 @@ export function PhotoEditDialog({
     toDateTimeLocalValue(photo.occurredAt));
   const [tagsText, setTagsText] = useState(photo.tags.join("，"));
   const [isDirty, setIsDirty] = useState(false);
+  const [isPreparingImage, setIsPreparingImage] = useState(false);
+  const [replacement, setReplacement] = useState<PreparedEditableImage | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState("");
 
@@ -64,13 +74,39 @@ export function PhotoEditDialog({
     document.body.style.overflow = "hidden";
     return () => {
       document.body.style.overflow = previousOverflow;
+      if (replacementRef.current) URL.revokeObjectURL(replacementRef.current.previewUrl);
       if (dialog.open) dialog.close();
     };
   }, []);
 
+  async function chooseReplacement(file: File | undefined) {
+    if (!file) return;
+    setIsPreparingImage(true);
+    setMessage("正在读取新图片…");
+    try {
+      const next = await prepareEditableImage(file);
+      if (replacementRef.current) URL.revokeObjectURL(replacementRef.current.previewUrl);
+      replacementRef.current = next;
+      setReplacement(next);
+      setMessage("");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "无法读取选择的图片。");
+    } finally {
+      setIsPreparingImage(false);
+      if (imageInputRef.current) imageInputRef.current.value = "";
+    }
+  }
+
+  function cancelReplacement() {
+    if (replacementRef.current) URL.revokeObjectURL(replacementRef.current.previewUrl);
+    replacementRef.current = null;
+    setReplacement(null);
+    setMessage("");
+  }
+
   async function requestClose() {
-    if (isSaving || dialogRef.current?.dataset.closing) return;
-    if (isDirty && !window.confirm("放弃尚未保存的修改吗？")) return;
+    if (isSaving || isPreparingImage || dialogRef.current?.dataset.closing) return;
+    if ((isDirty || replacementRef.current) && !window.confirm("放弃尚未保存的修改吗？")) return;
     await animatePrivateDialogClose(dialogRef.current);
     onClose();
   }
@@ -102,6 +138,17 @@ export function PhotoEditDialog({
       });
       const data = await response.json() as { ok?: boolean } | PhotoApiErrorResponse;
       if (!response.ok || !data.ok) throw new Error(responseMessage(data));
+      if (replacement) {
+        setMessage("正在替换图片…");
+        const imageResponse = await fetch(`/api/private/photos/entries/${photo.id}/image`, {
+          method: "PUT",
+          body: editableImageFormData(replacement),
+        });
+        const imageData = await imageResponse.json() as { ok?: boolean; message?: string };
+        if (!imageResponse.ok || !imageData.ok) throw new Error(responseMessage(imageData));
+      }
+      if (replacementRef.current) URL.revokeObjectURL(replacementRef.current.previewUrl);
+      replacementRef.current = null;
       router.refresh();
       await animatePrivateDialogClose(dialogRef.current);
       onSaved();
@@ -130,10 +177,29 @@ export function PhotoEditDialog({
             <p className="eyebrow">Edit photo memory</p>
             <h2 id="photo-edit-title" className="display-type mt-2 text-3xl sm:text-4xl">修改照片</h2>
           </div>
-          <button type="button" disabled={isSaving} onClick={() => void requestClose()} aria-label="关闭修改照片" className="grid size-11 shrink-0 place-items-center rounded-full border border-[#bcb3a8] bg-[#fffdf8] text-xl disabled:opacity-40">×</button>
+          <button type="button" disabled={isSaving || isPreparingImage} onClick={() => void requestClose()} aria-label="关闭修改照片" className="grid size-11 shrink-0 place-items-center rounded-full border border-[#bcb3a8] bg-[#fffdf8] text-xl disabled:opacity-40">×</button>
         </header>
 
         <div className="min-h-0 flex-1 space-y-7 overflow-y-auto px-5 py-6 sm:px-8">
+          <fieldset disabled={isSaving || isPreparingImage}>
+            <div className="flex items-end justify-between gap-4">
+              <div>
+                <legend className="text-xs font-semibold text-[#5d554e]">图片</legend>
+                <p className="mt-1 text-[0.66rem] leading-5 text-[#7b736a]">选择新图片即可替换，JPEG / PNG / WebP，最大 10MB。</p>
+              </div>
+              <label className={`shrink-0 rounded-full border border-[#9e9488] px-3.5 py-2 text-xs font-semibold text-[#4a433d] ${isSaving || isPreparingImage ? "pointer-events-none opacity-45" : "cursor-pointer"}`}>
+                {isPreparingImage ? "读取中…" : replacement ? "重新选择" : "更换图片"}
+                <input ref={imageInputRef} type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={(event) => void chooseReplacement(event.target.files?.[0])} />
+              </label>
+            </div>
+            <div className="mt-4 rounded-2xl border border-[#d0c7bb] bg-[#f7f3ec] p-2.5">
+              <div className="relative min-h-44 overflow-hidden rounded-xl bg-[#ddd7ca]" style={{ aspectRatio: `${replacement?.width ?? photo.width} / ${replacement?.height ?? photo.height}` }}>
+                <Image unoptimized src={replacement?.previewUrl || photo.thumbnailUrl || photo.imageUrl} alt="照片预览" fill sizes="40rem" className="object-contain" />
+              </div>
+              {replacement ? <div className="mt-2 flex items-center justify-between gap-3 px-1 text-[0.66rem] text-[#71695f]"><span className="truncate">待保存 · {replacement.file.name}</span><button type="button" onClick={cancelReplacement} className="shrink-0 border-b border-current text-[#8d3024]">取消替换</button></div> : null}
+            </div>
+          </fieldset>
+
           <label className="block text-xs font-semibold text-[#5d554e]">
             标题
             <input value={title} onChange={(event) => { setTitle(event.target.value); setIsDirty(true); }} disabled={isSaving} maxLength={120} placeholder="可以留空" className="mt-2 w-full rounded-xl border border-[#bdb3a7] bg-[#fbf8f2] px-3 py-2.5 text-sm font-normal text-[#302d29]" />
@@ -162,7 +228,7 @@ export function PhotoEditDialog({
 
         <footer className="flex flex-wrap items-center justify-between gap-4 border-t border-[#cec5b8] bg-[#eee8de] px-5 py-4 sm:px-8">
           <p aria-live="polite" className="min-w-0 flex-1 text-xs leading-5 text-[#96392c]">{message}</p>
-          <button type="submit" disabled={isSaving} className="min-w-32 rounded-full bg-[#2e332c] px-5 py-3 text-xs font-semibold tracking-[0.1em] text-white disabled:opacity-50">
+          <button type="submit" disabled={isSaving || isPreparingImage} className="min-w-32 rounded-full bg-[#2e332c] px-5 py-3 text-xs font-semibold tracking-[0.1em] text-white disabled:opacity-50">
             {isSaving ? "保存中…" : "保存修改"}
           </button>
         </footer>

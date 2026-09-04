@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { FoodLocationPicker } from "@/components/private/food/FoodLocationPicker";
@@ -10,8 +11,12 @@ import {
 } from "@/lib/food/contracts";
 import { chinaDateTimeLocalToIso, toDateTimeLocalValue } from "@/lib/food/image-metadata";
 import { chineseLocationText } from "@/lib/food/locations";
+import {
+  editableImageFormData,
+  prepareEditableImage,
+} from "@/lib/image/editable-client";
 import { animatePrivateDialogClose } from "@/lib/motion";
-import type { FoodGroupViewModel, FoodLocation, FoodRating } from "@/types";
+import type { FoodGroupViewModel, FoodImageViewModel, FoodLocation, FoodRating } from "@/types";
 
 interface FoodEditDialogProps {
   group: FoodGroupViewModel;
@@ -40,12 +45,15 @@ function initialLocation(group: FoodGroupViewModel): FoodLocation {
 export function FoodEditDialog({ group, onClose, onSaved }: FoodEditDialogProps) {
   const router = useRouter();
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const addImageInputRef = useRef<HTMLInputElement>(null);
   const [category, setCategory] = useState(group.category);
   const [review, setReview] = useState(group.review ?? "");
   const [rating, setRating] = useState<FoodRating | 0>(group.rating ?? 0);
   const [location, setLocation] = useState<FoodLocation>(() => initialLocation(group));
   const [occurredAtLocal, setOccurredAtLocal] = useState(() =>
     toDateTimeLocalValue(group.occurredAt));
+  const [images, setImages] = useState(group.images);
+  const [isEditingImages, setIsEditingImages] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState("");
@@ -62,8 +70,86 @@ export function FoodEditDialog({ group, onClose, onSaved }: FoodEditDialogProps)
     };
   }, []);
 
+  async function addImages(fileList: FileList | null) {
+    if (!fileList?.length) return;
+    const files = [...fileList];
+    if (images.length + files.length > 12) return setMessage("每组最多保存 12 张图片。");
+    setIsEditingImages(true);
+    setMessage("正在添加图片…");
+    let changed = false;
+    try {
+      for (const file of files) {
+        const prepared = await prepareEditableImage(file);
+        try {
+          const response = await fetch(`/api/private/food/groups/${group.id}/images`, {
+            method: "POST",
+            body: editableImageFormData(prepared),
+          });
+          const data = await response.json() as { ok?: boolean; message?: string; image?: FoodImageViewModel };
+          if (!response.ok || !data.ok || !data.image) throw new Error(responseMessage(data));
+          setImages((current) => [...current, data.image!]);
+          changed = true;
+        } finally {
+          URL.revokeObjectURL(prepared.previewUrl);
+        }
+      }
+      setMessage("图片已添加。");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "添加图片失败，请稍后再试。");
+    } finally {
+      if (changed) router.refresh();
+      setIsEditingImages(false);
+      if (addImageInputRef.current) addImageInputRef.current.value = "";
+    }
+  }
+
+  async function replaceImage(imageId: string, file: File | undefined) {
+    if (!file) return;
+    setIsEditingImages(true);
+    setMessage("正在替换图片…");
+    try {
+      const prepared = await prepareEditableImage(file);
+      try {
+        const response = await fetch(`/api/private/food/groups/${group.id}/images/${imageId}`, {
+          method: "PUT",
+          body: editableImageFormData(prepared),
+        });
+        const data = await response.json() as { ok?: boolean; message?: string; image?: FoodImageViewModel };
+        if (!response.ok || !data.ok || !data.image) throw new Error(responseMessage(data));
+        setImages((current) => current.map((image) => image.id === imageId ? data.image! : image));
+      } finally {
+        URL.revokeObjectURL(prepared.previewUrl);
+      }
+      setMessage("图片已替换。");
+      router.refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "替换图片失败，请稍后再试。");
+    } finally {
+      setIsEditingImages(false);
+    }
+  }
+
+  async function removeImage(image: FoodImageViewModel) {
+    if (images.length <= 1) return setMessage("每组至少保留一张图片；如需全部删除，请删除整组记录。");
+    if (!window.confirm("确定删除这张图片吗？删除后无法恢复。")) return;
+    setIsEditingImages(true);
+    setMessage("正在删除图片…");
+    try {
+      const response = await fetch(`/api/private/food/groups/${group.id}/images/${image.id}`, { method: "DELETE" });
+      const data = await response.json() as { ok?: boolean; message?: string };
+      if (!response.ok || !data.ok) throw new Error(responseMessage(data));
+      setImages((current) => current.filter((item) => item.id !== image.id));
+      setMessage("图片已删除。");
+      router.refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "删除图片失败，请稍后再试。");
+    } finally {
+      setIsEditingImages(false);
+    }
+  }
+
   async function requestClose() {
-    if (isSaving || dialogRef.current?.dataset.closing) return;
+    if (isSaving || isEditingImages || dialogRef.current?.dataset.closing) return;
     if (isDirty && !window.confirm("放弃尚未保存的修改吗？")) return;
     await animatePrivateDialogClose(dialogRef.current);
     onClose();
@@ -124,10 +210,39 @@ export function FoodEditDialog({ group, onClose, onSaved }: FoodEditDialogProps)
             <p className="eyebrow">Edit food memory</p>
             <h2 id="food-edit-title" className="display-type mt-2 text-3xl sm:text-4xl">修改记录</h2>
           </div>
-          <button type="button" disabled={isSaving} onClick={() => void requestClose()} aria-label="关闭修改美食记录" className="grid size-11 shrink-0 place-items-center rounded-full border border-[#bcb3a8] bg-[#fffdf8] text-xl disabled:opacity-40">×</button>
+          <button type="button" disabled={isSaving || isEditingImages} onClick={() => void requestClose()} aria-label="关闭修改美食记录" className="grid size-11 shrink-0 place-items-center rounded-full border border-[#bcb3a8] bg-[#fffdf8] text-xl disabled:opacity-40">×</button>
         </header>
 
         <div className="min-h-0 flex-1 space-y-7 overflow-y-auto px-5 py-6 sm:px-8">
+          <fieldset disabled={isSaving || isEditingImages}>
+            <div className="flex items-end justify-between gap-4">
+              <div>
+                <legend className="text-xs font-semibold text-[#5d554e]">组内图片</legend>
+                <p className="mt-1 text-[0.66rem] leading-5 text-[#7b736a]">可添加、替换或删除，至少保留一张，最多 12 张。</p>
+              </div>
+              <label className={`shrink-0 rounded-full border border-[#9e9488] px-3.5 py-2 text-xs font-semibold text-[#4a433d] ${isSaving || isEditingImages || images.length >= 12 ? "pointer-events-none opacity-45" : "cursor-pointer"}`}>
+                添加图片
+                <input ref={addImageInputRef} type="file" accept="image/jpeg,image/png,image/webp" multiple disabled={images.length >= 12} className="sr-only" onChange={(event) => void addImages(event.target.files)} />
+              </label>
+            </div>
+            <ol className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+              {images.map((image, index) => <li key={image.id} className="min-w-0 rounded-2xl border border-[#d0c7bb] bg-[#f7f3ec] p-2">
+                <div className="relative aspect-square overflow-hidden rounded-xl bg-[#ddd7ca]">
+                  <Image unoptimized src={image.thumbnailUrl || image.imageUrl} alt={`组内第 ${index + 1} 张图片`} fill sizes="10rem" className="object-cover" />
+                  <span className="absolute left-1.5 top-1.5 grid size-6 place-items-center rounded-full bg-[#252822] text-[0.62rem] font-semibold text-white">{index + 1}</span>
+                </div>
+                <div className="mt-2 flex items-center justify-between gap-2 text-[0.62rem] font-semibold">
+                  <label className="cursor-pointer border-b border-current text-[#5e574f]">替换<input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    event.target.value = "";
+                    void replaceImage(image.id, file);
+                  }} /></label>
+                  <button type="button" disabled={images.length <= 1} onClick={() => void removeImage(image)} className="border-b border-current text-[#8d3024] disabled:cursor-not-allowed disabled:opacity-30">删除</button>
+                </div>
+              </li>)}
+            </ol>
+          </fieldset>
+
           <div className="grid gap-5 sm:grid-cols-[1fr_auto]">
             <label className="block text-xs font-semibold text-[#5d554e]">
               分类
@@ -164,7 +279,7 @@ export function FoodEditDialog({ group, onClose, onSaved }: FoodEditDialogProps)
 
         <footer className="flex flex-wrap items-center justify-between gap-4 border-t border-[#cec5b8] bg-[#eee8de] px-5 py-4 sm:px-8">
           <p aria-live="polite" className="min-w-0 flex-1 text-xs leading-5 text-[#96392c]">{message}</p>
-          <button type="submit" disabled={isSaving} className="min-w-32 rounded-full bg-[#2e332c] px-5 py-3 text-xs font-semibold tracking-[0.1em] text-white disabled:opacity-50">
+          <button type="submit" disabled={isSaving || isEditingImages} className="min-w-32 rounded-full bg-[#2e332c] px-5 py-3 text-xs font-semibold tracking-[0.1em] text-white disabled:opacity-50">
             {isSaving ? "保存中…" : "保存修改"}
           </button>
         </footer>

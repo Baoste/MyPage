@@ -62,6 +62,7 @@ export function FoodExperience({
           </p>
         ) : null}
         <FoodGallery
+          key={groups.flatMap((group) => [group.id, group.updatedAt, ...group.images.flatMap((image) => [image.id, image.updatedAt])]).join("|")}
           groups={groups}
           nextCursor={nextCursor}
           mutationsEnabled={mutationsEnabled}

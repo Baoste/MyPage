@@ -34,9 +34,17 @@ export function FoodGallery({
   );
   const hasMore = cursor !== null;
   const expandedImage = imageEntries.find(({ image }) => image.id === expandedImageId) ?? null;
+  const expandedGroupIndex = expandedImage
+    ? loadedGroups.findIndex((group) => group.id === expandedImage.group.id)
+    : -1;
+  const hasPreviousGroup = expandedGroupIndex > 0;
+  const hasNextGroup = expandedGroupIndex >= 0 && (
+    expandedGroupIndex < loadedGroups.length - 1
+    || (expandedGroupIndex === loadedGroups.length - 1 && hasMore && !isLoading)
+  );
 
-  const loadMore = useCallback(async () => {
-    if (!cursor || loadingRef.current) return;
+  const loadMore = useCallback(async (): Promise<FoodGroupViewModel[]> => {
+    if (!cursor || loadingRef.current) return [];
 
     loadingRef.current = true;
     setIsLoading(true);
@@ -66,15 +74,29 @@ export function FoodGallery({
         ];
       });
       setCursor(data.nextCursor);
+      return data.groups;
     } catch (error) {
-      if (error instanceof DOMException && error.name === "AbortError") return;
+      if (error instanceof DOMException && error.name === "AbortError") return [];
       setLoadError(error instanceof Error ? error.message : "Unable to load more images.");
+      return [];
     } finally {
       if (requestControllerRef.current === controller) requestControllerRef.current = null;
       loadingRef.current = false;
       setIsLoading(false);
     }
   }, [cursor]);
+
+  async function moveExpandedGroup(amount: number) {
+    const target = loadedGroups[expandedGroupIndex + amount];
+    if (target?.images[0]) {
+      setExpandedImageId(target.images[0].id);
+      return;
+    }
+    if (amount < 1 || !cursor) return;
+    const existingIds = new Set(loadedGroups.map((group) => group.id));
+    const nextGroup = (await loadMore()).find((group) => !existingIds.has(group.id));
+    if (nextGroup?.images[0]) setExpandedImageId(nextGroup.images[0].id);
+  }
 
   useEffect(() => {
     const sentinel = loadMoreRef.current;
@@ -179,13 +201,18 @@ export function FoodGallery({
             className="absolute inset-0 bg-[#14120f]/52 backdrop-blur-md"
             onClick={() => setExpandedImageId(null)}
           />
-          <div className="private-media-panel relative z-10 w-[min(96vw,72rem)] max-h-[92svh] overflow-auto">
-            <FoodExpandedCard
-              group={expandedImage.group}
-              initialImageIndex={expandedImage.imageIndex}
-              mutationsEnabled={mutationsEnabled}
-              onClose={() => setExpandedImageId(null)}
-            />
+          <div className="private-media-stage">
+            <button type="button" disabled={!hasPreviousGroup} onClick={() => void moveExpandedGroup(-1)} aria-label="上一组美食记录" className="private-media-nav private-media-nav-previous"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 5-7 7 7 7" /></svg></button>
+            <div className="private-media-panel max-h-[92svh] w-full overflow-auto">
+              <FoodExpandedCard
+                key={expandedImage.group.id}
+                group={expandedImage.group}
+                initialImageIndex={expandedImage.imageIndex}
+                mutationsEnabled={mutationsEnabled}
+                onClose={() => setExpandedImageId(null)}
+              />
+            </div>
+            <button type="button" disabled={!hasNextGroup} onClick={() => void moveExpandedGroup(1)} aria-label="下一组美食记录" className="private-media-nav private-media-nav-next"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7" /></svg></button>
           </div>
         </div>
       ) : null}
