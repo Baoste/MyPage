@@ -29,6 +29,6 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
       <h1 id="calendar-title" className={styles.title}><span>{MONTH_NAMES[displayed.month - 1]}</span><span className={styles.year}>{displayed.year}</span></h1>
     </div></header>
     {unavailable ? <p className={styles.notice}>{unavailable}</p> : days.length === 0 ? <p className={styles.notice}>这个月还没有 Photo、Food 或手账。{latestContentMonth && latestContentMonth !== monthKey ? <> 最近有内容的是 <Link href={`/yfxl99/calendar?month=${latestContentMonth}`}>{latestContentMonth}</Link>。</> : null}</p> : null}<p className={styles.scrollHint}>横向滑动查看完整月份</p>
-    <div className={styles.journalLayout}><aside className={styles.notesPanel} aria-label="本月手账留白"><p className={styles.notesLabel}>Notes</p><p className={styles.notesCopy}>留住有照片、有味道的日子。</p><div className={styles.notesLines} aria-hidden="true" /></aside><CalendarExperience year={displayed.year} month={displayed.month} today={today} initialDays={days} /></div>
+    <div className={styles.journalLayout}><aside className={styles.notesPanel} aria-label="本月手账留白"><p className={styles.notesLabel}>Notes</p><p className={styles.notesCopy}>留住有照片、有味道的日子。</p><div className={styles.notesLines} aria-hidden="true" /></aside><CalendarExperience key={monthKey} year={displayed.year} month={displayed.month} today={today} initialDays={days} /></div>
   </div></section>;
 }
