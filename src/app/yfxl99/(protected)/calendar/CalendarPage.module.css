@@ -316,13 +316,28 @@
 .dayCell:nth-child(7n + 1), .emptyDay:nth-child(7n + 1) { border-left: 1px solid var(--calendar-line); }
 .dayCell { background: color-mix(in srgb, var(--calendar-cell) 92%, transparent); color: var(--calendar-ink); cursor: pointer; overflow: hidden; padding: .65rem; text-align: left; }
 .dayCell:disabled { cursor: default; opacity: 1; }
-.dayCell.hasContent { background: #f0f0eb; }
-.dayCell.hasContent::after { border: 1px dashed rgb(40 42 39 / 38%); content: ""; inset: .32rem; pointer-events: none; position: absolute; transform: rotate(.25deg); }
+.dayCell.hasContent {
+  background:
+    linear-gradient(106deg, transparent 9%, rgb(202 187 91 / 42%) 9% 88%, transparent 88%) center 56% / 100% 42% no-repeat,
+    #f1f1ec;
+}
+.dayCell.hasContent::before {
+  border-block: 1px solid rgb(88 82 42 / 28%);
+  content: "";
+  height: 34%;
+  left: 7%;
+  pointer-events: none;
+  position: absolute;
+  top: 37%;
+  transform: rotate(-2deg);
+  width: 86%;
+}
+.dayCell.hasContent::after { border: 1px dashed rgb(40 42 39 / 55%); content: ""; inset: .32rem; pointer-events: none; position: absolute; transform: rotate(.25deg); }
 .dayCell:focus-visible { outline: 3px solid #282a27; outline-offset: -4px; z-index: 3; }
 .cellPreview { height: 100%; inset: 0; object-fit: cover; position: absolute; width: 100%; }
 .dayNumber { background: rgb(232 233 229 / 88%); padding: .22rem; z-index: 2; }
 .entryState, .sourceDots { bottom: .6rem; font-size: .58rem; font-weight: 700; letter-spacing: .08em; position: absolute; text-transform: uppercase; z-index: 2; }
-.entryState { left: .65rem; }.sourceDots { right: .65rem; }
+.entryState { left: .65rem; }.sourceDots { background: #282b28; color: #f0f0ea; padding: .22rem .35rem; right: .65rem; }
 
 .backdrop { align-items: center; background: rgb(20 21 20 / 72%); display: flex; inset: 0; justify-content: center; padding: 1.25rem; position: fixed; z-index: 100; }
 .dialog { background-color: #dedfda; background-image: radial-gradient(circle, rgb(255 255 255 / 36%) 0 .5px, transparent .8px), radial-gradient(circle, rgb(40 42 39 / 9%) 0 .45px, transparent .7px); background-size: 4px 4px, 5px 5px; border: 1px solid #202220; box-shadow: 0 2rem 5rem rgb(0 0 0 / 40%); max-height: calc(100svh - 2.5rem); max-width: 76rem; overflow: auto; width: 100%; }
