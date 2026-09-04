@@ -323,19 +323,6 @@ textarea:focus-visible {
   animation: none;
 }
 
-::view-transition-group(calendar-journal-backdrop) {
-  animation: none;
-  z-index: 1;
-}
-
-::view-transition-old(calendar-journal-backdrop) {
-  display: none;
-}
-
-::view-transition-new(calendar-journal-backdrop) {
-  animation: none;
-}
-
 ::view-transition-group(popover) {
   animation: none;
   z-index: 100;
