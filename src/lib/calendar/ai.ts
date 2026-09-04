@@ -138,6 +138,6 @@ export async function generateCalendarJournal(context: string, images: AiImageIn
     text,
     cover: { bytes: cover, mimeType: "image/png" },
     stickers: [{ bytes: sticker, mimeType: "image/png" }],
-    meta: { provider: "openai-compatible", textModel: config.textModel, imageModel: config.imageModel, promptVersion: 1, generatedAt: new Date().toISOString() },
+    meta: { provider: "openai-compatible", textModel: config.textModel, imageModel: config.imageModel, promptVersion: 2, generatedAt: new Date().toISOString() },
   };
 }

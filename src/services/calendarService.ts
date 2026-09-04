@@ -178,7 +178,16 @@ export async function generateEntry(userId: string, date: string, sourceIds: str
     const updateStage = async (stage: "generating" | "saving" | "finalizing") => {
       await client.from("calendar_entries").update({ generation_meta: { stage } }).eq("id", entryData.id);
     };
-    const context = selected.map((source) => `${source.type === "photo" ? "照片" : "美食"}：${source.title}。${source.description}。评论：${source.comments.map((item) => `${item.author}: ${item.content}`).join("；")}`).join("\n") + (userNote.trim() ? `\n用户补充：${userNote.trim()}` : "");
+    const priorityNote = userNote.trim();
+    const sourceContext = selected
+      .map((source) => `${source.type === "photo" ? "照片" : "美食"}：${source.title}。${source.description}。评论：${source.comments.map((item) => `${item.author}: ${item.content}`).join("；")}`)
+      .join("\n");
+    const context = [
+      priorityNote
+        ? `【用户补充｜最高优先级】\n${priorityNote}\n请在生成的文字、Cover 与贴纸中优先体现这段补充，并优先遵守其中强调或不希望出现的内容。`
+        : "",
+      `【当天素材】\n${sourceContext}`,
+    ].filter(Boolean).join("\n\n");
     const imageRefs = selected.flatMap((source) => source.imageIds.filter((id) => selectedImageSet.has(id)).map((id) => ({ type: source.type, id })));
     const images = await Promise.all(imageRefs.map((image) => sourceImage(image.type, image.id)));
     await updateStage("generating");
