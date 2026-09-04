@@ -11,7 +11,45 @@ const FONT_FAMILIES: Record<CalendarTextFont, string> = {
   aventa: 'var(--font-aventa), "Microsoft YaHei", sans-serif',
   morganite: 'var(--font-morganite), "Microsoft YaHei", sans-serif',
 };
+const TEXT_FONT_SIZES = [16, 18, 20, 24, 28, 32, 36, 42, 48, 56, 64, 72, 96, 120, 144, 160];
 type PointLayer = { type: "text" } | { type: "sticker"; index: number };
+type TextResizeDirection = "n" | "ne" | "e" | "se" | "s" | "sw" | "w" | "nw";
+
+const TEXT_RESIZE_HANDLES: Array<{ direction: TextResizeDirection; label: string; className: string }> = [
+  { direction: "nw", label: "从左上角调整文字框", className: styles.resizeNorthWest },
+  { direction: "n", label: "调整文字框上边缘", className: styles.resizeNorth },
+  { direction: "ne", label: "从右上角调整文字框", className: styles.resizeNorthEast },
+  { direction: "e", label: "调整文字框右边缘", className: styles.resizeEast },
+  { direction: "se", label: "从右下角调整文字框", className: styles.resizeSouthEast },
+  { direction: "s", label: "调整文字框下边缘", className: styles.resizeSouth },
+  { direction: "sw", label: "从左下角调整文字框", className: styles.resizeSouthWest },
+  { direction: "w", label: "调整文字框左边缘", className: styles.resizeWest },
+];
+const STICKER_RESIZE_HANDLES = [
+  { label: "从左上角缩放贴纸", className: styles.resizeNorthWest },
+  { label: "从右上角缩放贴纸", className: styles.resizeNorthEast },
+  { label: "从右下角缩放贴纸", className: styles.resizeSouthEast },
+  { label: "从左下角缩放贴纸", className: styles.resizeSouthWest },
+];
+
+function clamp(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function normalizeAngle(value: number) {
+  return ((value + 180) % 360 + 360) % 360 - 180;
+}
+
+function AlignmentIcon({ value }: { value: "left" | "center" | "right" }) {
+  const positions = value === "left"
+    ? [[2, 14], [2, 11], [2, 15], [2, 9]]
+    : value === "center"
+      ? [[3, 13], [4.5, 11.5], [2.5, 13.5], [5, 11]]
+      : [[2, 14], [5, 14], [1, 14], [7, 14]];
+  return <svg aria-hidden="true" viewBox="0 0 16 16">
+    {positions.map(([start, end], index) => <path d={`M${start} ${3 + index * 3.2}H${end}`} key={index} />)}
+  </svg>;
+}
 
 async function jsonRequest<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, init);
@@ -299,7 +337,7 @@ function JournalViewer({ entry, busy, message, shared = false, busyLabel = "删�
   const coverAsset = entry.assets.find((asset) => asset.role === "cover");
   const layout = entry.layout;
   const artwork = previewAsset ? <div className={styles.viewerArtwork}><img src={previewAsset.url} alt={`${entry.date} 手账`} decoding="async" /></div> : layout ? <div className={styles.viewerArtwork} style={{ backgroundImage: coverAsset ? `url(${coverAsset.url})` : undefined, backgroundPosition: `${layout.cover.cropX * 100}% ${layout.cover.cropY * 100}%`, backgroundSize: `${layout.cover.scale * 100}%` }}>
-      <div className={styles.viewerText} style={{ left: `${layout.text.x * 100}%`, top: `${layout.text.y * 100}%`, width: `${layout.text.width * 100}%`, height: `${layout.text.height * 100}%`, color: layout.text.style.color, textAlign: layout.text.style.align, fontFamily: FONT_FAMILIES[layout.text.style.font], fontSize: `${layout.text.style.fontSize / 10.24}cqi`, textShadow: layout.text.style.shadow ? "0 2px 8px rgb(0 0 0 / 50%)" : "none" }}>{entry.finalText}</div>
+      <div className={styles.viewerText} style={{ left: `${layout.text.x * 100}%`, top: `${layout.text.y * 100}%`, width: `${layout.text.width * 100}%`, height: `${layout.text.height * 100}%`, color: layout.text.style.color, textAlign: layout.text.style.align, fontFamily: FONT_FAMILIES[layout.text.style.font], fontSize: `${layout.text.style.fontSize / 10.24}cqi`, textShadow: layout.text.style.shadow ? "0 2px 8px rgb(0 0 0 / 50%)" : "none", textDecorationLine: layout.text.style.underline ? "underline" : "none", textDecorationThickness: ".07em", textUnderlineOffset: ".14em" }}>{entry.finalText}</div>
       {layout.stickers.map((sticker) => { const asset = entry.assets.find((item) => item.id === sticker.assetId); return asset ? <img className={styles.viewerSticker} src={asset.url} alt="" key={sticker.assetId} style={{ left: `${sticker.x * 100}%`, top: `${sticker.y * 100}%`, width: `${sticker.width * 100}%`, transform: `translate(-50%, -50%) rotate(${sticker.rotation}deg)` }} /> : null; })}
     </div> : <div className={styles.viewerArtwork}><p>手账预览暂不可用。</p></div>;
   return <div className={styles.viewer}>
@@ -321,30 +359,151 @@ function JournalEditor({ entry, onSaved }: { entry: CalendarEntryView; onSaved: 
   const canvasRef = useRef<HTMLDivElement>(null);
   const cover = entry.assets.find((asset) => asset.id === layout.cover.assetId);
   const stickers = layout.stickers.map((item) => ({ ...item, asset: entry.assets.find((asset) => asset.id === item.assetId) })).filter((item) => item.asset);
+  const activeIndex = selected.type === "sticker" ? selected.index : -1;
+  const active = activeIndex >= 0 ? layout.stickers[activeIndex] : null;
+  const fontSizes = TEXT_FONT_SIZES.includes(layout.text.style.fontSize)
+    ? TEXT_FONT_SIZES
+    : [...TEXT_FONT_SIZES, layout.text.style.fontSize].sort((a, b) => a - b);
 
   function changePoint(layer: PointLayer, x: number, y: number) {
     setLayout((current) => layer.type === "text"
-      ? { ...current, text: { ...current.text, x, y } }
-      : { ...current, stickers: current.stickers.map((item, index) => index === layer.index ? { ...item, x, y } : item) });
+      ? { ...current, text: { ...current.text, x: clamp(x, 0, 1 - current.text.width), y: clamp(y, current.text.height / 2, 1 - current.text.height / 2) } }
+      : { ...current, stickers: current.stickers.map((item, index) => index === layer.index ? { ...item, x: clamp(x, 0, 1), y: clamp(y, 0, 1) } : item) });
   }
-  function pointerDown(event: React.PointerEvent, layer: PointLayer) {
+
+  function beginPointerGesture(event: React.PointerEvent<HTMLElement>, onMove: (event: PointerEvent) => void) {
     event.preventDefault();
-    setSelected(layer);
+    event.stopPropagation();
     const target = event.currentTarget as HTMLElement;
     target.setPointerCapture(event.pointerId);
-    const rect = canvasRef.current!.getBoundingClientRect();
-    const move = (next: PointerEvent) => changePoint(layer, Math.max(0, Math.min(1, (next.clientX - rect.left) / rect.width)), Math.max(0, Math.min(1, (next.clientY - rect.top) / rect.height)));
-    const end = () => { target.removeEventListener("pointermove", move); target.removeEventListener("pointerup", end); };
-    target.addEventListener("pointermove", move);
+    const end = () => {
+      target.removeEventListener("pointermove", onMove);
+      target.removeEventListener("pointerup", end);
+      target.removeEventListener("pointercancel", end);
+      if (target.hasPointerCapture(event.pointerId)) target.releasePointerCapture(event.pointerId);
+    };
+    target.addEventListener("pointermove", onMove);
     target.addEventListener("pointerup", end);
+    target.addEventListener("pointercancel", end);
   }
+
+  function pointerDown(event: React.PointerEvent<HTMLElement>, layer: PointLayer) {
+    const rect = canvasRef.current!.getBoundingClientRect();
+    const current = layer.type === "text" ? layout.text : layout.stickers[layer.index];
+    const startClientX = event.clientX;
+    const startClientY = event.clientY;
+    const startX = current.x;
+    const startY = current.y;
+    setSelected(layer);
+    beginPointerGesture(event, (next) => changePoint(
+      layer,
+      startX + (next.clientX - startClientX) / rect.width,
+      startY + (next.clientY - startClientY) / rect.height,
+    ));
+  }
+
   function keyMove(event: React.KeyboardEvent, layer: PointLayer) {
     const current = layer.type === "text" ? layout.text : layout.stickers[layer.index];
     const step = event.shiftKey ? .04 : .01;
     const delta = ({ ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] } as Record<string, number[]>)[event.key];
     if (!delta) return;
     event.preventDefault();
-    changePoint(layer, Math.max(0, Math.min(1, current.x + delta[0])), Math.max(0, Math.min(1, current.y + delta[1])));
+    changePoint(layer, current.x + delta[0], current.y + delta[1]);
+  }
+
+  function resizeText(direction: TextResizeDirection, deltaX: number, deltaY: number, origin = layout.text) {
+    const minimumWidth = .1;
+    const minimumHeight = .08;
+    let left = origin.x;
+    let right = origin.x + origin.width;
+    let top = origin.y - origin.height / 2;
+    let bottom = origin.y + origin.height / 2;
+    if (direction.includes("w")) left = clamp(left + deltaX, 0, right - minimumWidth);
+    if (direction.includes("e")) right = clamp(right + deltaX, left + minimumWidth, 1);
+    if (direction.includes("n")) top = clamp(top + deltaY, 0, bottom - minimumHeight);
+    if (direction.includes("s")) bottom = clamp(bottom + deltaY, top + minimumHeight, 1);
+    setLayout((current) => ({
+      ...current,
+      text: { ...current.text, x: left, y: (top + bottom) / 2, width: right - left, height: bottom - top },
+    }));
+  }
+
+  function textResizePointerDown(event: React.PointerEvent<HTMLButtonElement>, direction: TextResizeDirection) {
+    const rect = canvasRef.current!.getBoundingClientRect();
+    const origin = { ...layout.text };
+    const startClientX = event.clientX;
+    const startClientY = event.clientY;
+    setSelected({ type: "text" });
+    beginPointerGesture(event, (next) => resizeText(
+      direction,
+      (next.clientX - startClientX) / rect.width,
+      (next.clientY - startClientY) / rect.height,
+      origin,
+    ));
+  }
+
+  function textResizeKeyDown(event: React.KeyboardEvent<HTMLButtonElement>, direction: TextResizeDirection) {
+    const step = event.shiftKey ? .04 : .01;
+    const delta = ({ ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] } as Record<string, number[]>)[event.key];
+    if (!delta) return;
+    event.preventDefault();
+    resizeText(direction, delta[0], delta[1]);
+  }
+
+  function stickerResizePointerDown(event: React.PointerEvent<HTMLButtonElement>, index: number) {
+    const rect = canvasRef.current!.getBoundingClientRect();
+    const sticker = layout.stickers[index];
+    const centerX = rect.left + sticker.x * rect.width;
+    const centerY = rect.top + sticker.y * rect.height;
+    const startDistance = Math.max(8, Math.hypot(event.clientX - centerX, event.clientY - centerY));
+    const startWidth = sticker.width;
+    setSelected({ type: "sticker", index });
+    beginPointerGesture(event, (next) => {
+      const distance = Math.hypot(next.clientX - centerX, next.clientY - centerY);
+      const width = clamp(startWidth * distance / startDistance, .05, .7);
+      setLayout((current) => ({ ...current, stickers: current.stickers.map((item, itemIndex) => itemIndex === index ? { ...item, width } : item) }));
+    });
+  }
+
+  function stickerResizeKeyDown(event: React.KeyboardEvent<HTMLButtonElement>, index: number) {
+    const delta = event.key === "ArrowUp" || event.key === "ArrowRight"
+      ? (event.shiftKey ? .04 : .01)
+      : event.key === "ArrowDown" || event.key === "ArrowLeft"
+        ? -(event.shiftKey ? .04 : .01)
+        : 0;
+    if (!delta) return;
+    event.preventDefault();
+    setLayout((current) => ({ ...current, stickers: current.stickers.map((item, itemIndex) => itemIndex === index ? { ...item, width: clamp(item.width + delta, .05, .7) } : item) }));
+  }
+
+  function stickerRotatePointerDown(event: React.PointerEvent<HTMLButtonElement>, index: number) {
+    const rect = canvasRef.current!.getBoundingClientRect();
+    const sticker = layout.stickers[index];
+    const centerX = rect.left + sticker.x * rect.width;
+    const centerY = rect.top + sticker.y * rect.height;
+    const startAngle = Math.atan2(event.clientY - centerY, event.clientX - centerX);
+    const startRotation = sticker.rotation;
+    setSelected({ type: "sticker", index });
+    beginPointerGesture(event, (next) => {
+      const angle = Math.atan2(next.clientY - centerY, next.clientX - centerX);
+      const rotation = normalizeAngle(startRotation + (angle - startAngle) * 180 / Math.PI);
+      setLayout((current) => ({ ...current, stickers: current.stickers.map((item, itemIndex) => itemIndex === index ? { ...item, rotation: Math.round(rotation) } : item) }));
+    });
+  }
+
+  function stickerRotateKeyDown(event: React.KeyboardEvent<HTMLButtonElement>, index: number) {
+    const delta = event.key === "ArrowRight" || event.key === "ArrowUp"
+      ? (event.shiftKey ? 15 : 5)
+      : event.key === "ArrowLeft" || event.key === "ArrowDown"
+        ? -(event.shiftKey ? 15 : 5)
+        : 0;
+    if (!delta) return;
+    event.preventDefault();
+    setLayout((current) => ({ ...current, stickers: current.stickers.map((item, itemIndex) => itemIndex === index ? { ...item, rotation: normalizeAngle(item.rotation + delta) } : item) }));
+  }
+
+  function updateTextStyle(patch: Partial<typeof layout.text.style>) {
+    setLayout((current) => ({ ...current, text: { ...current.text, style: { ...current.text.style, ...patch } } }));
   }
   async function loadImage(url: string) {
     return new Promise<HTMLImageElement>((resolve, reject) => {
@@ -400,7 +559,21 @@ function JournalEditor({ entry, onSaved }: { entry: CalendarEntryView; onSaved: 
     context.beginPath();
     context.rect(layout.text.x * 1024, textTop, maxWidth, maxHeight);
     context.clip();
-    lines.slice(0, maxLines).forEach((value, index) => context.fillText(value, layout.text.x * 1024 + anchor, textTop + index * lineHeight, maxWidth));
+    lines.slice(0, maxLines).forEach((value, index) => {
+      const textX = layout.text.x * 1024 + anchor;
+      const lineTop = textTop + index * lineHeight;
+      context.fillText(value, textX, lineTop, maxWidth);
+      if (layout.text.style.underline && value) {
+        const measuredWidth = Math.min(context.measureText(value).width, maxWidth);
+        const lineStart = layout.text.style.align === "left" ? textX : layout.text.style.align === "center" ? textX - measuredWidth / 2 : textX - measuredWidth;
+        context.beginPath();
+        context.lineWidth = Math.max(1.5, fontSize * .055);
+        context.strokeStyle = layout.text.style.color;
+        context.moveTo(lineStart, lineTop + fontSize * 1.08);
+        context.lineTo(lineStart + measuredWidth, lineTop + fontSize * 1.08);
+        context.stroke();
+      }
+    });
     context.restore();
     const thumbnailCanvas = document.createElement("canvas");
     thumbnailCanvas.width = thumbnailCanvas.height = 256;
@@ -430,36 +603,48 @@ function JournalEditor({ entry, onSaved }: { entry: CalendarEntryView; onSaved: 
       setBusy(false);
     }
   }
-  const activeIndex = selected.type === "sticker" ? selected.index : -1;
-  const active = activeIndex >= 0 ? layout.stickers[activeIndex] : null;
-
   return <div className={styles.editor}>
     <div className={styles.panelHeading}><div><p>Journal editor</p><h3>手账排版</h3></div><span>1:1</span></div>
     <div className={styles.canvas} ref={canvasRef} style={{ backgroundImage: cover ? `url(${cover.url})` : undefined, backgroundPosition: `${layout.cover.cropX * 100}% ${layout.cover.cropY * 100}%`, backgroundSize: `${layout.cover.scale * 100}%` }}>
-      <button type="button" className={`${styles.textLayer} ${selected.type === "text" ? styles.selectedLayer : ""}`} style={{ left: `${layout.text.x * 100}%`, top: `${layout.text.y * 100}%`, width: `${layout.text.width * 100}%`, height: `${layout.text.height * 100}%`, color: layout.text.style.color, textAlign: layout.text.style.align, fontFamily: FONT_FAMILIES[layout.text.style.font], fontSize: `${layout.text.style.fontSize / 10.24}cqi`, textShadow: layout.text.style.shadow ? "0 2px 8px rgb(0 0 0 / 50%)" : "none" }} onPointerDown={(event) => pointerDown(event, { type: "text" })} onKeyDown={(event) => keyMove(event, { type: "text" })}>{text}</button>
-      {stickers.map((sticker, index) => <button type="button" key={sticker.assetId} className={`${styles.stickerLayer} ${selected.type === "sticker" && selected.index === index ? styles.selectedLayer : ""}`} style={{ left: `${sticker.x * 100}%`, top: `${sticker.y * 100}%`, width: `${sticker.width * 100}%`, transform: `translate(-50%, -50%) rotate(${sticker.rotation}deg)` }} onPointerDown={(event) => pointerDown(event, { type: "sticker", index })} onKeyDown={(event) => keyMove(event, { type: "sticker", index })}><img src={sticker.asset!.url} alt={`贴纸 ${index + 1}`} /></button>)}
+      <div className={`${styles.layerFrame} ${styles.textFrame} ${selected.type === "text" ? styles.selectedLayer : ""}`} style={{ left: `${layout.text.x * 100}%`, top: `${layout.text.y * 100}%`, width: `${layout.text.width * 100}%`, height: `${layout.text.height * 100}%`, zIndex: layout.text.zIndex }}>
+        <button type="button" aria-label="移动文字框" title="拖动移动文字框" className={styles.textLayer} style={{ color: layout.text.style.color, textAlign: layout.text.style.align, fontFamily: FONT_FAMILIES[layout.text.style.font], fontSize: `${layout.text.style.fontSize / 10.24}cqi`, textShadow: layout.text.style.shadow ? "0 2px 8px rgb(0 0 0 / 50%)" : "none", textDecorationLine: layout.text.style.underline ? "underline" : "none", textDecorationThickness: ".07em", textUnderlineOffset: ".14em" }} onPointerDown={(event) => pointerDown(event, { type: "text" })} onKeyDown={(event) => keyMove(event, { type: "text" })}>{text}</button>
+        {selected.type === "text" ? TEXT_RESIZE_HANDLES.map((handle) => <button type="button" key={handle.direction} className={`${styles.layerHandle} ${styles.textResizeHandle} ${handle.className}`} aria-label={handle.label} title={handle.label} onPointerDown={(event) => textResizePointerDown(event, handle.direction)} onKeyDown={(event) => textResizeKeyDown(event, handle.direction)} />) : null}
+      </div>
+      {stickers.map((sticker, index) => {
+        const isSelected = selected.type === "sticker" && selected.index === index;
+        return <div key={sticker.assetId} className={`${styles.layerFrame} ${styles.stickerFrame} ${isSelected ? styles.selectedLayer : ""}`} style={{ left: `${sticker.x * 100}%`, top: `${sticker.y * 100}%`, width: `${sticker.width * 100}%`, transform: `translate(-50%, -50%) rotate(${sticker.rotation}deg)`, zIndex: sticker.zIndex }}>
+          <button type="button" className={styles.stickerLayer} aria-label={`移动贴纸 ${index + 1}`} title="拖动移动贴纸" onPointerDown={(event) => pointerDown(event, { type: "sticker", index })} onKeyDown={(event) => keyMove(event, { type: "sticker", index })}><img src={sticker.asset!.url} alt={`贴纸 ${index + 1}`} draggable={false} /></button>
+          {isSelected ? <>
+            <span className={styles.rotationArm} aria-hidden="true" />
+            <button type="button" className={`${styles.layerHandle} ${styles.rotationHandle}`} aria-label="旋转贴纸" title="拖动旋转贴纸" onPointerDown={(event) => stickerRotatePointerDown(event, index)} onKeyDown={(event) => stickerRotateKeyDown(event, index)} />
+            {STICKER_RESIZE_HANDLES.map((handle) => <button type="button" key={handle.label} className={`${styles.layerHandle} ${styles.stickerResizeHandle} ${handle.className}`} aria-label={handle.label} title={handle.label} onPointerDown={(event) => stickerResizePointerDown(event, index)} onKeyDown={(event) => stickerResizeKeyDown(event, index)} />)}
+          </> : null}
+        </div>;
+      })}
     </div>
     <div className={styles.editorControls}>
       <section className={styles.controlSection}>
-        <div className={styles.controlHeading}><div><b>文字</b><span>编辑内容与视觉样式</span></div><output>{text.length}/4000</output></div>
+        <div className={styles.controlHeading}><div><b>文字</b><span>像文档一样排版，再到画布中调整边界</span></div><output>{text.length}/4000</output></div>
         <label className={styles.textareaControl}><span className={styles.srOnly}>手账文字</span><textarea value={text} maxLength={4000} onChange={(event) => setText(event.target.value)} /></label>
-        <div className={styles.textStyleControls}>
-          <label>字体<select value={layout.text.style.font} onChange={(event) => setLayout({ ...layout, text: { ...layout.text, style: { ...layout.text.style, font: event.target.value as CalendarTextFont } } })}><option value="aventa">Aventa</option><option value="morganite">Morganite</option></select></label>
-          <label>颜色<span className={styles.colorControl}><input type="color" value={layout.text.style.color} onChange={(event) => setLayout({ ...layout, text: { ...layout.text, style: { ...layout.text.style, color: event.target.value } } })} /><output>{layout.text.style.color}</output></span></label>
-          <label>对齐<select value={layout.text.style.align} onChange={(event) => setLayout({ ...layout, text: { ...layout.text, style: { ...layout.text.style, align: event.target.value as "left" | "center" | "right" } } })}><option value="left">左对齐</option><option value="center">居中</option><option value="right">右对齐</option></select></label>
+        <div className={styles.formatToolbar} role="toolbar" aria-label="文字格式">
+          <label className={`${styles.toolbarField} ${styles.fontField}`}><span>字体</span><select value={layout.text.style.font} onChange={(event) => updateTextStyle({ font: event.target.value as CalendarTextFont })}><option value="aventa">Aventa</option><option value="morganite">Morganite</option></select></label>
+          <label className={`${styles.toolbarField} ${styles.sizeField}`}><span>字号</span><select value={layout.text.style.fontSize} onChange={(event) => updateTextStyle({ fontSize: Number(event.target.value) })}>{fontSizes.map((size) => <option value={size} key={size}>{size}</option>)}</select></label>
+          <label className={styles.toolbarColor} title="文字颜色"><span>颜色</span><i style={{ backgroundColor: layout.text.style.color }} aria-hidden="true" /><input type="color" value={layout.text.style.color} aria-label="文字颜色" onChange={(event) => updateTextStyle({ color: event.target.value })} /></label>
+          <span className={styles.toolbarDivider} aria-hidden="true" />
+          <div className={styles.toolbarButtonGroup} aria-label="文字对齐">
+            {(["left", "center", "right"] as const).map((align) => <button type="button" key={align} className={`${styles.formatButton} ${layout.text.style.align === align ? styles.formatButtonActive : ""}`} aria-label={align === "left" ? "左对齐" : align === "center" ? "居中对齐" : "右对齐"} aria-pressed={layout.text.style.align === align} title={align === "left" ? "左对齐" : align === "center" ? "居中对齐" : "右对齐"} onClick={() => updateTextStyle({ align })}><AlignmentIcon value={align} /></button>)}
+          </div>
+          <button type="button" className={`${styles.formatButton} ${layout.text.style.underline ? styles.formatButtonActive : ""}`} aria-label="下划线" aria-pressed={layout.text.style.underline} title="下划线" onClick={() => updateTextStyle({ underline: !layout.text.style.underline })}><span className={styles.underlineGlyph} aria-hidden="true">U</span></button>
+          <button type="button" className={`${styles.formatButton} ${layout.text.style.shadow ? styles.formatButtonActive : ""}`} aria-label="文字阴影" aria-pressed={layout.text.style.shadow} title="文字阴影" onClick={() => updateTextStyle({ shadow: !layout.text.style.shadow })}><span className={styles.shadowGlyph} aria-hidden="true">A</span></button>
         </div>
-        <div className={styles.rangeGrid}>
-          <label><span>字号 <output>{layout.text.style.fontSize}px</output></span><input type="range" min="16" max="160" step="2" value={layout.text.style.fontSize} onChange={(event) => setLayout({ ...layout, text: { ...layout.text, style: { ...layout.text.style, fontSize: Number(event.target.value) } } })} /></label>
-          <label><span>文本框宽度 <output>{Math.round(layout.text.width * 100)}%</output></span><input type="range" min=".1" max="1" step=".01" value={layout.text.width} onChange={(event) => setLayout({ ...layout, text: { ...layout.text, width: Number(event.target.value) } })} /></label>
-          <label><span>文本框高度 <output>{Math.round(layout.text.height * 100)}%</output></span><input type="range" min=".08" max="1" step=".01" value={layout.text.height} onChange={(event) => setLayout({ ...layout, text: { ...layout.text, height: Number(event.target.value) } })} /></label>
-        </div>
-        <label className={styles.toggleControl}><input type="checkbox" checked={layout.text.style.shadow} onChange={(event) => setLayout({ ...layout, text: { ...layout.text, style: { ...layout.text.style, shadow: event.target.checked } } })} /><span aria-hidden="true" /><b>文字阴影</b><small>使用默认的柔和阴影</small></label>
       </section>
       <section className={styles.controlSection}>
-        <div className={styles.controlHeading}><div><b>画面</b><span>调整背景、贴纸与日期</span></div></div>
-        <div className={styles.rangeGrid}>
+        <div className={styles.controlHeading}><div><b>画面</b><span>Cover 保留精确数值；画布对象直接拖动</span></div></div>
+        <div className={styles.objectStatus} aria-live="polite">
+          <span>当前对象</span><b>{active ? `贴纸 ${activeIndex + 1}` : "文字框"}</b><small>{active ? `拖动四角缩放 · 顶部圆点旋转 · 当前 ${Math.round(active.width * 100)}% / ${active.rotation}°` : "拖动边缘或四角调整文字框大小"}</small>
+        </div>
+        <div className={`${styles.rangeGrid} ${styles.coverRange}`}>
           <label><span>Cover 缩放 <output>{layout.cover.scale.toFixed(2)}×</output></span><input type="range" min="1" max="4" step=".05" value={layout.cover.scale} onChange={(event) => setLayout({ ...layout, cover: { ...layout.cover, scale: Number(event.target.value) } })} /></label>
-          {active ? <><label><span>贴纸大小 <output>{Math.round(active.width * 100)}%</output></span><input type="range" min=".05" max=".7" step=".01" value={active.width} onChange={(event) => setLayout({ ...layout, stickers: layout.stickers.map((item, index) => index === activeIndex ? { ...item, width: Number(event.target.value) } : item) })} /></label><label><span>贴纸旋转 <output>{active.rotation}°</output></span><input type="range" min="-180" max="180" value={active.rotation} onChange={(event) => setLayout({ ...layout, stickers: layout.stickers.map((item, index) => index === activeIndex ? { ...item, rotation: Number(event.target.value) } : item) })} /></label></> : null}
         </div>
         <fieldset className={styles.dateStyleControls}>
           <legend>日历格日期数字</legend>
@@ -467,7 +652,7 @@ function JournalEditor({ entry, onSaved }: { entry: CalendarEntryView; onSaved: 
           <label>颜色<span className={styles.colorControl}><input type="color" value={layout.dateNumber.color} onChange={(event) => setLayout({ ...layout, dateNumber: { ...layout.dateNumber, color: event.target.value } })} /><output>{layout.dateNumber.color}</output></span></label>
         </fieldset>
       </section>
-      <p className={styles.editorHint}>拖动文字或贴纸调整位置；选中后可用方向键精调，Shift + 方向键快速移动。</p>
+      <p className={styles.editorHint}>拖动对象本身调整位置；文字框拖动边缘改变长宽，贴纸拖动四角缩放、顶部圆点旋转。方向键可精调位置，按住 Shift 加速。</p>
       <div className={styles.saveBar}><button type="button" className={styles.primaryButton} disabled={busy} onClick={save}>{busy ? "保存中…" : "保存到日历"}</button></div>
       {message ? <p className={styles.helper}>{message}</p> : null}
     </div>

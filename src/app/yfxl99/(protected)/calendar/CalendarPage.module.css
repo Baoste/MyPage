@@ -735,33 +735,126 @@
   touch-action: none;
 }
 
+.layerFrame {
+  box-sizing: border-box;
+  position: absolute;
+  touch-action: none;
+}
+
+.textFrame {
+  transform: translateY(-50%);
+}
+
+.stickerFrame {
+  line-height: 0;
+  transform-origin: center;
+}
+
 .textLayer,
 .stickerLayer {
   background: transparent;
-  border: 1px solid transparent;
+  border: 0;
   cursor: grab;
   margin: 0;
   padding: 0;
-  position: absolute;
   touch-action: none;
+  user-select: none;
+  width: 100%;
 }
 
 .textLayer {
   box-sizing: border-box;
   display: block;
   font-weight: 400;
+  height: 100%;
   line-height: 1.35;
   overflow: hidden;
-  transform: translateY(-50%);
   white-space: pre-wrap;
 }
 
-.stickerLayer img { display: block; width: 100%; }
+.textLayer:active,
+.stickerLayer:active { cursor: grabbing; }
+
+.textLayer:focus-visible,
+.stickerLayer:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 3px;
+}
+
+.stickerLayer { display: block; }
+.stickerLayer img { display: block; pointer-events: none; width: 100%; }
 
 .selectedLayer {
-  border: 1px dashed currentColor;
-  outline: 2px solid rgb(255 255 255 / 80%);
-  outline-offset: 2px;
+  outline: 1px dashed rgb(255 255 255 / 92%);
+  outline-offset: 0;
+  box-shadow: 0 0 0 1px rgb(31 34 31 / 76%);
+  transition: box-shadow 180ms cubic-bezier(.2, 0, 0, 1);
+}
+
+.layerHandle {
+  appearance: none;
+  background: #faf9f2;
+  border: 1px solid #252824;
+  box-shadow: 0 1px 3px rgb(20 22 20 / 20%);
+  height: .72rem;
+  margin: 0;
+  padding: 0;
+  position: absolute;
+  touch-action: none;
+  width: .72rem;
+  z-index: 5;
+}
+
+.layerHandle:hover,
+.layerHandle:focus-visible {
+  background: #d4c45e;
+  outline: 2px solid rgb(255 255 255 / 88%);
+  outline-offset: 1px;
+}
+
+.layerHandle:active { background: #b7a644; }
+.resizeNorthWest { cursor: nwse-resize; left: -.4rem; top: -.4rem; }
+.resizeNorth { cursor: ns-resize; left: 50%; top: -.4rem; transform: translateX(-50%); }
+.resizeNorthEast { cursor: nesw-resize; right: -.4rem; top: -.4rem; }
+.resizeEast { cursor: ew-resize; right: -.4rem; top: 50%; transform: translateY(-50%); }
+.resizeSouthEast { bottom: -.4rem; cursor: nwse-resize; right: -.4rem; }
+.resizeSouth { bottom: -.4rem; cursor: ns-resize; left: 50%; transform: translateX(-50%); }
+.resizeSouthWest { bottom: -.4rem; cursor: nesw-resize; left: -.4rem; }
+.resizeWest { cursor: ew-resize; left: -.4rem; top: 50%; transform: translateY(-50%); }
+
+.textResizeHandle {
+  border-radius: 1px;
+}
+
+.stickerResizeHandle {
+  height: .78rem;
+  width: .78rem;
+}
+
+.rotationArm {
+  background: rgb(255 255 255 / 92%);
+  bottom: calc(100% + .35rem);
+  box-shadow: 1px 0 rgb(31 34 31 / 45%);
+  height: 1.45rem;
+  left: 50%;
+  pointer-events: none;
+  position: absolute;
+  transform: translateX(-50%);
+  width: 1px;
+}
+
+.rotationHandle {
+  border-radius: 50%;
+  cursor: grab;
+  height: .94rem;
+  left: 50%;
+  top: -2.45rem;
+  transform: translateX(-50%);
+  width: .94rem;
+}
+
+.rotationHandle:active {
+  cursor: grabbing;
 }
 
 .editorControls {
@@ -811,7 +904,6 @@
 }
 
 .noteField > span,
-.textStyleControls label,
 .dateStyleControls label {
   font-size: .64rem;
   font-weight: 700;
@@ -832,26 +924,140 @@
 
 .editorControls textarea { min-height: 6rem; }
 
-.textStyleControls {
-  display: grid;
-  gap: .65rem;
-  grid-template-columns: repeat(3, 1fr);
-  margin-top: .75rem;
-}
-
-.textStyleControls label,
 .dateStyleControls label {
   display: grid;
   gap: .4rem;
 }
 
-.textStyleControls select,
 .dateStyleControls select {
   background: rgb(255 255 255 / 48%);
   border: 1px solid #777a75;
   color: #252724;
   min-height: 2.35rem;
   padding: .35rem .5rem;
+}
+
+.formatToolbar {
+  align-items: end;
+  background: rgb(227 228 222 / 76%);
+  border: 1px solid #777a75;
+  display: flex;
+  flex-wrap: wrap;
+  gap: .35rem;
+  margin-top: .65rem;
+  padding: .55rem;
+}
+
+.toolbarField,
+.toolbarColor {
+  display: grid;
+  gap: .25rem;
+}
+
+.toolbarField > span,
+.toolbarColor > span {
+  color: var(--calendar-muted);
+  font-size: .57rem;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.toolbarField select {
+  appearance: none;
+  background: rgb(255 255 255 / 72%);
+  border: 1px solid #71746f;
+  color: #252724;
+  cursor: pointer;
+  height: 2.35rem;
+  padding: 0 1.6rem 0 .55rem;
+}
+
+.fontField { flex: 1 1 8rem; }
+.sizeField { flex: 0 0 4.25rem; }
+
+.toolbarColor {
+  cursor: pointer;
+  position: relative;
+}
+
+.toolbarColor i {
+  border: .38rem solid rgb(255 255 255 / 72%);
+  box-shadow: 0 0 0 1px #71746f;
+  display: block;
+  height: 2.35rem;
+  width: 2.35rem;
+}
+
+.toolbarColor input {
+  bottom: 0;
+  cursor: pointer;
+  height: 2.35rem;
+  opacity: 0;
+  position: absolute;
+  right: 0;
+  width: 2.35rem;
+}
+
+.toolbarColor:focus-within i {
+  outline: 2px solid #2d302c;
+  outline-offset: 2px;
+}
+
+.toolbarDivider {
+  align-self: end;
+  background: rgb(40 42 39 / 24%);
+  height: 2.35rem;
+  margin-inline: .1rem;
+  width: 1px;
+}
+
+.toolbarButtonGroup {
+  align-self: end;
+  display: flex;
+}
+
+.toolbarButtonGroup .formatButton + .formatButton { border-left: 0; }
+
+.formatButton {
+  align-items: center;
+  align-self: end;
+  background: rgb(255 255 255 / 58%);
+  border: 1px solid #71746f;
+  color: #292c28;
+  cursor: pointer;
+  display: inline-flex;
+  height: 2.35rem;
+  justify-content: center;
+  padding: 0;
+  transition: background-color 120ms ease-out, color 120ms ease-out, transform 120ms ease-out;
+  width: 2.35rem;
+}
+
+.formatButton svg {
+  fill: none;
+  height: 1.05rem;
+  stroke: currentColor;
+  stroke-linecap: square;
+  stroke-width: 1.35;
+  width: 1.05rem;
+}
+
+.formatButton:hover { background: #f7f6ef; }
+.formatButton:active { transform: translateY(1px); }
+.formatButton:focus-visible { outline: 2px solid #2d302c; outline-offset: 2px; position: relative; z-index: 2; }
+.formatButtonActive { background: #30332f; color: #f6f4eb; }
+.formatButtonActive:hover { background: #454942; }
+
+.underlineGlyph {
+  border-bottom: 1.5px solid currentColor;
+  font: 700 .9rem/1 Georgia, serif;
+  padding-bottom: .1rem;
+}
+
+.shadowGlyph {
+  font: 700 .9rem/1 Georgia, serif;
+  text-shadow: 2px 2px 0 rgb(149 137 68 / 72%);
 }
 
 .colorControl {
@@ -909,46 +1115,26 @@
   width: 100%;
 }
 
-.toggleControl {
+.objectStatus {
   align-items: center;
-  cursor: pointer;
+  border-block: 1px solid rgb(40 42 39 / 20%);
   display: grid;
-  gap: .1rem .55rem;
-  grid-template-columns: 2.25rem 1fr;
-  margin-top: .9rem;
+  gap: .3rem .7rem;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  padding: .65rem .1rem;
 }
 
-.toggleControl input {
-  height: 1px;
-  opacity: 0;
-  position: absolute;
-  width: 1px;
+.objectStatus > span {
+  color: var(--calendar-muted);
+  font-size: .58rem;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
 }
 
-.toggleControl > span {
-  background: #a8aaa5;
-  border: 1px solid #777a75;
-  grid-row: 1 / span 2;
-  height: 1.2rem;
-  padding: .12rem;
-  transition: background-color 150ms ease;
-  width: 2.25rem;
-}
-
-.toggleControl > span::after {
-  background: #f2f2ed;
-  content: "";
-  display: block;
-  height: .82rem;
-  transition: transform 150ms ease;
-  width: .82rem;
-}
-
-.toggleControl input:checked + span { background: #4d514b; }
-.toggleControl input:checked + span::after { transform: translateX(1rem); }
-.toggleControl input:focus-visible + span { outline: 2px solid #2f332f; outline-offset: 2px; }
-.toggleControl b { font-size: .72rem; }
-.toggleControl small { color: var(--calendar-muted); font-size: .64rem; }
+.objectStatus b { font: 400 .9rem/1.2 Georgia, serif; }
+.objectStatus small { color: var(--calendar-muted); font-size: .64rem; text-align: right; }
+.coverRange { grid-template-columns: minmax(0, 1fr); }
 
 .dateStyleControls {
   border: 1px dashed rgb(40 42 39 / 38%);
@@ -1083,9 +1269,13 @@
   .creationColumn,
   .sourceColumn { padding-inline: .85rem; }
   .sourceToolbar { margin-inline: -.85rem; padding-inline: .85rem; }
-  .textStyleControls,
   .dateStyleControls,
   .rangeGrid { grid-template-columns: 1fr; }
+  .formatToolbar { gap: .3rem; }
+  .fontField { flex-basis: calc(100% - 7.2rem); }
+  .toolbarDivider { display: none; }
+  .objectStatus { grid-template-columns: auto 1fr; }
+  .objectStatus small { grid-column: 1 / -1; text-align: left; }
   .journalViewerBackdrop { padding: 1rem; }
   .journalViewerStage { width: min(calc(100vw - 2rem), calc(100svh - 8rem)); }
   .journalViewerStage .viewerActions { width: 90%; }
@@ -1094,7 +1284,9 @@
 @media (prefers-reduced-motion: reduce) {
   .journalViewerBackdrop,
   .journalViewerStage .viewerActions button,
-  .cellLoader i {
+  .cellLoader i,
+  .selectedLayer,
+  .formatButton {
     animation-delay: 0s;
     animation-duration: .01ms;
     animation-iteration-count: 1;

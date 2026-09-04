@@ -29,6 +29,7 @@ export interface CalendarLayout {
       font: CalendarTextFont;
       fontSize: number;
       shadow: boolean;
+      underline: boolean;
     };
   };
   stickers: Array<{ assetId: string; x: number; y: number; width: number; rotation: number; zIndex: number }>;
@@ -60,7 +61,7 @@ export function parseCalendarLayout(value: unknown): CalendarLayout {
   if (layout.version !== 1 || layout.canvas?.aspectRatio !== CALENDAR_ENTRY_ASPECT_RATIO) throw new Error("手账画布必须使用 1:1 比例。");
   const cover = layout.cover, dateNumber = layout.dateNumber, text = layout.text, stickers = layout.stickers;
   if (!cover || typeof cover.assetId !== "string" || !finiteBetween(cover.cropX, 0, 1) || !finiteBetween(cover.cropY, 0, 1) || !finiteBetween(cover.scale, 1, 4)) throw new Error("Cover 布局无效。");
-  if (!text || !finiteBetween(text.x, 0, 1) || !finiteBetween(text.y, 0, 1) || !finiteBetween(text.width, .1, 1) || (text.height !== undefined && !finiteBetween(text.height, .08, 1)) || !finiteBetween(text.rotation, -180, 180) || !["left", "center", "right"].includes(text.style?.align) || !/^#[0-9a-f]{6}$/iu.test(text.style?.color ?? "") || (text.style?.fontSize !== undefined && !finiteBetween(text.style.fontSize, 16, 160)) || (text.style?.shadow !== undefined && typeof text.style.shadow !== "boolean")) throw new Error("文字布局无效。");
+  if (!text || !finiteBetween(text.x, 0, 1) || !finiteBetween(text.y, 0, 1) || !finiteBetween(text.width, .1, 1) || (text.height !== undefined && !finiteBetween(text.height, .08, 1)) || !finiteBetween(text.rotation, -180, 180) || !["left", "center", "right"].includes(text.style?.align) || !/^#[0-9a-f]{6}$/iu.test(text.style?.color ?? "") || (text.style?.fontSize !== undefined && !finiteBetween(text.style.fontSize, 16, 160)) || (text.style?.shadow !== undefined && typeof text.style.shadow !== "boolean") || (text.style?.underline !== undefined && typeof text.style.underline !== "boolean")) throw new Error("文字布局无效。");
   if (dateNumber && (!/^#[0-9a-f]{6}$/iu.test(dateNumber.color) || !["aventa", "morganite"].includes(dateNumber.font))) throw new Error("日期数字样式无效。");
   if (!Array.isArray(stickers) || stickers.length > 12 || stickers.some((item) => !item || typeof item.assetId !== "string" || !finiteBetween(item.x, 0, 1) || !finiteBetween(item.y, 0, 1) || !finiteBetween(item.width, .05, 1) || !finiteBetween(item.rotation, -180, 180))) throw new Error("贴纸布局无效。");
   const font = text.style.font === "morganite" ? "morganite" : "aventa";
@@ -75,6 +76,7 @@ export function parseCalendarLayout(value: unknown): CalendarLayout {
         font,
         fontSize: text.style.fontSize ?? 42,
         shadow: text.style.shadow ?? true,
+        underline: text.style.underline ?? false,
       },
     },
   } as CalendarLayout;
