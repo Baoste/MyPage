@@ -167,49 +167,8 @@
   scrollbar-color: var(--calendar-line) transparent;
 }
 
-.calendar {
-  border-collapse: collapse;
-  color: var(--calendar-ink);
-  min-width: 62rem;
-  table-layout: fixed;
-  width: 100%;
-}
-
-.calendar th {
-  border: 0;
-  border-bottom: 1px solid var(--calendar-line);
-  font-family: Georgia, "Times New Roman", serif;
-  font-size: clamp(0.88rem, 1.35vw, 1.2rem);
-  font-weight: 400;
-  height: 2.85rem;
-  letter-spacing: 0.02em;
-  padding: 0.35rem 0.5rem 0.65rem;
-  text-align: center;
-  text-transform: uppercase;
-}
-
-.calendar td {
-  background-color: color-mix(in srgb, var(--calendar-cell) 92%, transparent);
-  border: 1px solid var(--calendar-line);
-  height: clamp(7rem, 9.8vw, 9.8rem);
-  padding: clamp(0.55rem, 0.9vw, 0.8rem);
-  position: relative;
-  vertical-align: top;
-}
-
 .emptyDay {
   background-color: color-mix(in srgb, var(--calendar-empty) 88%, transparent) !important;
-}
-
-.dayNumber {
-  display: inline-grid;
-  font-family: Georgia, "Times New Roman", serif;
-  font-size: clamp(1.15rem, 1.65vw, 1.55rem);
-  font-variant-numeric: lining-nums;
-  line-height: 1;
-  min-width: 1.5em;
-  place-items: center;
-  position: relative;
 }
 
 .today .dayNumber::after {
@@ -290,9 +249,6 @@
     min-width: 54rem;
   }
 
-  .calendar td {
-    height: 7rem;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -309,7 +265,7 @@
 }
 
 .notesCopy { font-family: Georgia, serif; font-size: 1.05rem; line-height: 1.8; margin: 1.25rem 0 0; }
-.calendar { display: block; min-width: 62rem; width: 100%; }
+.calendar { color: var(--calendar-ink); display: block; min-width: 62rem; width: 100%; }
 .weekHeader, .dayGrid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
 .weekHeader > div { border-bottom: 1px solid var(--calendar-line); font-family: Georgia, serif; font-size: 1rem; padding: .8rem; text-align: center; text-transform: uppercase; }
 .dayCell, .emptyDay { aspect-ratio: 1; border: 0; border-bottom: 1px solid var(--calendar-line); border-right: 1px solid var(--calendar-line); margin: 0; min-width: 0; position: relative; }
@@ -337,10 +293,15 @@
 .cellPreview { height: 100%; inset: 0; object-fit: cover; position: absolute; width: 100%; }
 .dayNumber {
   background: none;
-  font-size: clamp(.72rem, 1vw, .9rem);
+  display: inline-grid;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(.9rem, 1.25vw, 1.15rem);
+  font-variant-numeric: lining-nums;
   left: .5rem;
+  line-height: 1;
   min-width: 0;
   padding: 0;
+  place-items: center;
   position: absolute;
   text-shadow: 0 1px 2px rgb(232 233 229 / 65%);
   top: .48rem;
