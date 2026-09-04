@@ -1,222 +1,72 @@
 # `/yfxl99/calendar` AI 日历手账
 
-> 当前状态：月历 UI 框架已经完成。下一阶段接入数据库、每日素材浏览、AI 生成和手账排版保存。
->
-> 核心原则：不预先为日历中的每一天创建数据。只有某一天开始生成或保存了手账内容时，才建立该日的手账记录。
+> 当前状态：数据库、月/日接口、素材浏览、AI 生成、手账编辑与预览保存已经实现。部署前需执行 Calendar migration，并配置服务端 AI 环境变量。
 
-## 1. 产品目标
+## 产品规则
 
-日历按月展示。系统读取某一天已有的 Photos 和 Food 记录、图片及评论，将这些素材交给 AI，生成一张 Cover、若干透明贴纸和一段手账文字。用户可以补充自己的文字要求，移动贴纸和文字的位置，确认排版后保存；保存结果会缩略显示在当天的日历格中。
+- 日历按月展示，可切换月份；Photo 与 Food 按 `Asia/Shanghai` 的本地日期聚合。
+- 不为每一天预建数据库记录。只有首次生成或保存手账时，才创建当天的 `calendar_entries`。
+- 有 Photo 或 Food 的日期格高亮；已有成品时优先显示扁平化 Preview。
+- 点击有素材或手账的日期，弹出卡牌浏览当天 Photo、Food、图片及评论。
+- 用户可取消不希望发送给 AI 的素材，并填写最多 2000 字的补充要求。
+- AI 根据选中图片、内容、评论和补充要求生成 Cover、手账文字及零张或多张贴纸。
+- 生成结果先进入草稿编辑器。文字和贴纸可拖动，贴纸可缩放、旋转，并支持方向键移动。
+- 编辑画布、Cover 裁切区域、保存后的 Preview 和日历日期格共享 `CALENDAR_ENTRY_ASPECT_RATIO = 1`，始终为 `1:1`。
 
-空日期保持纯净，不保存无意义的占位数据。
+## 数据库
 
-## 2. 日期状态与月视图
+迁移文件：`supabase/migrations/202609040001_calendar_journal.sql`。
 
-月视图需要聚合三类信息：
+### `calendar_entries`
 
-1. 当日是否存在 `ready` 状态的 Photo。
-2. 当日是否存在 `ready` 状态的 Food。
-3. 当日是否存在已保存或尚未完成的日历手账。
+每个用户每天最多一条记录，唯一键为 `(owner_user_id, entry_date)`。保存：
 
-日期状态建议分为：
+- 日期、时区与 `draft / generating / ready / failed` 状态；
+- 用户补充、AI 原始文字和最终文字；
+- 实际使用的 Photo、Food、图片和评论快照 `source_manifest`；
+- 使用归一化坐标的可编辑 `layout_json`；
+- provider、模型、提示词版本、生成时间等 `generation_meta`；
+- 安全的最近错误摘要及创建、更新时间。
 
-- **空白**：没有 Photo、Food 或手账记录，保持普通空格。
-- **有素材**：存在 Photo 或 Food，但还没有保存手账；日期格以轻量方式高亮并可点击。
-- **草稿/生成中**：已经发起生成但尚未保存；显示明确的草稿或进度状态。
-- **已完成**：存在已保存手账；日期格显示最终预览图。
-- **生成失败**：保留用户输入与已有草稿，允许重试，不把失败结果当成已完成内容。
+### `calendar_assets`
 
-Photo 和 Food 的日期统一按 `Asia/Shanghai` 转换为本地日期后聚合。素材高亮由查询结果动态计算，不为“只有素材、尚无手账”的日期创建日历数据库记录。
-
-## 3. 单日交互流程
-
-### 3.1 打开当日卡牌
-
-当某日存在 Photo、Food 或已保存手账时，点击日期格打开当日卡牌层。卡牌中按发生时间浏览：
-
-- Photo 图片、标题、描述及其评论；
-- Food 的全部图片、分类、地点、评分、点评及其评论；
-- 当天已经保存的手账结果（如有）。
-
-Photo 和 Food 保持来源标识，但在同一条时间线中浏览。默认使用当天所有可用素材；应允许用户取消选择不希望发送给 AI 的图片或记录，避免素材过多并保护隐私。
-
-### 3.2 发起 AI 生成
-
-卡牌下方提供一段可选的自定义文字，用户可以补充当天的心情、重点、期望风格或不希望出现的内容。点击“生成”后：
-
-1. 服务端再次验证私密 Session 和日期归属。
-2. 服务端读取用户选中的 Photo、Food、评论和图片文件。
-3. 将选中的图片、必要的记录文字和用户自定义文字作为生成上下文。
-4. AI 先产生结构化文字结果与图像提示词，再生成 Cover 和透明背景贴纸。
-5. 生成结果进入可编辑预览，不直接作为最终手账发布。
-
-一次“生成”可以在服务端拆成文字模型和图像模型的多次调用，但前端仍表现为一个完整任务。所有输入数量、图片体积和文字长度都必须设置上限；超出上限时应提示用户缩减选择，而不是静默截断重要内容。
-
-### 3.3 排版与保存
-
-生成完成后进入手账编辑画布：
-
-- 编辑画布与月历日期格统一使用 `1:1` 长宽比；
-- Cover 作为底层主视觉，可调整裁切区域；
-- AI 生成文字作为一个文字图层；
-- 每张贴纸作为独立图片图层；
-- 用户可拖动、缩放和旋转贴纸，移动文字并调整文字区域；
-- 图层顺序需要稳定保存；
-- 应提供键盘可操作的移动方式，不能只依赖拖拽。
-
-编辑器、Cover 裁切区域、保存后的画布和月历日期格必须共享同一个 `CALENDAR_ENTRY_ASPECT_RATIO = 1` 配置，不能分别维护尺寸。响应式布局只允许等比缩放日期格，不得改变比例。这样用户在编辑器中看到的构图可以原样缩小到月历，不会出现二次裁切、留边或图层位置偏移。
-
-点击“保存”后，保存可继续编辑的图层布局，同时按相同 `1:1` 比例生成一张扁平化预览图供月视图快速加载。月历格优先显示预览图，不在月视图中重新加载和组合全部原始图层。
-
-## 4. 数据库设计
-
-建议新增两张核心表，不创建逐日占位表。
-
-### 4.1 `calendar_entries`
-
-每个用户、每个日期最多一条手账记录。首次发起生成或保存手账时创建。
-
-| 字段 | 用途 |
-| --- | --- |
-| `id` | UUID 主键 |
-| `owner_user_id` | 关联 `private_users.id` |
-| `entry_date` | 手账所属本地日期 |
-| `timezone` | 固定为 `Asia/Shanghai` |
-| `status` | `draft`、`generating`、`ready` 或 `failed` |
-| `user_note` | 用户在生成前补充的自定义文字 |
-| `generated_text` | AI 返回的原始手账文字 |
-| `final_text` | 当前实际展示的文字，初始等于生成文字，便于以后支持编辑 |
-| `source_manifest` | 本次使用的 Photo、Food、图片和评论引用快照 |
-| `layout_json` | 画布尺寸、图层顺序、位置、缩放、旋转、裁切和文字样式 |
-| `generation_meta` | AI provider、模型、提示词版本、请求 ID、生成时间等，不包含 API Key |
-| `last_error` | 最近一次生成失败的安全错误摘要，不保存上游敏感响应 |
-| `created_at` / `updated_at` | 创建与更新时间 |
-
-必要约束：
-
-- `unique (owner_user_id, entry_date)`；
-- `entry_date`、`owner_user_id`、`timezone` 和 `status` 非空；
-- 对用户文字、生成文字和 JSON 大小设置上限；
-- 月视图只将 `ready` 记录作为正式成品展示，草稿和失败状态单独提示。
-
-`source_manifest` 只保存生成时实际使用的来源 ID、类型、顺序、评论 ID、必要文字快照和来源 `updated_at`。原始 Photo/Food 图片不复制进日历数据表；即使来源以后被修改，已生成的手账资源仍可独立展示。
-
-### 4.2 `calendar_assets`
-
-保存手账产生的图片资源元数据，文件本体放入现有私密存储体系。
-
-| 字段 | 用途 |
-| --- | --- |
-| `id` | UUID 主键，也是布局图层引用 ID |
-| `calendar_entry_id` | 关联 `calendar_entries.id`，删除手账时级联删除 |
-| `role` | `cover`、`sticker` 或 `preview` |
-| `storage_path` | 私密存储中的相对路径，全表唯一 |
-| `mime_type` | 建议允许 JPEG、PNG、WebP；透明贴纸优先 PNG/WebP |
-| `width` / `height` | 图片像素尺寸 |
-| `byte_size` | 文件大小，用于限制与清理 |
-| `sort_order` | 同类资源的稳定顺序 |
-| `created_at` | 创建时间 |
-
-建议存储路径：
+保存 `cover / sticker / preview` 的资源元数据。文件使用现有私有存储，路径为：
 
 ```text
 calendar/{ownerUserId}/{entryId}/{assetId}.{extension}
 ```
 
-其中一个 Entry 只能有一个当前 Cover 和一个当前 Preview；贴纸可以有多张。重新生成时，新资源先作为草稿写入，确认成功后再替换当前资源，旧资源进入延迟清理，避免生成失败导致已保存手账丢失。
+每条手账最多一个当前 Cover 和 Preview，可有多张贴纸。API Key 不进入数据库、布局、日志或浏览器响应。
 
-### 4.3 `layout_json` 建议结构
-
-位置与尺寸使用 `0` 到 `1` 的归一化坐标，避免桌面端与移动端尺寸不同导致排版错位。`canvas.aspectRatio` 固定为 `1`，并与日期格的共享比例配置一致；服务端应拒绝比例不一致的布局数据。
-
-```json
-{
-  "version": 1,
-  "canvas": { "aspectRatio": 1 },
-  "cover": { "assetId": "...", "cropX": 0.5, "cropY": 0.5, "scale": 1 },
-  "text": {
-    "x": 0.08,
-    "y": 0.68,
-    "width": 0.84,
-    "rotation": 0,
-    "zIndex": 10,
-    "style": { "align": "left", "color": "#ffffff" }
-  },
-  "stickers": [
-    {
-      "assetId": "...",
-      "x": 0.72,
-      "y": 0.08,
-      "width": 0.2,
-      "rotation": -8,
-      "zIndex": 20
-    }
-  ]
-}
-```
-
-服务端保存前必须验证 JSON 版本、资源归属、坐标范围、图层数量和允许的样式字段，不能直接信任客户端布局数据。
-
-## 5. AI 配置与安全边界
-
-AI 服务商暂不锁定，先预留以下仅服务端可读的环境变量：
-
-```dotenv
-CALENDAR_AI_API_KEY=
-CALENDAR_AI_BASE_URL=
-CALENDAR_AI_TEXT_MODEL=
-CALENDAR_AI_IMAGE_MODEL=
-```
-
-要求：
-
-- API Key 只存在于服务端环境变量，不写入数据库、`layout_json`、日志或浏览器响应。
-- 禁止使用 `NEXT_PUBLIC_*` 命名 API Key。
-- 浏览器不能直接请求 AI 服务商；统一通过受 Session 保护的服务端接口调用。
-- 服务端从私密存储读取图片字节后提交给 AI，尽量不把长期有效或公开图片 URL 交给第三方。
-- 只发送用户明确选择的素材和必要字段，不发送账号凭证、内部存储路径或无关个人信息。
-- 保存 provider、模型名和提示词版本用于追踪结果，但绝不保存密钥。
-- 对生成接口增加频率限制、超时、取消、重试边界和请求幂等键，防止重复计费。
-
-## 6. 服务端接口建议
+## 接口
 
 ```text
 GET    /api/private/calendar/month?month=YYYY-MM
-       返回当月素材日期、各类数量、草稿状态和 ready 手账预览
-
 GET    /api/private/calendar/days/YYYY-MM-DD
-       返回当日 Photo、Food、评论和已有手账
-
 POST   /api/private/calendar/days/YYYY-MM-DD/generate
-       校验选中素材与 user_note，创建或更新草稿并发起 AI 生成
-
 PUT    /api/private/calendar/entries/{id}
-       验证并保存 final_text、layout_json 和预览图，状态改为 ready
-
+PUT    /api/private/calendar/entries/{id}/preview
 DELETE /api/private/calendar/entries/{id}
-       删除手账记录及其生成资源，不删除来源 Photo 或 Food
+GET    /api/private/calendar/assets/{id}/file
 ```
 
-所有接口必须验证 Session、`owner_user_id` 和同源请求。Supabase 表启用 RLS，并延续当前私密模块的边界：浏览器不直连这些表，`anon` / `authenticated` 不具备直接读写权限，数据只通过服务端 service-role 访问。
+所有接口都验证 `/yfxl99` Session 和资源归属；写接口额外验证同源请求。数据库表启用 RLS，并撤销 `anon` / `authenticated` 的直接权限，仅由服务端 service role 访问。
 
-## 7. 一致性与失败处理
+## AI 配置
 
-- AI 生成成功但文件保存失败时，不覆盖现有成品，草稿标记为 `failed` 并允许重试。
-- 数据库写入成功但资源上传未完成时，Entry 不得进入 `ready`。
-- 保存布局时使用乐观并发控制，例如提交 `updated_at` 或版本号，避免旧页面覆盖新排版。
-- 同一用户同一天的重复生成请求使用幂等键合并。
-- 定期清理由取消、超时或失败任务产生且未被任何 Entry 引用的资源。
-- 删除 Photo、Food 或评论不能级联删除已经保存的日历手账；已生成资源和来源快照继续保留。
+```dotenv
+CALENDAR_AI_API_KEY=
+CALENDAR_AI_BASE_URL=https://api.openai.com/v1
+CALENDAR_AI_TEXT_MODEL=gpt-5.4-mini
+CALENDAR_AI_IMAGE_MODEL=gpt-image-2
+```
 
-## 8. 验收标准
+环境变量仅在服务端读取。未配置 Key 时，素材浏览和已有手账仍可使用，生成按钮会明确显示不可用状态。
 
-- 空日期不会产生 `calendar_entries` 数据。
-- 当日存在 Photo 或 Food 时日期格会高亮，点击可浏览图片、记录和评论。
-- 用户可选择素材、填写自定义文字并发起生成。
-- AI Key 从未到达客户端，也不会出现在数据库和日志中。
-- 生成结果至少包含 Cover、一段文字；贴纸允许为零张或多张。
-- 用户可以移动文字和贴纸，并保存可再次编辑的布局。
-- 手账编辑画布、Cover 裁切区域、Preview 和月历日期格均保持 `1:1`，保存前后构图一致。
-- 保存后月历格显示轻量 Preview，不需要重新组合全部图层。
-- 重新生成失败不会破坏该日之前已经保存的手账。
-- 所有数据库与资源读写都受 `/yfxl99` Session 和用户归属校验保护。
+## 一致性约束
+
+- 月视图的素材高亮动态聚合，不创建空记录。
+- 服务端校验日期、来源数量、文字长度、资源归属及 `1:1` 布局结构。
+- 重新生成先上传新资源，成功后再替换旧资源；失败时恢复原有成品与布局。
+- 保存提交 `updated_at` 进行乐观并发控制，避免旧页面覆盖新布局。
+- 月视图只加载 Preview，不重新组合 Cover、文字和贴纸。

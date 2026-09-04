@@ -111,3 +111,10 @@ export async function deletePrivateAssets(storagePaths: string[]) {
   const { error } = await client.storage.from(PRIVATE_DIARY_BUCKET).remove(paths);
   if (error) throw new Error("Unable to delete private media.");
 }
+
+export async function downloadPrivateAsset(storagePath: string) {
+  const client = createServerSupabaseClient();
+  const { data, error } = await client.storage.from(PRIVATE_DIARY_BUCKET).download(cleanStoragePath(storagePath));
+  if (error || !data) throw new Error("Unable to read private media.");
+  return data.arrayBuffer();
+}
