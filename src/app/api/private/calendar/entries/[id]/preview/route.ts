@@ -3,6 +3,6 @@ import { calendarServiceError, calendarSession } from "@/app/api/private/calenda
 import { savePreview } from "@/services/calendarService";
 export const dynamic = "force-dynamic";
 export async function PUT(request: NextRequest, context: { params: Promise<{ id: string }> }) {
-  try { const session = await calendarSession(request, true); const { id } = await context.params; const bytes = await request.arrayBuffer(); const role = request.nextUrl.searchParams.get("variant") === "thumbnail" ? "thumbnail" : "preview"; await savePreview(session.userId, id, bytes, request.headers.get("content-type")?.split(";")[0] ?? "", role); return new NextResponse(null, { status: 204 }); }
+  try { await calendarSession(request, true); const { id } = await context.params; const bytes = await request.arrayBuffer(); const role = request.nextUrl.searchParams.get("variant") === "thumbnail" ? "thumbnail" : "preview"; await savePreview(id, bytes, request.headers.get("content-type")?.split(";")[0] ?? "", role); return new NextResponse(null, { status: 204 }); }
   catch (error) { return calendarServiceError(error); }
 }

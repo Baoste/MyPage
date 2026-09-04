@@ -6,6 +6,8 @@
 
 - 日历按月展示，可切换月份；Photo 与 Food 按 `Asia/Shanghai` 的本地日期聚合。
 - 不为每一天预建数据库记录。只有首次生成或保存手账时，才创建当天的 `calendar_entries`。
+- 所有已登录账号共享同一本日历：可查看、生成、重新生成、编辑和删除任意日期的手账；未登录访问仍由 `/yfxl99` Session 拦截。
+- 每个自然日全局最多一条手账，所有账号共同编辑当天的同一条记录。
 - 有 Photo 或 Food 的日期格高亮；已有成品时优先显示扁平化 Preview。
 - 点击有素材或手账的日期，弹出卡牌浏览当天 Photo、Food、图片及评论。
 - 用户可取消不希望发送给 AI 的素材，并在每组 Photo/Food 内继续选择具体图片（最多 8 张），再填写最多 2000 字的补充要求。
@@ -22,10 +24,12 @@
 
 - `supabase/migrations/202609040001_calendar_journal.sql`
 - `supabase/migrations/202609040002_calendar_thumbnails.sql`
+- `supabase/migrations/202609040003_calendar_month_notes.sql`
+- `supabase/migrations/202609040004_calendar_shared_entries.sql`
 
 ### `calendar_entries`
 
-每个用户每天最多一条记录，唯一键为 `(owner_user_id, entry_date)`。保存：
+每个自然日最多一条共享记录，唯一键为 `entry_date`。`owner_user_id` 仅记录最初创建账号，不再用于手账的查看或修改权限。保存：
 
 - 日期、时区与 `draft / generating / ready / failed` 状态；
 - 用户补充、AI 原始文字和最终文字；
@@ -56,7 +60,7 @@ DELETE /api/private/calendar/entries/{id}
 GET    /api/private/calendar/assets/{id}/file
 ```
 
-所有接口都验证 `/yfxl99` Session 和资源归属；写接口额外验证同源请求。数据库表启用 RLS，并撤销 `anon` / `authenticated` 的直接权限，仅由服务端 service role 访问。
+所有接口都验证 `/yfxl99` Session；写接口额外验证同源请求。登录账号之间共享手账和资源的读写权限。数据库表启用 RLS，并撤销 `anon` / `authenticated` 的直接权限，仅由服务端 service role 访问。
 
 ## AI 配置
 

@@ -162,6 +162,10 @@ npx supabase db push
 8. `supabase/migrations/202609010005_photo_pagination_index.sql`
 9. `supabase/migrations/202609030001_articles.sql`
 10. `supabase/migrations/202609030002_article_covers.sql`
+11. `supabase/migrations/202609040001_calendar_journal.sql`
+12. `supabase/migrations/202609040002_calendar_thumbnails.sql`
+13. `supabase/migrations/202609040003_calendar_month_notes.sql`
+14. `supabase/migrations/202609040004_calendar_shared_entries.sql`
 
 第一份 Migration 创建：
 

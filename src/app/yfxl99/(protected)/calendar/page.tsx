@@ -2,8 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { requirePrivateSession } from "@/lib/auth/session";
 import type { CalendarMonthDay } from "@/lib/calendar/contracts";
-import { getCalendarMonth, getLatestCalendarContentMonth } from "@/services/calendarService";
+import { getCalendarMonth, getCalendarMonthNote, getLatestCalendarContentMonth } from "@/services/calendarService";
 import CalendarExperience from "./CalendarExperience";
+import CalendarNotes from "./CalendarNotes";
 import styles from "./CalendarPage.module.css";
 
 export const metadata: Metadata = { title: "Calendar" };
@@ -18,10 +19,15 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
   const session = await requirePrivateSession(); const today = shanghaiToday(); const params = await searchParams;
   const displayed = parseMonth(params.month, today); const monthKey = `${displayed.year}-${String(displayed.month).padStart(2, "0")}`;
   let days: CalendarMonthDay[] = []; let unavailable = ""; let latestContentMonth: string | null = null;
+  let monthNote = "留住有照片、有味道的日子。"; let monthNoteError = "";
   try {
-    days = await getCalendarMonth(session.userId, monthKey);
-    if (days.length === 0) latestContentMonth = await getLatestCalendarContentMonth(session.userId);
+    days = await getCalendarMonth(monthKey);
+    if (days.length === 0) latestContentMonth = await getLatestCalendarContentMonth();
   } catch (error) { unavailable = error instanceof Error ? error.message : "日历数据暂时不可用。"; }
+  try {
+    const savedNote = await getCalendarMonthNote(session.userId, monthKey);
+    if (savedNote) monthNote = savedNote.content;
+  } catch (error) { monthNoteError = error instanceof Error ? error.message : "本月 Notes 暂时不可用。"; }
   const previous = shiftMonth(displayed, -1), next = shiftMonth(displayed, 1), current = displayed.year === today.year && displayed.month === today.month;
   return <section className={styles.page} aria-labelledby="calendar-title"><div className={`container-shell ${styles.workspace}`}>
     <header className={styles.header}><p className={styles.monthIndex} aria-hidden="true">{String(displayed.month).padStart(2, "0")}</p><div className={styles.headerMain}>
@@ -29,6 +35,6 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
       <h1 id="calendar-title" className={styles.title}><span>{MONTH_NAMES[displayed.month - 1]}</span><span className={styles.year}>{displayed.year}</span></h1>
     </div></header>
     {unavailable ? <p className={styles.notice}>{unavailable}</p> : days.length === 0 ? <p className={styles.notice}>这个月还没有 Photo、Food 或手账。{latestContentMonth && latestContentMonth !== monthKey ? <> 最近有内容的是 <Link href={`/yfxl99/calendar?month=${latestContentMonth}`}>{latestContentMonth}</Link>。</> : null}</p> : null}<p className={styles.scrollHint}>横向滑动查看完整月份</p>
-    <div className={styles.journalLayout}><aside className={styles.notesPanel} aria-label="本月手账留白"><p className={styles.notesLabel}>Notes</p><p className={styles.notesCopy}>留住有照片、有味道的日子。</p><div className={styles.notesLines} aria-hidden="true" /></aside><CalendarExperience key={monthKey} year={displayed.year} month={displayed.month} today={today} initialDays={days} /></div>
+    <div className={styles.journalLayout}><CalendarNotes key={monthKey} month={monthKey} initialValue={monthNote} initialError={monthNoteError} /><CalendarExperience key={monthKey} year={displayed.year} month={displayed.month} today={today} initialDays={days} /></div>
   </div></section>;
 }

@@ -4,6 +4,7 @@ export const CALENDAR_MAX_NOTE_LENGTH = 2000;
 export const CALENDAR_MAX_TEXT_LENGTH = 4000;
 export const CALENDAR_MAX_SOURCES = 12;
 export const CALENDAR_MAX_IMAGES = 8;
+export const CALENDAR_MAX_MONTH_NOTE_LENGTH = 2000;
 
 export type CalendarEntryStatus = "draft" | "generating" | "ready" | "failed";
 export type CalendarGenerationStage = "preparing" | "generating" | "saving" | "finalizing";

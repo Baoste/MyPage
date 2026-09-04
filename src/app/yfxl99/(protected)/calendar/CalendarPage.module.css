@@ -138,17 +138,39 @@
   padding: clamp(1rem, 2vw, 1.6rem);
 }
 
-.notesLabel {
+.notesHeader {
+  align-items: center;
   border-bottom: 1px solid rgb(255 255 255 / 62%);
+  display: flex;
+  gap: .75rem;
+  justify-content: space-between;
+  padding-bottom: .85rem;
+}
+
+.notesLabel {
   font-family: Georgia, "Times New Roman", serif;
   font-size: 0.72rem;
   letter-spacing: 0.18em;
   margin: 0;
-  padding-bottom: 0.85rem;
   text-transform: uppercase;
 }
 
-.notesLines {
+.notesStatus,
+.notesCount {
+  color: rgb(228 229 223 / 58%);
+  font-size: .56rem;
+  letter-spacing: .06em;
+}
+
+.notesStatus {
+  max-width: 8rem;
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+
+.notesStatusError { color: #efb4a9; }
+
+.notesTextarea {
   background-image: repeating-linear-gradient(
     to bottom,
     transparent 0,
@@ -156,8 +178,33 @@
     rgb(255 255 255 / 17%) 2.18rem,
     transparent 2.22rem
   );
+  background-color: transparent;
+  border: 0;
+  border-radius: 0;
+  color: #e4e5df;
   flex: 1;
-  margin-top: 1.1rem;
+  font: 1.05rem/2.2rem Georgia, "Times New Roman", serif;
+  margin-top: .55rem;
+  min-height: 12rem;
+  outline: 0;
+  padding: 0 .15rem;
+  resize: none;
+  width: 100%;
+}
+
+.notesTextarea::placeholder { color: rgb(228 229 223 / 38%); }
+
+.notesTextarea:focus-visible {
+  background-color: rgb(255 255 255 / 4%);
+  box-shadow: inset 2px 0 #cabb5b;
+  outline: 1px solid rgb(255 255 255 / 22%);
+  outline-offset: .35rem;
+}
+
+.notesCount {
+  align-self: flex-end;
+  font-variant-numeric: tabular-nums;
+  margin-top: .65rem;
 }
 
 .calendarScroll {
@@ -194,7 +241,8 @@
   }
 
   .notesPanel {
-    display: none;
+    margin-bottom: 1.25rem;
+    min-height: 14rem;
   }
 
   .scrollHint {
@@ -264,7 +312,6 @@
   padding: .7rem .85rem;
 }
 
-.notesCopy { font-family: Georgia, serif; font-size: 1.05rem; line-height: 1.8; margin: 1.25rem 0 0; }
 .calendar { color: var(--calendar-ink); display: block; min-width: 62rem; width: 100%; }
 .weekHeader, .dayGrid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
 .weekHeader > div { border-bottom: 1px solid var(--calendar-line); font-family: Georgia, serif; font-size: 1rem; padding: .8rem; text-align: center; text-transform: uppercase; }
