@@ -186,15 +186,23 @@ export async function saveEntry(userId: string, id: string, finalText: unknown, 
   return getEntry(userId, data.entry_date);
 }
 
-export async function savePreview(userId: string, id: string, bytes: ArrayBuffer, mimeType: string) {
-  if (mimeType !== "image/png" || bytes.byteLength < 1 || bytes.byteLength > 5 * 1024 * 1024) throw new CalendarServiceError("预览图必须是 5 MB 以内的 PNG。", 400);
+export async function savePreview(userId: string, id: string, bytes: ArrayBuffer, mimeType: string, role: "preview" | "thumbnail" = "preview") {
+  const expectedMimeType = role === "preview" ? "image/png" : "image/webp";
+  const maximumBytes = role === "preview" ? 5 * 1024 * 1024 : 1024 * 1024;
+  if (mimeType !== expectedMimeType || bytes.byteLength < 1 || bytes.byteLength > maximumBytes) throw new CalendarServiceError(role === "preview" ? "预览图必须是 5 MB 以内的 PNG。" : "日历缩略图必须是 1 MB 以内的 WebP。", 400);
   const client = createServerSupabaseClient(); const entry = await client.from("calendar_entries").select("id").eq("id", id).eq("owner_user_id", userId).maybeSingle();
   if (!entry.data) throw new CalendarServiceError("手账不存在。", 404);
-  const old = await client.from("calendar_assets").select("id,storage_path").eq("calendar_entry_id", id).eq("role", "preview").maybeSingle();
-  const assetId = randomUUID(), path = `calendar/${userId}/${id}/${assetId}.png`; await uploadPrivateAsset(path, bytes, mimeType);
-  if (old.data) { await client.from("calendar_assets").delete().eq("id", old.data.id); await deletePrivateAssets([old.data.storage_path]).catch(() => undefined); }
-  const { error } = await client.from("calendar_assets").insert({ id: assetId, calendar_entry_id: id, role: "preview", storage_path: path, mime_type: mimeType, width: 1024, height: 1024, byte_size: bytes.byteLength, sort_order: 0 });
-  if (error) throw new CalendarServiceError("无法保存预览图。", 500);
+  const old = await client.from("calendar_assets").select("*").eq("calendar_entry_id", id).eq("role", role).maybeSingle();
+  const assetId = randomUUID(), extension = role === "preview" ? "png" : "webp", path = `calendar/${userId}/${id}/${assetId}.${extension}`; await uploadPrivateAsset(path, bytes, mimeType);
+  if (old.data) await client.from("calendar_assets").delete().eq("id", old.data.id);
+  const dimension = role === "preview" ? 1024 : 256;
+  const { error } = await client.from("calendar_assets").insert({ id: assetId, calendar_entry_id: id, role, storage_path: path, mime_type: mimeType, width: dimension, height: dimension, byte_size: bytes.byteLength, sort_order: 0 });
+  if (error) {
+    if (old.data) await client.from("calendar_assets").insert(old.data);
+    await deletePrivateAssets([path]).catch(() => undefined);
+    throw new CalendarServiceError(role === "preview" ? "无法保存预览图。" : "无法保存日历缩略图，请先执行最新 Calendar Migration。", 500);
+  }
+  if (old.data) await deletePrivateAssets([old.data.storage_path]).catch(() => undefined);
 }
 
 export async function readCalendarAsset(userId: string, id: string) {

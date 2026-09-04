@@ -19,7 +19,7 @@ create table if not exists public.calendar_entries (
 create table if not exists public.calendar_assets (
   id uuid primary key default gen_random_uuid(),
   calendar_entry_id uuid not null references public.calendar_entries(id) on delete cascade,
-  role text not null check (role in ('cover', 'sticker', 'preview')),
+  role text not null check (role in ('cover', 'sticker', 'preview', 'thumbnail')),
   storage_path text not null unique,
   mime_type text not null check (mime_type in ('image/jpeg', 'image/png', 'image/webp')),
   width integer not null check (width > 0 and width <= 8192),
@@ -33,6 +33,7 @@ create index if not exists calendar_entries_owner_month_idx on public.calendar_e
 create index if not exists calendar_assets_entry_idx on public.calendar_assets (calendar_entry_id, role, sort_order);
 create unique index if not exists calendar_assets_single_cover_idx on public.calendar_assets (calendar_entry_id) where role = 'cover';
 create unique index if not exists calendar_assets_single_preview_idx on public.calendar_assets (calendar_entry_id) where role = 'preview';
+create unique index if not exists calendar_assets_single_thumbnail_idx on public.calendar_assets (calendar_entry_id) where role = 'thumbnail';
 
 create or replace function public.touch_calendar_entry_updated_at()
 returns trigger language plpgsql as $$

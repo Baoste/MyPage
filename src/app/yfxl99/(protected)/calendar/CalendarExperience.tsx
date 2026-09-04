@@ -19,7 +19,15 @@ async function jsonRequest<T>(url: string, init?: RequestInit): Promise<T> {
   return body as T;
 }
 function preview(entry: CalendarEntryView | null) {
-  return entry?.assets.find((asset) => asset.role === "preview")?.url;
+  return entry?.assets.find((asset) => asset.role === "thumbnail")?.url
+    ?? entry?.assets.find((asset) => asset.role === "preview")?.url;
+}
+function canvasBlob(canvas: HTMLCanvasElement, type: "image/png" | "image/webp", quality?: number) {
+  return new Promise<Blob>((resolve, reject) => canvas.toBlob(
+    (blob) => blob ? resolve(blob) : reject(new Error("无法创建手账图片。")),
+    type,
+    quality,
+  ));
 }
 
 export default function CalendarExperience({ year, month, today, initialDays }: {
@@ -83,7 +91,7 @@ export default function CalendarExperience({ year, month, today, initialDays }: 
             const active = Boolean(info && (info.photoCount || info.foodCount || info.entry));
             const isToday = year === today.year && month === today.month && value === today.day;
             return <button key={date} type="button" className={`${styles.dayCell} ${active ? styles.hasContent : ""} ${isToday ? styles.today : ""}`} onClick={() => active && open(date)} disabled={!active} aria-label={`${date}${active ? `，${info?.photoCount ?? 0} 张照片，${info?.foodCount ?? 0} 条美食记录` : "，暂无内容"}`}>
-              {image ? <img src={image} alt="" className={styles.cellPreview} /> : null}
+              {image ? <img src={image} alt="" className={styles.cellPreview} loading="lazy" decoding="async" /> : null}
               <time dateTime={date} className={styles.dayNumber} style={dateNumberStyle ? { color: dateNumberStyle.color, fontFamily: FONT_FAMILIES[dateNumberStyle.font] } : undefined}>{value}</time>
               {info?.entry && !image ? <span className={styles.entryState}>{info.entry.status === "ready" ? "已保存" : info.entry.status === "failed" ? "生成失败" : "草稿"}</span> : null}
               {active && !image ? <span className={styles.sourceDots} aria-hidden="true">{info?.photoCount ? "PHOTO" : ""}{info?.foodCount ? " FOOD" : ""}</span> : null}
@@ -216,7 +224,7 @@ function JournalViewer({ entry, busy, message, onEdit, onDelete }: { entry: Cale
   const coverAsset = entry.assets.find((asset) => asset.role === "cover");
   const layout = entry.layout;
   return <div className={styles.viewer}>
-    {previewAsset ? <div className={styles.viewerArtwork}><img src={previewAsset.url} alt={`${entry.date} 手账`} /></div> : layout ? <div className={styles.viewerArtwork} style={{ backgroundImage: coverAsset ? `url(${coverAsset.url})` : undefined, backgroundPosition: `${layout.cover.cropX * 100}% ${layout.cover.cropY * 100}%`, backgroundSize: `${layout.cover.scale * 100}%` }}>
+    {previewAsset ? <div className={styles.viewerArtwork}><img src={previewAsset.url} alt={`${entry.date} 手账`} decoding="async" /></div> : layout ? <div className={styles.viewerArtwork} style={{ backgroundImage: coverAsset ? `url(${coverAsset.url})` : undefined, backgroundPosition: `${layout.cover.cropX * 100}% ${layout.cover.cropY * 100}%`, backgroundSize: `${layout.cover.scale * 100}%` }}>
       <div className={styles.viewerText} style={{ left: `${layout.text.x * 100}%`, top: `${layout.text.y * 100}%`, width: `${layout.text.width * 100}%`, color: layout.text.style.color, textAlign: layout.text.style.align, fontFamily: FONT_FAMILIES[layout.text.style.font] }}>{entry.finalText}</div>
       {layout.stickers.map((sticker) => { const asset = entry.assets.find((item) => item.id === sticker.assetId); return asset ? <img className={styles.viewerSticker} src={asset.url} alt="" key={sticker.assetId} style={{ left: `${sticker.x * 100}%`, top: `${sticker.y * 100}%`, width: `${sticker.width * 100}%`, transform: `translate(-50%, -50%) rotate(${sticker.rotation}deg)` }} /> : null; })}
     </div> : <div className={styles.viewerArtwork}><p>手账预览暂不可用。</p></div>}
@@ -304,14 +312,26 @@ function JournalEditor({ entry, onSaved }: { entry: CalendarEntryView; onSaved: 
     lines.push(line);
     const anchor = layout.text.style.align === "left" ? 0 : layout.text.style.align === "center" ? maxWidth / 2 : maxWidth;
     lines.slice(0, 6).forEach((value, index) => context.fillText(value, layout.text.x * 1024 + anchor, layout.text.y * 1024 + index * 56, maxWidth));
-    return new Promise<Blob>((resolve, reject) => canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("无法创建预览图。")), "image/png"));
+    const thumbnailCanvas = document.createElement("canvas");
+    thumbnailCanvas.width = thumbnailCanvas.height = 256;
+    const thumbnailContext = thumbnailCanvas.getContext("2d")!;
+    thumbnailContext.drawImage(canvas, 0, 0, 256, 256);
+    const [previewBlob, thumbnailBlob] = await Promise.all([
+      canvasBlob(canvas, "image/png"),
+      canvasBlob(thumbnailCanvas, "image/webp", .78),
+    ]);
+    return { previewBlob, thumbnailBlob };
   }
   async function save() {
     setBusy(true); setMessage("");
     try {
-      const blob = await renderPreview();
-      const previewResponse = await fetch(`/api/private/calendar/entries/${entry.id}/preview`, { method: "PUT", headers: { "Content-Type": "image/png" }, body: blob });
+      const { previewBlob, thumbnailBlob } = await renderPreview();
+      const [previewResponse, thumbnailResponse] = await Promise.all([
+        fetch(`/api/private/calendar/entries/${entry.id}/preview`, { method: "PUT", headers: { "Content-Type": "image/png" }, body: previewBlob }),
+        fetch(`/api/private/calendar/entries/${entry.id}/preview?variant=thumbnail`, { method: "PUT", headers: { "Content-Type": "image/webp" }, body: thumbnailBlob }),
+      ]);
       if (!previewResponse.ok) throw new Error("预览图保存失败。");
+      if (!thumbnailResponse.ok) { const body = await thumbnailResponse.json().catch(() => ({})) as { error?: string }; throw new Error(body.error || "日历缩略图保存失败。"); }
       const result = await jsonRequest<{ entry: CalendarEntryView }>(`/api/private/calendar/entries/${entry.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ finalText: text, layout, updatedAt: entry.updatedAt }) });
       onSaved(result.entry);
     } catch (reason) {

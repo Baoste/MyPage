@@ -6,7 +6,7 @@ export const CALENDAR_MAX_SOURCES = 12;
 export const CALENDAR_MAX_IMAGES = 8;
 
 export type CalendarEntryStatus = "draft" | "generating" | "ready" | "failed";
-export type CalendarAssetRole = "cover" | "sticker" | "preview";
+export type CalendarAssetRole = "cover" | "sticker" | "preview" | "thumbnail";
 export type CalendarSourceType = "photo" | "food";
 export type CalendarTextFont = "aventa" | "morganite";
 

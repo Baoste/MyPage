@@ -17,7 +17,10 @@
 
 ## 数据库
 
-迁移文件：`supabase/migrations/202609040001_calendar_journal.sql`。
+迁移文件：
+
+- `supabase/migrations/202609040001_calendar_journal.sql`
+- `supabase/migrations/202609040002_calendar_thumbnails.sql`
 
 ### `calendar_entries`
 
@@ -32,13 +35,13 @@
 
 ### `calendar_assets`
 
-保存 `cover / sticker / preview` 的资源元数据。文件使用现有私有存储，路径为：
+保存 `cover / sticker / preview / thumbnail` 的资源元数据。文件使用现有私有存储，路径为：
 
 ```text
 calendar/{ownerUserId}/{entryId}/{assetId}.{extension}
 ```
 
-每条手账最多一个当前 Cover 和 Preview，可有多张贴纸。API Key 不进入数据库、布局、日志或浏览器响应。
+每条手账最多一个当前 Cover、Preview 和 Thumbnail，可有多张贴纸。Preview 为展示窗口使用的 1024×1024 PNG；Thumbnail 为月历格使用的 256×256 WebP。API Key 不进入数据库、布局、日志或浏览器响应。
 
 ## 接口
 
@@ -151,4 +154,4 @@ context.font = `42px ${family}, "Microsoft YaHei", sans-serif`;
 - 服务端校验日期、来源数量、文字长度、资源归属及 `1:1` 布局结构。
 - 重新生成先上传新资源，成功后再替换旧资源；失败时恢复原有成品与布局。
 - 保存提交 `updated_at` 进行乐观并发控制，避免旧页面覆盖新布局。
-- 月视图只加载 Preview，不重新组合 Cover、文字和贴纸。
+- 月视图不重新组合 Cover、文字和贴纸，而是优先加载 256×256 WebP Thumbnail 并使用懒加载；旧记录没有 Thumbnail 时才回退到 Preview。资源内容随 ID 固定，可使用长期私有浏览器缓存。
