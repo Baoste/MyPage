@@ -454,9 +454,9 @@ body.calendar-journal-viewer-open .private-navbar {
   align-items: center;
   display: grid;
   gap: clamp(0.6rem, 1.5vw, 1.25rem);
-  grid-template-columns: 3.25rem minmax(0, 72rem) 3.25rem;
+  grid-template-columns: 3.5rem minmax(0, 72rem) 3.5rem;
   justify-content: center;
-  max-width: 82rem;
+  max-width: 83rem;
   position: relative;
   width: 100%;
   z-index: 10;
@@ -464,34 +464,73 @@ body.calendar-journal-viewer-open .private-navbar {
 
 .private-media-nav {
   align-items: center;
-  backdrop-filter: blur(8px);
-  background: rgb(247 243 236 / 92%);
-  border: 1px solid rgb(215 208 196 / 92%);
-  border-radius: 999px;
-  box-shadow: 0 10px 30px rgb(24 20 15 / 18%);
-  color: #4b453d;
+  backdrop-filter: blur(10px);
+  background: rgb(38 42 36 / 94%);
+  border: 1px solid rgb(234 225 212 / 30%);
+  box-shadow: 0 16px 34px rgb(14 12 10 / 30%), inset 0 1px rgb(255 255 255 / 8%);
+  color: #f4eee5;
   cursor: pointer;
   display: flex;
-  height: 3.25rem;
+  height: 5.5rem;
   justify-content: center;
-  transition: background-color 140ms ease, color 140ms ease, transform 140ms ease;
-  width: 3.25rem;
+  overflow: hidden;
+  position: relative;
+  transition: background-color 100ms ease-out, border-color 100ms ease-out, box-shadow 100ms ease-out;
+  width: 3.5rem;
+}
+
+.private-media-nav-previous {
+  border-radius: 1.45rem 0.62rem 0.62rem 1.45rem;
+}
+
+.private-media-nav-next {
+  border-radius: 0.62rem 1.45rem 1.45rem 0.62rem;
+}
+
+.private-media-nav::after {
+  background: rgb(244 238 229 / 24%);
+  bottom: 0.85rem;
+  content: "";
+  position: absolute;
+  top: 0.85rem;
+  width: 1px;
+}
+
+.private-media-nav-previous::after {
+  right: 0.42rem;
+}
+
+.private-media-nav-next::after {
+  left: 0.42rem;
 }
 
 .private-media-nav svg {
   fill: none;
-  height: 1.35rem;
+  height: 1.55rem;
   stroke: currentColor;
   stroke-linecap: round;
   stroke-linejoin: round;
-  stroke-width: 1.7;
-  width: 1.35rem;
+  stroke-width: 1.45;
+  transition: transform 100ms ease-out;
+  width: 1.55rem;
 }
 
 .private-media-nav:hover:not(:disabled) {
-  background: #a64b2a;
-  color: #fffaf3;
-  transform: scale(1.05);
+  background: rgb(166 75 42 / 96%);
+  border-color: rgb(255 240 224 / 45%);
+  box-shadow: 0 18px 38px rgb(14 12 10 / 38%), inset 0 1px rgb(255 255 255 / 12%);
+}
+
+.private-media-nav-previous:hover:not(:disabled) svg {
+  transform: translateX(-0.15rem);
+}
+
+.private-media-nav-next:hover:not(:disabled) svg {
+  transform: translateX(0.15rem);
+}
+
+.private-media-nav:active:not(:disabled) {
+  box-shadow: 0 8px 18px rgb(14 12 10 / 24%), inset 0 2px 4px rgb(0 0 0 / 20%);
 }
 
 .private-media-nav:focus-visible {
@@ -501,26 +540,26 @@ body.calendar-journal-viewer-open .private-navbar {
 
 .private-media-nav:disabled {
   cursor: default;
-  opacity: 0.24;
+  opacity: 0.16;
 }
 
 @media (max-width: 767px) {
   .private-media-stage { display: block; }
   .private-media-nav {
-    height: 2.75rem;
+    height: 4.5rem;
     position: absolute;
     top: 50%;
     transform: translateY(-50%);
-    width: 2.75rem;
+    width: 2.65rem;
     z-index: 20;
   }
-  .private-media-nav:hover:not(:disabled) { transform: translateY(-50%) scale(1.04); }
-  .private-media-nav-previous { left: -0.35rem; }
-  .private-media-nav-next { right: -0.35rem; }
+  .private-media-nav-previous { left: -0.45rem; }
+  .private-media-nav-next { right: -0.45rem; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .private-media-nav { transition: none; }
+  .private-media-nav,
+  .private-media-nav svg { transition: none; }
 }
 
 @keyframes food-expanded-enter {

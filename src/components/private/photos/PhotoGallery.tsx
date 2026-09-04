@@ -192,7 +192,7 @@ export function PhotoGallery({
             onClick={() => setExpandedPhotoId(null)}
           />
           <div className="private-media-stage">
-            <button type="button" disabled={!hasPreviousPhoto} onClick={() => void moveExpandedPhoto(-1)} aria-label="上一组照片" className="private-media-nav private-media-nav-previous"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 5-7 7 7 7" /></svg></button>
+            <button type="button" disabled={!hasPreviousPhoto} onClick={() => void moveExpandedPhoto(-1)} aria-label="上一组照片" className="private-media-nav private-media-nav-previous"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12.5 6.5-5.5 5.5 5.5 5.5" /><path d="m18 6.5-5.5 5.5 5.5 5.5" /></svg></button>
             <div className="private-media-panel max-h-[92svh] w-full overflow-auto">
               <PhotoExpandedCard
                 key={expandedPhoto.id}
@@ -201,7 +201,7 @@ export function PhotoGallery({
                 onClose={() => setExpandedPhotoId(null)}
               />
             </div>
-            <button type="button" disabled={!hasNextPhoto} onClick={() => void moveExpandedPhoto(1)} aria-label="下一组照片" className="private-media-nav private-media-nav-next"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7" /></svg></button>
+            <button type="button" disabled={!hasNextPhoto} onClick={() => void moveExpandedPhoto(1)} aria-label="下一组照片" className="private-media-nav private-media-nav-next"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m11.5 6.5 5.5 5.5-5.5 5.5" /><path d="m6 6.5 5.5 5.5-5.5 5.5" /></svg></button>
           </div>
         </div>
       ) : null}

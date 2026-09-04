@@ -202,7 +202,7 @@ export function FoodGallery({
             onClick={() => setExpandedImageId(null)}
           />
           <div className="private-media-stage">
-            <button type="button" disabled={!hasPreviousGroup} onClick={() => void moveExpandedGroup(-1)} aria-label="上一组美食记录" className="private-media-nav private-media-nav-previous"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 5-7 7 7 7" /></svg></button>
+            <button type="button" disabled={!hasPreviousGroup} onClick={() => void moveExpandedGroup(-1)} aria-label="上一组美食记录" className="private-media-nav private-media-nav-previous"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12.5 6.5-5.5 5.5 5.5 5.5" /><path d="m18 6.5-5.5 5.5 5.5 5.5" /></svg></button>
             <div className="private-media-panel max-h-[92svh] w-full overflow-auto">
               <FoodExpandedCard
                 key={expandedImage.group.id}
@@ -212,7 +212,7 @@ export function FoodGallery({
                 onClose={() => setExpandedImageId(null)}
               />
             </div>
-            <button type="button" disabled={!hasNextGroup} onClick={() => void moveExpandedGroup(1)} aria-label="下一组美食记录" className="private-media-nav private-media-nav-next"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7" /></svg></button>
+            <button type="button" disabled={!hasNextGroup} onClick={() => void moveExpandedGroup(1)} aria-label="下一组美食记录" className="private-media-nav private-media-nav-next"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m11.5 6.5 5.5 5.5-5.5 5.5" /><path d="m6 6.5 5.5 5.5-5.5 5.5" /></svg></button>
           </div>
         </div>
       ) : null}
