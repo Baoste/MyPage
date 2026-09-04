@@ -6,6 +6,7 @@ import { CALENDAR_MAX_IMAGES, type CalendarDayPayload, type CalendarEntryView, t
 import styles from "./CalendarPage.module.css";
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const JOURNAL_BLUR_SETTLE_MS = 720;
 const FONT_FAMILIES: Record<CalendarTextFont, string> = {
   aventa: 'var(--font-aventa), "Microsoft YaHei", sans-serif',
   morganite: 'var(--font-morganite), "Microsoft YaHei", sans-serif',
@@ -71,7 +72,7 @@ export default function CalendarExperience({ year, month, today, initialDays }: 
     try {
       const request = jsonRequest<CalendarDayPayload>(`/api/private/calendar/days/${value}`);
       const result = launchFromThumbnail
-        ? (await Promise.all([request, new Promise((resolve) => window.setTimeout(resolve, 240))]))[0]
+        ? (await Promise.all([request, new Promise((resolve) => window.setTimeout(resolve, JOURNAL_BLUR_SETTLE_MS))]))[0]
         : await request;
       const displayImage = result.entry?.assets.find((asset) => asset.role === "preview")?.url
         ?? result.entry?.assets.find((asset) => asset.role === "thumbnail")?.url;
@@ -165,17 +166,9 @@ function DayDialog({ date, day, loading, error, initialHasEntry, viewerLaunch, o
   }, [onClose]);
 
   useEffect(() => {
-    const body = document.body;
-    const previousOverflow = body.style.overflow;
-    const previousPaddingRight = body.style.paddingRight;
-    const scrollbarWidth = Math.max(0, window.innerWidth - document.documentElement.clientWidth);
-    const bodyPaddingRight = Number.parseFloat(window.getComputedStyle(body).paddingRight) || 0;
-    if (scrollbarWidth > 0) body.style.paddingRight = `${bodyPaddingRight + scrollbarWidth}px`;
-    body.style.overflow = "hidden";
-    return () => {
-      body.style.overflow = previousOverflow;
-      body.style.paddingRight = previousPaddingRight;
-    };
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = previousOverflow; };
   }, []);
 
   function toggleSource(sourceKey: string, imageIds: string[], checked: boolean) {
