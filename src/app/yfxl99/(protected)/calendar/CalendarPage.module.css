@@ -755,13 +755,20 @@
   transform: translateY(-50%);
 }
 
+.dateFrame {
+  line-height: 1;
+  transform-origin: center;
+  white-space: nowrap;
+}
+
 .stickerFrame {
   line-height: 0;
   transform-origin: center;
 }
 
 .textLayer,
-.stickerLayer {
+.stickerLayer,
+.dateLayer {
   background: transparent;
   border: 0;
   cursor: grab;
@@ -783,16 +790,26 @@
 }
 
 .textLayer:active,
-.stickerLayer:active { cursor: grabbing; }
+.stickerLayer:active,
+.dateLayer:active { cursor: grabbing; }
 
 .textLayer:focus-visible,
-.stickerLayer:focus-visible {
+.stickerLayer:focus-visible,
+.dateLayer:focus-visible {
   outline: 2px solid #fff;
   outline-offset: 3px;
 }
 
 .stickerLayer { display: block; }
 .stickerLayer img { display: block; pointer-events: none; width: 100%; }
+
+.dateLayer {
+  display: block;
+  font-variant-numeric: lining-nums tabular-nums;
+  line-height: 1;
+  padding: .12em .18em;
+  white-space: nowrap;
+}
 
 .selectedLayer {
   outline: 1px dashed rgb(255 255 255 / 92%);
@@ -939,12 +956,19 @@
   gap: .4rem;
 }
 
-.dateStyleControls select {
+.dateStyleControls select,
+.dateStyleControls input[type="text"] {
   background: rgb(255 255 255 / 48%);
   border: 1px solid #777a75;
   color: #252724;
   min-height: 2.35rem;
   padding: .35rem .5rem;
+}
+
+.dateStyleControls input[readonly] {
+  color: var(--calendar-muted);
+  cursor: default;
+  font-variant-numeric: tabular-nums;
 }
 
 .formatToolbar {
@@ -1150,10 +1174,12 @@
   border: 1px dashed rgb(40 42 39 / 38%);
   display: grid;
   gap: .7rem;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   margin: 1rem 0 0;
   padding: .75rem;
 }
+
+.dateValueField { grid-column: 1 / -1; }
 
 .dateStyleControls legend {
   font-size: .61rem;
@@ -1253,6 +1279,13 @@
   transform: translateY(-50%);
   white-space: pre-wrap;
   z-index: 10;
+}
+
+.viewerDate {
+  font-variant-numeric: lining-nums tabular-nums;
+  line-height: 1;
+  position: absolute;
+  white-space: nowrap;
 }
 
 .viewerArtwork .viewerSticker { height: auto; object-fit: contain; position: absolute; z-index: 20; }

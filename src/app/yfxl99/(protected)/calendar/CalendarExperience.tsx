@@ -20,7 +20,8 @@ const FONT_CSS_VARIABLES: Record<CalendarTextFont, string> = {
   bailutong: "--font-bailutong",
 };
 const TEXT_FONT_SIZES = [16, 18, 20, 24, 28, 32, 36, 42, 48, 56, 64, 72, 96, 120, 144, 160];
-type PointLayer = { type: "text" } | { type: "sticker"; index: number };
+const GENERATION_RECOVERY_TIMEOUT_MS = 8 * 60 * 1000;
+type PointLayer = { type: "text" } | { type: "date" } | { type: "sticker"; index: number };
 type TextResizeDirection = "n" | "ne" | "e" | "se" | "s" | "sw" | "w" | "nw";
 type JournalLaunchOrigin = {
   date: string;
@@ -67,11 +68,57 @@ function AlignmentIcon({ value }: { value: "left" | "center" | "right" }) {
   </svg>;
 }
 
+class HttpRequestError extends Error {
+  constructor(message: string, readonly status: number, readonly hasServerMessage: boolean) {
+    super(message);
+    this.name = "HttpRequestError";
+  }
+}
+
 async function jsonRequest<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, init);
   const body = await response.json().catch(() => ({})) as { error?: string };
-  if (!response.ok) throw new Error(body.error || "请求失败。");
+  if (!response.ok) throw new HttpRequestError(body.error || "请求失败。", response.status, Boolean(body.error));
   return body as T;
+}
+
+function formatJournalDate(date: string) {
+  return date.slice(8).replace(/^0/u, "");
+}
+
+function recoverableGenerationError(reason: unknown) {
+  return reason instanceof TypeError
+    || (reason instanceof DOMException && reason.name === "AbortError")
+    || (reason instanceof HttpRequestError && (
+      reason.status === 408
+      || reason.status === 499
+      || reason.status === 504
+      || (!reason.hasServerMessage && reason.status >= 500)
+    ));
+}
+
+async function waitForGeneratedEntry(date: string, previousUpdatedAt?: string, signal?: AbortSignal) {
+  const deadline = Date.now() + GENERATION_RECOVERY_TIMEOUT_MS;
+  let sawGenerating = false;
+  while (Date.now() < deadline) {
+    if (signal?.aborted) throw new DOMException("已取消确认生成结果。", "AbortError");
+    await new Promise((resolve) => window.setTimeout(resolve, 2500));
+    if (signal?.aborted) throw new DOMException("已取消确认生成结果。", "AbortError");
+    try {
+      const result = await jsonRequest<CalendarDayPayload>(`/api/private/calendar/days/${date}`, { cache: "no-store", signal });
+      const entry = result.entry;
+      if (entry?.status === "generating") {
+        sawGenerating = true;
+        continue;
+      }
+      const changed = Boolean(entry && entry.updatedAt !== previousUpdatedAt);
+      if (entry?.lastError && (sawGenerating || changed)) throw new Error(entry.lastError);
+      if (entry?.layout && entry.status === "draft" && (sawGenerating || changed)) return entry;
+    } catch (reason) {
+      if (reason instanceof Error && !(reason instanceof HttpRequestError) && !(reason instanceof TypeError)) throw reason;
+    }
+  }
+  throw new Error("生成仍可能在后台进行，请稍后刷新日历查看结果。");
 }
 function preview(entry: CalendarEntryView | null) {
   return entry?.assets.find((asset) => asset.role === "thumbnail")?.url
@@ -222,6 +269,7 @@ export default function CalendarExperience({ year, month, today, initialDays }: 
             const info = dayMap.get(date);
             const image = preview(info?.entry ?? null);
             const dateNumberStyle = info?.entry?.layout?.dateNumber;
+            const showGridDate = !(image && info?.entry?.status === "ready" && dateNumberStyle?.embedded);
             const active = Boolean(info && (info.photoCount || info.foodCount || info.entry));
             const isToday = year === today.year && month === today.month && value === today.day;
             const isLaunching = journalLaunch && loading && openDate === date;
@@ -230,7 +278,7 @@ export default function CalendarExperience({ year, month, today, initialDays }: 
               {image && !isViewing ? <div className={`${styles.cellPreviewFrame} ${isLaunching ? styles.launchingPreview : ""}`}>
                 {isLaunching ? <div className={styles.cellSharedImage}><img src={image} alt="" className={styles.cellPreview} loading="lazy" decoding="async" /></div> : <ViewTransition name={`calendar-journal-${date}`} share="morph" default="none"><div className={styles.cellSharedImage}><img src={image} alt="" className={styles.cellPreview} loading="lazy" decoding="async" /></div></ViewTransition>}
               </div> : null}
-              <time dateTime={date} className={styles.dayNumber} style={dateNumberStyle ? { color: dateNumberStyle.color, fontFamily: FONT_FAMILIES[dateNumberStyle.font] } : undefined}>{value}</time>
+              {showGridDate ? <time dateTime={date} className={styles.dayNumber} style={dateNumberStyle ? { color: dateNumberStyle.color, fontFamily: FONT_FAMILIES[dateNumberStyle.font] } : undefined}>{value}</time> : null}
               {info?.entry && !image ? <span className={styles.entryState}>{info.entry.status === "ready" ? "已保存" : info.entry.status === "failed" ? "生成失败" : "草稿"}</span> : null}
               {active && !image ? <span className={styles.sourceDots} aria-hidden="true">{info?.photoCount ? "PHOTO" : ""}{info?.foodCount ? " FOOD" : ""}</span> : null}
             </button>;
@@ -263,12 +311,15 @@ function DayDialog({ date, day, loading, error, initialHasEntry, viewerLaunch, o
   const [note, setNote] = useState(() => day?.entry?.userNote ?? "");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const generationAbortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     const handler = (event: KeyboardEvent) => { if (event.key === "Escape") onClose(); };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [onClose]);
+
+  useEffect(() => () => generationAbortRef.current?.abort(), []);
 
   useEffect(() => {
     const body = document.body;
@@ -318,6 +369,10 @@ function DayDialog({ date, day, loading, error, initialHasEntry, viewerLaunch, o
     const selectedSourceSet = new Set(selectedSources);
     const allowedImageIds = new Set(day?.sources.filter((source) => selectedSourceSet.has(`${source.type}:${source.id}`)).flatMap((source) => source.imageIds) ?? []);
     const imageIds = selectedImages.filter((id) => allowedImageIds.has(id));
+    const previousUpdatedAt = day?.entry?.updatedAt;
+    generationAbortRef.current?.abort();
+    const controller = new AbortController();
+    generationAbortRef.current = controller;
     setBusy(true);
     setMessage("");
     try {
@@ -325,11 +380,26 @@ function DayDialog({ date, day, loading, error, initialHasEntry, viewerLaunch, o
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ sourceIds: selectedSources, imageIds, userNote: note }),
+        signal: controller.signal,
       });
       onEntryChange(result.entry);
     } catch (reason) {
-      setMessage(reason instanceof Error ? reason.message : "生成失败。");
+      if (controller.signal.aborted) return;
+      if (!recoverableGenerationError(reason)) {
+        setMessage(reason instanceof Error ? reason.message : "生成失败。");
+        return;
+      }
+      setMessage("连接已中断，AI 仍可能在生成，正在自动确认结果…");
+      try {
+        const entry = await waitForGeneratedEntry(date, previousUpdatedAt, controller.signal);
+        onEntryChange(entry);
+        setMessage("");
+      } catch (pollReason) {
+        if (controller.signal.aborted) return;
+        setMessage(pollReason instanceof Error ? pollReason.message : "暂时无法确认生成结果，请稍后刷新日历。");
+      }
     } finally {
+      if (generationAbortRef.current === controller) generationAbortRef.current = null;
       setBusy(false);
     }
   }
@@ -413,6 +483,7 @@ function JournalViewer({ entry, busy, message, shared = false, busyLabel = "删�
   const artwork = previewAsset ? <div className={styles.viewerArtwork}><img src={previewAsset.url} alt={`${entry.date} 手账`} decoding="async" /></div> : layout ? <div className={styles.viewerArtwork} style={{ backgroundImage: coverAsset ? `url(${coverAsset.url})` : undefined, backgroundPosition: `${layout.cover.cropX * 100}% ${layout.cover.cropY * 100}%`, backgroundSize: `${layout.cover.scale * 100}%` }}>
       <div className={styles.viewerText} style={{ left: `${layout.text.x * 100}%`, top: `${layout.text.y * 100}%`, width: `${layout.text.width * 100}%`, height: `${layout.text.height * 100}%`, color: layout.text.style.color, textAlign: layout.text.style.align, fontFamily: FONT_FAMILIES[layout.text.style.font], fontSize: `${layout.text.style.fontSize / 10.24}cqi`, textShadow: layout.text.style.shadow ? "0 2px 8px rgb(0 0 0 / 50%)" : "none", textDecorationLine: layout.text.style.underline ? "underline" : "none", textDecorationThickness: ".07em", textUnderlineOffset: ".14em" }}>{entry.finalText}</div>
       {layout.stickers.map((sticker) => { const asset = entry.assets.find((item) => item.id === sticker.assetId); return asset ? <img className={styles.viewerSticker} src={asset.url} alt="" key={sticker.assetId} style={{ left: `${sticker.x * 100}%`, top: `${sticker.y * 100}%`, width: `${sticker.width * 100}%`, transform: `translate(-50%, -50%) rotate(${sticker.rotation}deg)` }} /> : null; })}
+      {layout.dateNumber.embedded ? <time className={styles.viewerDate} dateTime={entry.date} style={{ left: `${layout.dateNumber.x * 100}%`, top: `${layout.dateNumber.y * 100}%`, color: layout.dateNumber.color, fontFamily: FONT_FAMILIES[layout.dateNumber.font], fontSize: `${layout.dateNumber.fontSize / 10.24}cqi`, transform: `translate(-50%, -50%) rotate(${layout.dateNumber.rotation}deg)`, zIndex: layout.dateNumber.zIndex }}>{formatJournalDate(entry.date)}</time> : null}
     </div> : <div className={styles.viewerArtwork}><p>手账预览暂不可用。</p></div>;
   return <div className={styles.viewer}>
     {shared ? <ViewTransition name={`calendar-journal-${entry.date}`} share="morph" default="none">{artwork}</ViewTransition> : artwork}
@@ -425,7 +496,10 @@ function JournalViewer({ entry, busy, message, shared = false, busyLabel = "删�
 }
 
 function JournalEditor({ entry, onSaved }: { entry: CalendarEntryView; onSaved: (entry: CalendarEntryView) => void }) {
-  const [layout, setLayout] = useState(entry.layout!);
+  const [layout, setLayout] = useState(() => ({
+    ...entry.layout!,
+    dateNumber: { ...entry.layout!.dateNumber, embedded: true },
+  }));
   const [text, setText] = useState(entry.finalText);
   const [selected, setSelected] = useState<PointLayer>({ type: "text" });
   const [busy, setBusy] = useState(false);
@@ -435,14 +509,20 @@ function JournalEditor({ entry, onSaved }: { entry: CalendarEntryView; onSaved: 
   const stickers = layout.stickers.map((item) => ({ ...item, asset: entry.assets.find((asset) => asset.id === item.assetId) })).filter((item) => item.asset);
   const activeIndex = selected.type === "sticker" ? selected.index : -1;
   const active = activeIndex >= 0 ? layout.stickers[activeIndex] : null;
+  const journalDate = formatJournalDate(entry.date);
   const fontSizes = TEXT_FONT_SIZES.includes(layout.text.style.fontSize)
     ? TEXT_FONT_SIZES
     : [...TEXT_FONT_SIZES, layout.text.style.fontSize].sort((a, b) => a - b);
+  const dateFontSizes = TEXT_FONT_SIZES.includes(layout.dateNumber.fontSize)
+    ? TEXT_FONT_SIZES
+    : [...TEXT_FONT_SIZES, layout.dateNumber.fontSize].sort((a, b) => a - b);
 
   function changePoint(layer: PointLayer, x: number, y: number) {
-    setLayout((current) => layer.type === "text"
-      ? { ...current, text: { ...current.text, x: clamp(x, 0, 1 - current.text.width), y: clamp(y, current.text.height / 2, 1 - current.text.height / 2) } }
-      : { ...current, stickers: current.stickers.map((item, index) => index === layer.index ? { ...item, x: clamp(x, 0, 1), y: clamp(y, 0, 1) } : item) });
+    setLayout((current) => {
+      if (layer.type === "text") return { ...current, text: { ...current.text, x: clamp(x, 0, 1 - current.text.width), y: clamp(y, current.text.height / 2, 1 - current.text.height / 2) } };
+      if (layer.type === "date") return { ...current, dateNumber: { ...current.dateNumber, x: clamp(x, .03, .97), y: clamp(y, .03, .97) } };
+      return { ...current, stickers: current.stickers.map((item, index) => index === layer.index ? { ...item, x: clamp(x, 0, 1), y: clamp(y, 0, 1) } : item) };
+    });
   }
 
   function beginPointerGesture(event: React.PointerEvent<HTMLElement>, onMove: (event: PointerEvent) => void) {
@@ -463,7 +543,7 @@ function JournalEditor({ entry, onSaved }: { entry: CalendarEntryView; onSaved: 
 
   function pointerDown(event: React.PointerEvent<HTMLElement>, layer: PointLayer) {
     const rect = canvasRef.current!.getBoundingClientRect();
-    const current = layer.type === "text" ? layout.text : layout.stickers[layer.index];
+    const current = layer.type === "text" ? layout.text : layer.type === "date" ? layout.dateNumber : layout.stickers[layer.index];
     const startClientX = event.clientX;
     const startClientY = event.clientY;
     const startX = current.x;
@@ -477,7 +557,7 @@ function JournalEditor({ entry, onSaved }: { entry: CalendarEntryView; onSaved: 
   }
 
   function keyMove(event: React.KeyboardEvent, layer: PointLayer) {
-    const current = layer.type === "text" ? layout.text : layout.stickers[layer.index];
+    const current = layer.type === "text" ? layout.text : layer.type === "date" ? layout.dateNumber : layout.stickers[layer.index];
     const step = event.shiftKey ? .04 : .01;
     const delta = ({ ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] } as Record<string, number[]>)[event.key];
     if (!delta) return;
@@ -649,6 +729,21 @@ function JournalEditor({ entry, onSaved }: { entry: CalendarEntryView; onSaved: 
       }
     });
     context.restore();
+    if (layout.dateNumber.embedded) {
+      const dateCssVariable = FONT_CSS_VARIABLES[layout.dateNumber.font];
+      const dateFamily = getComputedStyle(document.documentElement).getPropertyValue(dateCssVariable).trim() || "sans-serif";
+      context.save();
+      context.translate(layout.dateNumber.x * 1024, layout.dateNumber.y * 1024);
+      context.rotate(layout.dateNumber.rotation * Math.PI / 180);
+      context.fillStyle = layout.dateNumber.color;
+      context.font = `${layout.dateNumber.fontSize}px ${dateFamily}, "Microsoft YaHei", sans-serif`;
+      context.textAlign = "center";
+      context.textBaseline = "middle";
+      context.shadowColor = "transparent";
+      context.shadowBlur = 0;
+      context.fillText(journalDate, 0, 0, 960);
+      context.restore();
+    }
     const thumbnailCanvas = document.createElement("canvas");
     thumbnailCanvas.width = thumbnailCanvas.height = 256;
     const thumbnailContext = thumbnailCanvas.getContext("2d")!;
@@ -679,6 +774,7 @@ function JournalEditor({ entry, onSaved }: { entry: CalendarEntryView; onSaved: 
   }
   return <div className={styles.editor}>
     <span className={styles.srOnly} style={{ fontFamily: FONT_FAMILIES[layout.text.style.font] }} aria-hidden="true">手账字体加载</span>
+    <span className={styles.srOnly} style={{ fontFamily: FONT_FAMILIES[layout.dateNumber.font] }} aria-hidden="true">日期字体加载</span>
     <div className={styles.panelHeading}><div><p>Journal editor</p><h3>手账排版</h3></div><span>1:1</span></div>
     <div className={styles.canvas} ref={canvasRef} style={{ backgroundImage: cover ? `url(${cover.url})` : undefined, backgroundPosition: `${layout.cover.cropX * 100}% ${layout.cover.cropY * 100}%`, backgroundSize: `${layout.cover.scale * 100}%` }}>
       <div className={`${styles.layerFrame} ${styles.textFrame} ${selected.type === "text" ? styles.selectedLayer : ""}`} style={{ left: `${layout.text.x * 100}%`, top: `${layout.text.y * 100}%`, width: `${layout.text.width * 100}%`, height: `${layout.text.height * 100}%`, zIndex: layout.text.zIndex }}>
@@ -696,6 +792,9 @@ function JournalEditor({ entry, onSaved }: { entry: CalendarEntryView; onSaved: 
           </> : null}
         </div>;
       })}
+      <div className={`${styles.layerFrame} ${styles.dateFrame} ${selected.type === "date" ? styles.selectedLayer : ""}`} style={{ left: `${layout.dateNumber.x * 100}%`, top: `${layout.dateNumber.y * 100}%`, transform: `translate(-50%, -50%) rotate(${layout.dateNumber.rotation}deg)`, zIndex: layout.dateNumber.zIndex }}>
+        <button type="button" aria-label={`移动日期 ${journalDate}`} title="拖动移动日期" className={styles.dateLayer} style={{ color: layout.dateNumber.color, fontFamily: FONT_FAMILIES[layout.dateNumber.font], fontSize: `${layout.dateNumber.fontSize / 10.24}cqi` }} onPointerDown={(event) => pointerDown(event, { type: "date" })} onKeyDown={(event) => keyMove(event, { type: "date" })}>{journalDate}</button>
+      </div>
     </div>
     <div className={styles.editorControls}>
       <section className={styles.controlSection}>
@@ -716,18 +815,20 @@ function JournalEditor({ entry, onSaved }: { entry: CalendarEntryView; onSaved: 
       <section className={styles.controlSection}>
         <div className={styles.controlHeading}><div><b>画面</b><span>Cover 保留精确数值；画布对象直接拖动</span></div></div>
         <div className={styles.objectStatus} aria-live="polite">
-          <span>当前对象</span><b>{active ? `贴纸 ${activeIndex + 1}` : "文字框"}</b><small>{active ? `拖动四角缩放 · 顶部圆点旋转 · 当前 ${Math.round(active.width * 100)}% / ${active.rotation}°` : "拖动边缘或四角调整文字框大小"}</small>
+          <span>当前对象</span><b>{active ? `贴纸 ${activeIndex + 1}` : selected.type === "date" ? "日期" : "文字框"}</b><small>{active ? `拖动四角缩放 · 顶部圆点旋转 · 当前 ${Math.round(active.width * 100)}% / ${active.rotation}°` : selected.type === "date" ? "日期内容固定，拖动可调整位置" : "拖动边缘或四角调整文字框大小"}</small>
         </div>
         <div className={`${styles.rangeGrid} ${styles.coverRange}`}>
           <label><span>Cover 缩放 <output>{layout.cover.scale.toFixed(2)}×</output></span><input type="range" min="1" max="4" step=".05" value={layout.cover.scale} onChange={(event) => setLayout({ ...layout, cover: { ...layout.cover, scale: Number(event.target.value) } })} /></label>
         </div>
         <fieldset className={styles.dateStyleControls}>
-          <legend>日历格日期数字</legend>
+          <legend>画布日期</legend>
+          <label className={styles.dateValueField}>内容<input type="text" value={journalDate} readOnly aria-readonly="true" /></label>
           <label>字体<select value={layout.dateNumber.font} onChange={(event) => setLayout({ ...layout, dateNumber: { ...layout.dateNumber, font: event.target.value as CalendarTextFont } })}><option value="aventa">Aventa</option><option value="morganite">Morganite</option><option value="pingfang">平方上上谦体</option><option value="bailutong">白路彤彤手写体</option></select></label>
+          <label>字号<select value={layout.dateNumber.fontSize} onChange={(event) => setLayout({ ...layout, dateNumber: { ...layout.dateNumber, fontSize: Number(event.target.value) } })}>{dateFontSizes.map((size) => <option value={size} key={size}>{size}</option>)}</select></label>
           <label>颜色<span className={styles.colorControl}><input type="color" value={layout.dateNumber.color} onChange={(event) => setLayout({ ...layout, dateNumber: { ...layout.dateNumber, color: event.target.value } })} /><output>{layout.dateNumber.color}</output></span></label>
         </fieldset>
       </section>
-      <p className={styles.editorHint}>拖动对象本身调整位置；文字框拖动边缘改变长宽，贴纸拖动四角缩放、顶部圆点旋转。方向键可精调位置，按住 Shift 加速。</p>
+      <p className={styles.editorHint}>拖动文字、日期或贴纸调整位置；文字框拖动边缘改变长宽，贴纸拖动四角缩放、顶部圆点旋转。方向键可精调位置，按住 Shift 加速。</p>
       <div className={styles.saveBar}><button type="button" className={styles.primaryButton} disabled={busy} onClick={save}>{busy ? "保存中…" : "保存到日历"}</button></div>
       {message ? <p className={styles.helper}>{message}</p> : null}
     </div>

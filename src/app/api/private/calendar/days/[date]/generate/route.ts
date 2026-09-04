@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { calendarServiceError, calendarSession, enforceCalendarRateLimit } from "@/app/api/private/calendar/_shared";
 import { generateEntry } from "@/services/calendarService";
 export const dynamic = "force-dynamic";
-export const maxDuration = 300;
+export const maxDuration = 600;
 export async function POST(request: NextRequest, context: { params: Promise<{ date: string }> }) {
   try {
     const session = await calendarSession(request, true); enforceCalendarRateLimit(request, session.userId);
