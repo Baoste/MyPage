@@ -2,7 +2,7 @@
 /* eslint-disable @next/next/no-img-element -- authenticated same-origin media must remain canvas-readable */
 
 import { startTransition, useEffect, useMemo, useRef, useState, ViewTransition } from "react";
-import { CALENDAR_MAX_IMAGES, type CalendarDayPayload, type CalendarEntryView, type CalendarMonthDay, type CalendarTextFont } from "@/lib/calendar/contracts";
+import { CALENDAR_MAX_IMAGES, type CalendarDayPayload, type CalendarEntryView, type CalendarGenerationStage, type CalendarMonthDay, type CalendarTextFont } from "@/lib/calendar/contracts";
 import styles from "./CalendarPage.module.css";
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -21,6 +21,12 @@ const FONT_CSS_VARIABLES: Record<CalendarTextFont, string> = {
 };
 const TEXT_FONT_SIZES = [16, 18, 20, 24, 28, 32, 36, 42, 48, 56, 64, 72, 96, 120, 144, 160];
 const GENERATION_RECOVERY_TIMEOUT_MS = 8 * 60 * 1000;
+const GENERATION_STAGE_LABELS: Record<CalendarGenerationStage, string> = {
+  preparing: "正在整理当天素材…",
+  generating: "AI 正在生成文字、Cover 与贴纸…",
+  saving: "正在保存 Cover 与贴纸…",
+  finalizing: "正在完成手账…",
+};
 type PointLayer = { type: "text" } | { type: "date" } | { type: "sticker"; index: number };
 type TextResizeDirection = "n" | "ne" | "e" | "se" | "s" | "sw" | "w" | "nw";
 type JournalLaunchOrigin = {
@@ -311,6 +317,8 @@ function DayDialog({ date, day, loading, error, initialHasEntry, viewerLaunch, o
   const [note, setNote] = useState(() => day?.entry?.userNote ?? "");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [generationActive, setGenerationActive] = useState(false);
+  const [generationStage, setGenerationStage] = useState<CalendarGenerationStage | null>(null);
   const generationAbortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -320,6 +328,27 @@ function DayDialog({ date, day, loading, error, initialHasEntry, viewerLaunch, o
   }, [onClose]);
 
   useEffect(() => () => generationAbortRef.current?.abort(), []);
+
+  useEffect(() => {
+    if (!generationActive) return;
+    const controller = new AbortController();
+    let timer = 0;
+    const refreshStage = async () => {
+      try {
+        const result = await jsonRequest<CalendarDayPayload>(`/api/private/calendar/days/${date}`, { cache: "no-store", signal: controller.signal });
+        if (result.entry?.status === "generating" && result.entry.generationStage) setGenerationStage(result.entry.generationStage);
+      } catch {
+        // The main generation request owns error handling; progress refresh is best effort.
+      } finally {
+        if (!controller.signal.aborted) timer = window.setTimeout(refreshStage, 1500);
+      }
+    };
+    void refreshStage();
+    return () => {
+      controller.abort();
+      window.clearTimeout(timer);
+    };
+  }, [date, generationActive]);
 
   useEffect(() => {
     const body = document.body;
@@ -374,6 +403,8 @@ function DayDialog({ date, day, loading, error, initialHasEntry, viewerLaunch, o
     const controller = new AbortController();
     generationAbortRef.current = controller;
     setBusy(true);
+    setGenerationActive(true);
+    setGenerationStage("preparing");
     setMessage("");
     try {
       const result = await jsonRequest<{ entry: CalendarEntryView }>(`/api/private/calendar/days/${date}/generate`, {
@@ -400,6 +431,8 @@ function DayDialog({ date, day, loading, error, initialHasEntry, viewerLaunch, o
       }
     } finally {
       if (generationAbortRef.current === controller) generationAbortRef.current = null;
+      setGenerationActive(false);
+      setGenerationStage(null);
       setBusy(false);
     }
   }
@@ -466,7 +499,7 @@ function DayDialog({ date, day, loading, error, initialHasEntry, viewerLaunch, o
           <section className={styles.generationPanel}>
             <div className={styles.panelHeading}><div><p>AI generation</p><h3>{day.entry ? "重新生成" : "生成手账"}</h3></div><span>可选</span></div>
             <label className={styles.noteField}><span>写给 AI 的补充</span><textarea value={note} maxLength={2000} onChange={(event) => setNote(event.target.value)} placeholder="心情、想强调的片段，或不希望出现的内容…" /></label>
-            <button className={styles.primaryButton} type="button" disabled={busy || !day.aiAvailable || day.sources.length === 0} onClick={generate}>{busy ? "生成中，请稍候…" : day.entry ? "重新生成" : "生成 Cover、文字与贴纸"}</button>
+            <button className={styles.primaryButton} type="button" disabled={busy || !day.aiAvailable || day.sources.length === 0} onClick={generate}>{generationActive ? GENERATION_STAGE_LABELS[generationStage ?? "preparing"] : day.entry ? "重新生成" : "生成 Cover、文字与贴纸"}</button>
             {!day.aiAvailable ? <p className={styles.helper}>服务端尚未配置 CALENDAR_AI_API_KEY。</p> : null}
             {message ? <p className={styles.helper}>{message}</p> : null}
           </section>

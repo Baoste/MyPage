@@ -5,7 +5,7 @@ import {
   CALENDAR_MAX_IMAGES, CALENDAR_MAX_NOTE_LENGTH, CALENDAR_MAX_SOURCES, CALENDAR_MAX_TEXT_LENGTH, CALENDAR_TIMEZONE,
   type CalendarAssetRole, type CalendarDayPayload, type CalendarDaySource, type CalendarEntryView,
   type CalendarLayout, type CalendarMonthDay, isCalendarDate, isCalendarMonth,
-  parseCalendarLayout,
+  isCalendarGenerationStage, parseCalendarLayout,
 } from "@/lib/calendar/contracts";
 import { generateCalendarJournal, isCalendarAiAvailable } from "@/lib/calendar/ai";
 import { foodThumbnailStoragePath, getLocalFoodFileInfo, isLocalFoodStoragePath, readLocalFoodFile } from "@/lib/food/local-storage";
@@ -15,7 +15,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { deletePrivateAssets, downloadPrivateAsset, uploadPrivateAsset } from "@/lib/supabase/storage";
 
 export class CalendarServiceError extends Error { constructor(message: string, public status = 500) { super(message); } }
-type EntryRow = { id: string; owner_user_id: string; entry_date: string; status: CalendarEntryView["status"]; user_note: string; generated_text: string; final_text: string; layout_json: unknown; updated_at: string; last_error: string | null };
+type EntryRow = { id: string; owner_user_id: string; entry_date: string; status: CalendarEntryView["status"]; user_note: string; generated_text: string; final_text: string; layout_json: unknown; generation_meta: unknown; updated_at: string; last_error: string | null };
 type AssetRow = { id: string; calendar_entry_id: string; role: CalendarAssetRole; storage_path: string; mime_type: string; width: number; height: number; byte_size: number; sort_order: number };
 
 function ensureConfigured() { if (!isServerSupabaseConfigured()) throw new CalendarServiceError("日历数据库尚未配置。", 503); }
@@ -27,14 +27,16 @@ function assetUrl(id: string) { return `/api/private/calendar/assets/${id}/file`
 
 function mapEntry(row: EntryRow, assets: AssetRow[]): CalendarEntryView {
   const layout = row.layout_json && Object.keys(row.layout_json as object).length ? parseCalendarLayout(row.layout_json) : null;
+  const generationMeta = row.generation_meta && typeof row.generation_meta === "object" ? row.generation_meta as Record<string, unknown> : null;
+  const generationStage = row.status === "generating" && isCalendarGenerationStage(generationMeta?.stage) ? generationMeta.stage : undefined;
   return { id: row.id, date: row.entry_date, status: row.status, userNote: row.user_note, generatedText: row.generated_text, finalText: row.final_text, layout,
     assets: assets.map((asset) => ({ id: asset.id, role: asset.role, url: assetUrl(asset.id), width: asset.width, height: asset.height, sortOrder: asset.sort_order })),
-    updatedAt: row.updated_at, lastError: row.last_error ?? undefined };
+    updatedAt: row.updated_at, lastError: row.last_error ?? undefined, generationStage };
 }
 
 async function entriesWithAssets(userId: string, start: string, end: string) {
   const client = createServerSupabaseClient();
-  const { data, error } = await client.from("calendar_entries").select("id,owner_user_id,entry_date,status,user_note,generated_text,final_text,layout_json,updated_at,last_error").eq("owner_user_id", userId).gte("entry_date", start).lt("entry_date", end);
+  const { data, error } = await client.from("calendar_entries").select("id,owner_user_id,entry_date,status,user_note,generated_text,final_text,layout_json,generation_meta,updated_at,last_error").eq("owner_user_id", userId).gte("entry_date", start).lt("entry_date", end);
   if (error) { if (missingSchema(error)) throw new CalendarServiceError("请先执行 Calendar 数据库 Migration。", 503); throw new CalendarServiceError("无法读取手账。", 500); }
   const rows = (data ?? []) as EntryRow[];
   if (!rows.length) return [];
@@ -141,13 +143,18 @@ export async function generateEntry(userId: string, date: string, sourceIds: str
   const previous = await client.from("calendar_entries").select("*").eq("owner_user_id", userId).eq("entry_date", date).maybeSingle();
   const selectedImageSet = new Set(imageIds);
   const manifest = { version: 1, sources: selected.map((source) => ({ type: source.type, id: source.id, imageIds: source.imageIds.filter((imageId) => selectedImageSet.has(imageId)), comments: source.comments })) };
-  const { data: entryData, error: entryError } = await client.from("calendar_entries").upsert({ owner_user_id: userId, entry_date: date, timezone: CALENDAR_TIMEZONE, status: "generating", user_note: userNote.trim(), source_manifest: manifest, last_error: null }, { onConflict: "owner_user_id,entry_date" }).select("id").single();
+  const { data: entryData, error: entryError } = await client.from("calendar_entries").upsert({ owner_user_id: userId, entry_date: date, timezone: CALENDAR_TIMEZONE, status: "generating", user_note: userNote.trim(), source_manifest: manifest, generation_meta: { stage: "preparing" }, last_error: null }, { onConflict: "owner_user_id,entry_date" }).select("id").single();
   if (entryError || !entryData) throw new CalendarServiceError("无法创建生成任务。", 500);
   try {
+    const updateStage = async (stage: "generating" | "saving" | "finalizing") => {
+      await client.from("calendar_entries").update({ generation_meta: { stage } }).eq("id", entryData.id).eq("owner_user_id", userId);
+    };
     const context = selected.map((source) => `${source.type === "photo" ? "照片" : "美食"}：${source.title}。${source.description}。评论：${source.comments.map((item) => `${item.author}: ${item.content}`).join("；")}`).join("\n") + (userNote.trim() ? `\n用户补充：${userNote.trim()}` : "");
     const imageRefs = selected.flatMap((source) => source.imageIds.filter((id) => selectedImageSet.has(id)).map((id) => ({ type: source.type, id })));
     const images = await Promise.all(imageRefs.map((image) => sourceImage(image.type, image.id)));
+    await updateStage("generating");
     const result = await generateCalendarJournal(context, images);
+    await updateStage("saving");
     const old = await client.from("calendar_assets").select("*").eq("calendar_entry_id", entryData.id).in("role", ["cover", "sticker"]);
     const newAssets = [{ role: "cover" as const, ...result.cover }, ...result.stickers.map((item) => ({ role: "sticker" as const, ...item }))];
     const rows: Array<Record<string, unknown>> = [];
@@ -155,6 +162,7 @@ export async function generateEntry(userId: string, date: string, sourceIds: str
     await client.from("calendar_assets").delete().eq("calendar_entry_id", entryData.id).in("role", ["cover", "sticker"]);
     const { error: assetError } = await client.from("calendar_assets").insert(rows);
     if (assetError) { if (old.data?.length) await client.from("calendar_assets").insert(old.data); throw assetError; }
+    await updateStage("finalizing");
     const coverId = rows[0].id as string, stickerIds = rows.slice(1).map((row) => row.id as string);
     const layout: CalendarLayout = { version: 1, canvas: { aspectRatio: 1 }, cover: { assetId: coverId, cropX: .5, cropY: .5, scale: 1 }, dateNumber: { embedded: true, x: .16, y: .1, rotation: 0, zIndex: 30, color: "#ffffff", font: "morganite", fontSize: 64 }, text: { x: .08, y: .67, width: .84, height: .24, rotation: 0, zIndex: 10, style: { align: "left", color: "#ffffff", font: "aventa", fontSize: 42, shadow: true, underline: false } }, stickers: stickerIds.map((assetId, index) => ({ assetId, x: .68 - index * .12, y: .08 + index * .1, width: .24, rotation: index % 2 ? 8 : -8, zIndex: 20 + index })) };
     await client.from("calendar_entries").update({ status: "draft", generated_text: result.text, final_text: result.text, layout_json: layout, generation_meta: result.meta, last_error: null }).eq("id", entryData.id).eq("owner_user_id", userId);

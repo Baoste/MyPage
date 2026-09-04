@@ -6,6 +6,7 @@ export const CALENDAR_MAX_SOURCES = 12;
 export const CALENDAR_MAX_IMAGES = 8;
 
 export type CalendarEntryStatus = "draft" | "generating" | "ready" | "failed";
+export type CalendarGenerationStage = "preparing" | "generating" | "saving" | "finalizing";
 export type CalendarAssetRole = "cover" | "sticker" | "preview" | "thumbnail";
 export type CalendarSourceType = "photo" | "food";
 export type CalendarTextFont = "aventa" | "morganite" | "pingfang" | "bailutong";
@@ -46,6 +47,7 @@ export interface CalendarLayout {
 export interface CalendarEntryView {
   id: string; date: string; status: CalendarEntryStatus; userNote: string; generatedText: string;
   finalText: string; layout: CalendarLayout | null; assets: CalendarAssetView[]; updatedAt: string; lastError?: string;
+  generationStage?: CalendarGenerationStage;
 }
 export interface CalendarMonthDay { date: string; photoCount: number; foodCount: number; entry: CalendarEntryView | null; }
 export interface CalendarSourceComment { id: string; author: string; content: string; }
@@ -61,6 +63,9 @@ export function isCalendarDate(value: string) {
   return !Number.isNaN(date.valueOf()) && date.toISOString().slice(0, 10) === value;
 }
 export function isCalendarMonth(value: string) { return /^\d{4}-(0[1-9]|1[0-2])$/u.test(value); }
+export function isCalendarGenerationStage(value: unknown): value is CalendarGenerationStage {
+  return value === "preparing" || value === "generating" || value === "saving" || value === "finalizing";
+}
 function finiteBetween(value: unknown, min: number, max: number) {
   return typeof value === "number" && Number.isFinite(value) && value >= min && value <= max;
 }
