@@ -186,7 +186,10 @@ function DayDialog({ date, day, loading, error, onClose, onEntryChange, onEntryD
       </header>
       {loading ? <p className={styles.dialogStatus}>正在翻找这一天…</p> : error ? <p className={styles.dialogStatus}>{error}</p> : day?.entry?.layout && mode === "view" ? <JournalViewer entry={day.entry} busy={busy} message={message} onEdit={() => setMode("edit")} onDelete={removeEntry} /> : day ? <div className={styles.dialogBody}>
         <div className={styles.sourceColumn}>
-          <p className={styles.sectionLabel}>当天素材 · 已选 {selectedImages.length}/{CALENDAR_MAX_IMAGES} 张图片</p>
+          <div className={styles.sourceToolbar}>
+            <div><p className={styles.sectionLabel}>当天素材</p><span>选择要参与生成的记录与图片</span></div>
+            <output>{selectedImages.length}/{CALENDAR_MAX_IMAGES}</output>
+          </div>
           {day.sources.map((source) => {
             const sourceKey = `${source.type}:${source.id}`;
             const sourceChecked = selectedSources.includes(sourceKey);
@@ -209,10 +212,13 @@ function DayDialog({ date, day, loading, error, onClose, onEntryChange, onEntryD
         </div>
         <div className={styles.creationColumn}>
           {day.entry?.layout ? <JournalEditor key={day.entry.updatedAt} entry={day.entry} onSaved={(entry) => { onEntryChange(entry); setMode("view"); }} /> : <div className={styles.blankCanvas}><span>{date.slice(8)}</span><p>选择素材后生成<br />这一日的手账</p></div>}
-          <label className={styles.noteField}><span>写给 AI 的补充</span><textarea value={note} maxLength={2000} onChange={(event) => setNote(event.target.value)} placeholder="心情、想强调的片段，或不希望出现的内容…" /></label>
-          <button className={styles.primaryButton} type="button" disabled={busy || !day.aiAvailable || day.sources.length === 0} onClick={generate}>{busy ? "生成中，请稍候…" : day.entry ? "重新生成" : "生成 Cover、文字与贴纸"}</button>
-          {!day.aiAvailable ? <p className={styles.helper}>服务端尚未配置 CALENDAR_AI_API_KEY。</p> : null}
-          {message ? <p className={styles.helper}>{message}</p> : null}
+          <section className={styles.generationPanel}>
+            <div className={styles.panelHeading}><div><p>AI generation</p><h3>{day.entry ? "重新生成" : "生成手账"}</h3></div><span>可选</span></div>
+            <label className={styles.noteField}><span>写给 AI 的补充</span><textarea value={note} maxLength={2000} onChange={(event) => setNote(event.target.value)} placeholder="心情、想强调的片段，或不希望出现的内容…" /></label>
+            <button className={styles.primaryButton} type="button" disabled={busy || !day.aiAvailable || day.sources.length === 0} onClick={generate}>{busy ? "生成中，请稍候…" : day.entry ? "重新生成" : "生成 Cover、文字与贴纸"}</button>
+            {!day.aiAvailable ? <p className={styles.helper}>服务端尚未配置 CALENDAR_AI_API_KEY。</p> : null}
+            {message ? <p className={styles.helper}>{message}</p> : null}
+          </section>
         </div>
       </div> : null}
     </section>
@@ -225,7 +231,7 @@ function JournalViewer({ entry, busy, message, onEdit, onDelete }: { entry: Cale
   const layout = entry.layout;
   return <div className={styles.viewer}>
     {previewAsset ? <div className={styles.viewerArtwork}><img src={previewAsset.url} alt={`${entry.date} 手账`} decoding="async" /></div> : layout ? <div className={styles.viewerArtwork} style={{ backgroundImage: coverAsset ? `url(${coverAsset.url})` : undefined, backgroundPosition: `${layout.cover.cropX * 100}% ${layout.cover.cropY * 100}%`, backgroundSize: `${layout.cover.scale * 100}%` }}>
-      <div className={styles.viewerText} style={{ left: `${layout.text.x * 100}%`, top: `${layout.text.y * 100}%`, width: `${layout.text.width * 100}%`, color: layout.text.style.color, textAlign: layout.text.style.align, fontFamily: FONT_FAMILIES[layout.text.style.font] }}>{entry.finalText}</div>
+      <div className={styles.viewerText} style={{ left: `${layout.text.x * 100}%`, top: `${layout.text.y * 100}%`, width: `${layout.text.width * 100}%`, height: `${layout.text.height * 100}%`, color: layout.text.style.color, textAlign: layout.text.style.align, fontFamily: FONT_FAMILIES[layout.text.style.font], fontSize: `${layout.text.style.fontSize / 10.24}cqi`, textShadow: layout.text.style.shadow ? "0 2px 8px rgb(0 0 0 / 50%)" : "none" }}>{entry.finalText}</div>
       {layout.stickers.map((sticker) => { const asset = entry.assets.find((item) => item.id === sticker.assetId); return asset ? <img className={styles.viewerSticker} src={asset.url} alt="" key={sticker.assetId} style={{ left: `${sticker.x * 100}%`, top: `${sticker.y * 100}%`, width: `${sticker.width * 100}%`, transform: `translate(-50%, -50%) rotate(${sticker.rotation}deg)` }} /> : null; })}
     </div> : <div className={styles.viewerArtwork}><p>手账预览暂不可用。</p></div>}
     <div className={styles.viewerActions}>
@@ -298,20 +304,34 @@ function JournalEditor({ entry, onSaved }: { entry: CalendarEntryView; onSaved: 
     }
     const cssVariable = layout.text.style.font === "morganite" ? "--font-morganite" : "--font-aventa";
     const loadedFamily = getComputedStyle(document.documentElement).getPropertyValue(cssVariable).trim() || "sans-serif";
-    context.fillStyle = layout.text.style.color;
-    context.font = `${layout.text.style.font === "morganite" ? 52 : 42}px ${loadedFamily}, "Microsoft YaHei", sans-serif`;
-    context.textAlign = layout.text.style.align;
-    context.shadowColor = "rgba(0,0,0,.35)"; context.shadowBlur = 8;
+    const fontSize = layout.text.style.fontSize;
+    const lineHeight = fontSize * 1.35;
     const maxWidth = layout.text.width * 1024;
+    const maxHeight = layout.text.height * 1024;
+    context.fillStyle = layout.text.style.color;
+    context.font = `${fontSize}px ${loadedFamily}, "Microsoft YaHei", sans-serif`;
+    context.textAlign = layout.text.style.align;
+    context.textBaseline = "top";
+    context.shadowColor = layout.text.style.shadow ? "rgba(0,0,0,.35)" : "transparent";
+    context.shadowBlur = layout.text.style.shadow ? 8 : 0;
     const lines: string[] = [];
-    let line = "";
-    for (const word of Array.from(text)) {
-      const test = line + word;
-      if (context.measureText(test).width > maxWidth && line) { lines.push(line); line = word; } else line = test;
+    for (const paragraph of text.split(/\r?\n/u)) {
+      let line = "";
+      for (const word of Array.from(paragraph)) {
+        const test = line + word;
+        if (context.measureText(test).width > maxWidth && line) { lines.push(line); line = word; } else line = test;
+      }
+      lines.push(line);
     }
-    lines.push(line);
     const anchor = layout.text.style.align === "left" ? 0 : layout.text.style.align === "center" ? maxWidth / 2 : maxWidth;
-    lines.slice(0, 6).forEach((value, index) => context.fillText(value, layout.text.x * 1024 + anchor, layout.text.y * 1024 + index * 56, maxWidth));
+    const textTop = layout.text.y * 1024 - maxHeight / 2;
+    const maxLines = Math.max(1, Math.floor(maxHeight / lineHeight));
+    context.save();
+    context.beginPath();
+    context.rect(layout.text.x * 1024, textTop, maxWidth, maxHeight);
+    context.clip();
+    lines.slice(0, maxLines).forEach((value, index) => context.fillText(value, layout.text.x * 1024 + anchor, textTop + index * lineHeight, maxWidth));
+    context.restore();
     const thumbnailCanvas = document.createElement("canvas");
     thumbnailCanvas.width = thumbnailCanvas.height = 256;
     const thumbnailContext = thumbnailCanvas.getContext("2d")!;
@@ -344,28 +364,41 @@ function JournalEditor({ entry, onSaved }: { entry: CalendarEntryView; onSaved: 
   const active = activeIndex >= 0 ? layout.stickers[activeIndex] : null;
 
   return <div className={styles.editor}>
+    <div className={styles.panelHeading}><div><p>Journal editor</p><h3>手账排版</h3></div><span>1:1</span></div>
     <div className={styles.canvas} ref={canvasRef} style={{ backgroundImage: cover ? `url(${cover.url})` : undefined, backgroundPosition: `${layout.cover.cropX * 100}% ${layout.cover.cropY * 100}%`, backgroundSize: `${layout.cover.scale * 100}%` }}>
-      <button type="button" className={`${styles.textLayer} ${selected.type === "text" ? styles.selectedLayer : ""}`} style={{ left: `${layout.text.x * 100}%`, top: `${layout.text.y * 100}%`, width: `${layout.text.width * 100}%`, color: layout.text.style.color, textAlign: layout.text.style.align, fontFamily: FONT_FAMILIES[layout.text.style.font] }} onPointerDown={(event) => pointerDown(event, { type: "text" })} onKeyDown={(event) => keyMove(event, { type: "text" })}>{text}</button>
+      <button type="button" className={`${styles.textLayer} ${selected.type === "text" ? styles.selectedLayer : ""}`} style={{ left: `${layout.text.x * 100}%`, top: `${layout.text.y * 100}%`, width: `${layout.text.width * 100}%`, height: `${layout.text.height * 100}%`, color: layout.text.style.color, textAlign: layout.text.style.align, fontFamily: FONT_FAMILIES[layout.text.style.font], fontSize: `${layout.text.style.fontSize / 10.24}cqi`, textShadow: layout.text.style.shadow ? "0 2px 8px rgb(0 0 0 / 50%)" : "none" }} onPointerDown={(event) => pointerDown(event, { type: "text" })} onKeyDown={(event) => keyMove(event, { type: "text" })}>{text}</button>
       {stickers.map((sticker, index) => <button type="button" key={sticker.assetId} className={`${styles.stickerLayer} ${selected.type === "sticker" && selected.index === index ? styles.selectedLayer : ""}`} style={{ left: `${sticker.x * 100}%`, top: `${sticker.y * 100}%`, width: `${sticker.width * 100}%`, transform: `translate(-50%, -50%) rotate(${sticker.rotation}deg)` }} onPointerDown={(event) => pointerDown(event, { type: "sticker", index })} onKeyDown={(event) => keyMove(event, { type: "sticker", index })}><img src={sticker.asset!.url} alt={`贴纸 ${index + 1}`} /></button>)}
     </div>
     <div className={styles.editorControls}>
-      <label>手账文字<textarea value={text} maxLength={4000} onChange={(event) => setText(event.target.value)} /></label>
-      <div className={styles.textStyleControls}>
-        <label>字体<select value={layout.text.style.font} onChange={(event) => setLayout({ ...layout, text: { ...layout.text, style: { ...layout.text.style, font: event.target.value as CalendarTextFont } } })}><option value="aventa">Aventa</option><option value="morganite">Morganite</option></select></label>
-        <label>颜色<span className={styles.colorControl}><input type="color" value={layout.text.style.color} onChange={(event) => setLayout({ ...layout, text: { ...layout.text, style: { ...layout.text.style, color: event.target.value } } })} /><output>{layout.text.style.color}</output></span></label>
-        <label>对齐<select value={layout.text.style.align} onChange={(event) => setLayout({ ...layout, text: { ...layout.text, style: { ...layout.text.style, align: event.target.value as "left" | "center" | "right" } } })}><option value="left">左对齐</option><option value="center">居中</option><option value="right">右对齐</option></select></label>
-      </div>
-      <fieldset className={styles.dateStyleControls}>
-        <legend>日历日期数字</legend>
-        <label>字体<select value={layout.dateNumber.font} onChange={(event) => setLayout({ ...layout, dateNumber: { ...layout.dateNumber, font: event.target.value as CalendarTextFont } })}><option value="aventa">Aventa</option><option value="morganite">Morganite</option></select></label>
-        <label>颜色<span className={styles.colorControl}><input type="color" value={layout.dateNumber.color} onChange={(event) => setLayout({ ...layout, dateNumber: { ...layout.dateNumber, color: event.target.value } })} /><output>{layout.dateNumber.color}</output></span></label>
-      </fieldset>
-      <div className={styles.controlRow}>
-        <label>Cover 缩放<input type="range" min="1" max="4" step=".05" value={layout.cover.scale} onChange={(event) => setLayout({ ...layout, cover: { ...layout.cover, scale: Number(event.target.value) } })} /></label>
-        {active ? <><label>贴纸大小<input type="range" min=".05" max=".7" step=".01" value={active.width} onChange={(event) => setLayout({ ...layout, stickers: layout.stickers.map((item, index) => index === activeIndex ? { ...item, width: Number(event.target.value) } : item) })} /></label><label>旋转<input type="range" min="-180" max="180" value={active.rotation} onChange={(event) => setLayout({ ...layout, stickers: layout.stickers.map((item, index) => index === activeIndex ? { ...item, rotation: Number(event.target.value) } : item) })} /></label></> : null}
-      </div>
-      <p className={styles.helper}>拖动图层；聚焦后用方向键精调，Shift + 方向键快速移动。</p>
-      <button type="button" className={styles.primaryButton} disabled={busy} onClick={save}>{busy ? "保存中…" : "保存到日历"}</button>
+      <section className={styles.controlSection}>
+        <div className={styles.controlHeading}><div><b>文字</b><span>编辑内容与视觉样式</span></div><output>{text.length}/4000</output></div>
+        <label className={styles.textareaControl}><span className={styles.srOnly}>手账文字</span><textarea value={text} maxLength={4000} onChange={(event) => setText(event.target.value)} /></label>
+        <div className={styles.textStyleControls}>
+          <label>字体<select value={layout.text.style.font} onChange={(event) => setLayout({ ...layout, text: { ...layout.text, style: { ...layout.text.style, font: event.target.value as CalendarTextFont } } })}><option value="aventa">Aventa</option><option value="morganite">Morganite</option></select></label>
+          <label>颜色<span className={styles.colorControl}><input type="color" value={layout.text.style.color} onChange={(event) => setLayout({ ...layout, text: { ...layout.text, style: { ...layout.text.style, color: event.target.value } } })} /><output>{layout.text.style.color}</output></span></label>
+          <label>对齐<select value={layout.text.style.align} onChange={(event) => setLayout({ ...layout, text: { ...layout.text, style: { ...layout.text.style, align: event.target.value as "left" | "center" | "right" } } })}><option value="left">左对齐</option><option value="center">居中</option><option value="right">右对齐</option></select></label>
+        </div>
+        <div className={styles.rangeGrid}>
+          <label><span>字号 <output>{layout.text.style.fontSize}px</output></span><input type="range" min="16" max="160" step="2" value={layout.text.style.fontSize} onChange={(event) => setLayout({ ...layout, text: { ...layout.text, style: { ...layout.text.style, fontSize: Number(event.target.value) } } })} /></label>
+          <label><span>文本框宽度 <output>{Math.round(layout.text.width * 100)}%</output></span><input type="range" min=".1" max="1" step=".01" value={layout.text.width} onChange={(event) => setLayout({ ...layout, text: { ...layout.text, width: Number(event.target.value) } })} /></label>
+          <label><span>文本框高度 <output>{Math.round(layout.text.height * 100)}%</output></span><input type="range" min=".08" max="1" step=".01" value={layout.text.height} onChange={(event) => setLayout({ ...layout, text: { ...layout.text, height: Number(event.target.value) } })} /></label>
+        </div>
+        <label className={styles.toggleControl}><input type="checkbox" checked={layout.text.style.shadow} onChange={(event) => setLayout({ ...layout, text: { ...layout.text, style: { ...layout.text.style, shadow: event.target.checked } } })} /><span aria-hidden="true" /><b>文字阴影</b><small>使用默认的柔和阴影</small></label>
+      </section>
+      <section className={styles.controlSection}>
+        <div className={styles.controlHeading}><div><b>画面</b><span>调整背景、贴纸与日期</span></div></div>
+        <div className={styles.rangeGrid}>
+          <label><span>Cover 缩放 <output>{layout.cover.scale.toFixed(2)}×</output></span><input type="range" min="1" max="4" step=".05" value={layout.cover.scale} onChange={(event) => setLayout({ ...layout, cover: { ...layout.cover, scale: Number(event.target.value) } })} /></label>
+          {active ? <><label><span>贴纸大小 <output>{Math.round(active.width * 100)}%</output></span><input type="range" min=".05" max=".7" step=".01" value={active.width} onChange={(event) => setLayout({ ...layout, stickers: layout.stickers.map((item, index) => index === activeIndex ? { ...item, width: Number(event.target.value) } : item) })} /></label><label><span>贴纸旋转 <output>{active.rotation}°</output></span><input type="range" min="-180" max="180" value={active.rotation} onChange={(event) => setLayout({ ...layout, stickers: layout.stickers.map((item, index) => index === activeIndex ? { ...item, rotation: Number(event.target.value) } : item) })} /></label></> : null}
+        </div>
+        <fieldset className={styles.dateStyleControls}>
+          <legend>日历格日期数字</legend>
+          <label>字体<select value={layout.dateNumber.font} onChange={(event) => setLayout({ ...layout, dateNumber: { ...layout.dateNumber, font: event.target.value as CalendarTextFont } })}><option value="aventa">Aventa</option><option value="morganite">Morganite</option></select></label>
+          <label>颜色<span className={styles.colorControl}><input type="color" value={layout.dateNumber.color} onChange={(event) => setLayout({ ...layout, dateNumber: { ...layout.dateNumber, color: event.target.value } })} /><output>{layout.dateNumber.color}</output></span></label>
+        </fieldset>
+      </section>
+      <p className={styles.editorHint}>拖动文字或贴纸调整位置；选中后可用方向键精调，Shift + 方向键快速移动。</p>
+      <div className={styles.saveBar}><button type="button" className={styles.primaryButton} disabled={busy} onClick={save}>{busy ? "保存中…" : "保存到日历"}</button></div>
       {message ? <p className={styles.helper}>{message}</p> : null}
     </div>
   </div>;
