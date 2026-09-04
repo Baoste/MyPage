@@ -691,8 +691,7 @@ export async function uploadPhotoImage(
       !dimensions
       || dimensions.width <= 0
       || dimensions.height <= 0
-      || dimensions.width > photo.width
-      || dimensions.height > photo.height
+      || Math.max(dimensions.width, dimensions.height) > Math.max(photo.width, photo.height)
     ) {
       throw new PhotoServiceError("缩略图不符合要求。", 422);
     }
@@ -737,8 +736,7 @@ export async function completePhotoUpload(photoId: string, requestId: string) {
     const thumbnailDimensions = imageDimensionsFromBytes(thumbnailBytes, photo.mime_type);
     if (
       !thumbnailDimensions
-      || thumbnailDimensions.width > photo.width
-      || thumbnailDimensions.height > photo.height
+      || Math.max(thumbnailDimensions.width, thumbnailDimensions.height) > Math.max(photo.width, photo.height)
       || thumbnailInfo.size > info.size
     ) {
       throw new PhotoServiceError("缩略图不符合要求。", 422);
@@ -845,8 +843,7 @@ function validateEditablePhotoImage(input: EditablePhotoImageInput) {
     || dimensions.width !== input.width
     || dimensions.height !== input.height
     || !thumbnailDimensions
-    || thumbnailDimensions.width > dimensions.width
-    || thumbnailDimensions.height > dimensions.height
+    || Math.max(thumbnailDimensions.width, thumbnailDimensions.height) > Math.max(dimensions.width, dimensions.height)
   ) throw new PhotoServiceError("替换图片的实际尺寸与提交信息不一致。", 422);
 
   if (!input.capturedAt) return undefined;

@@ -1,4 +1,5 @@
 import type { FoodImageMimeType } from "@/lib/food/contracts";
+import { imageDimensionsFromBytes } from "@/lib/food/image-headers";
 
 const MAX_EXIF_BYTES = 512 * 1024;
 const CHINA_TIME_OFFSET_MILLISECONDS = 8 * 60 * 60 * 1_000;
@@ -135,34 +136,18 @@ function chinaLocalPartsToIso(
   return new Date(utcMilliseconds).toISOString();
 }
 
-function imageDimensions(file: File) {
-  return new Promise<{ width: number; height: number }>((resolve, reject) => {
-    const url = URL.createObjectURL(file);
-    const image = new Image();
-    image.onload = () => {
-      const dimensions = { width: image.naturalWidth, height: image.naturalHeight };
-      URL.revokeObjectURL(url);
-      resolve(dimensions);
-    };
-    image.onerror = () => {
-      URL.revokeObjectURL(url);
-      reject(new Error("无法读取图片尺寸。"));
-    };
-    image.src = url;
-  });
-}
-
 export async function inspectFoodImage(file: File) {
   if (!(["image/jpeg", "image/png", "image/webp"] as string[]).includes(file.type)) {
     throw new Error("只支持 JPEG、PNG 和 WebP 图片。");
   }
-  const dimensions = await imageDimensions(file);
-  const buffer = await file.slice(0, MAX_EXIF_BYTES).arrayBuffer();
+  const buffer = await file.arrayBuffer();
+  const dimensions = imageDimensionsFromBytes(new Uint8Array(buffer), file.type);
+  if (!dimensions) throw new Error("无法读取图片的原始像素尺寸。");
   return {
     ...dimensions,
     mimeType: file.type as FoodImageMimeType,
     byteSize: file.size,
-    capturedAt: parseExifLocalDate(exifDateFromBuffer(buffer, file.type)),
+    capturedAt: parseExifLocalDate(exifDateFromBuffer(buffer.slice(0, MAX_EXIF_BYTES), file.type)),
   };
 }
 

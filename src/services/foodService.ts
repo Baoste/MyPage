@@ -837,8 +837,7 @@ export async function uploadFoodImage(
       !dimensions
       || dimensions.width <= 0
       || dimensions.height <= 0
-      || dimensions.width > image.width
-      || dimensions.height > image.height
+      || Math.max(dimensions.width, dimensions.height) > Math.max(image.width, image.height)
     ) {
       throw new FoodServiceError("缩略图不符合要求。", 422);
     }
@@ -887,8 +886,7 @@ async function verifyUploadedImages(groupId: string, images: FoodImageRow[]) {
     const thumbnailDimensions = imageDimensionsFromBytes(thumbnailBytes, image.mime_type);
     if (
       !thumbnailDimensions
-      || thumbnailDimensions.width > image.width
-      || thumbnailDimensions.height > image.height
+      || Math.max(thumbnailDimensions.width, thumbnailDimensions.height) > Math.max(image.width, image.height)
       || thumbnailInfo.size > info.size
     ) {
       throw new FoodServiceError("缩略图不符合要求。", 422);
@@ -1049,8 +1047,7 @@ function validateEditableFoodImage(input: EditableFoodImageInput) {
     || dimensions.width !== input.width
     || dimensions.height !== input.height
     || !thumbnailDimensions
-    || thumbnailDimensions.width > dimensions.width
-    || thumbnailDimensions.height > dimensions.height
+    || Math.max(thumbnailDimensions.width, thumbnailDimensions.height) > Math.max(dimensions.width, dimensions.height)
   ) throw new FoodServiceError("图片的实际尺寸与提交信息不一致。", 422);
 
   if (!input.capturedAt) return undefined;
