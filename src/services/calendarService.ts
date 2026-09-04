@@ -8,8 +8,8 @@ import {
   parseCalendarLayout,
 } from "@/lib/calendar/contracts";
 import { generateCalendarJournal, isCalendarAiAvailable } from "@/lib/calendar/ai";
-import { isLocalFoodStoragePath, readLocalFoodFile } from "@/lib/food/local-storage";
-import { isLocalPhotoStoragePath, readLocalPhotoFile } from "@/lib/photo/local-storage";
+import { foodThumbnailStoragePath, getLocalFoodFileInfo, isLocalFoodStoragePath, readLocalFoodFile } from "@/lib/food/local-storage";
+import { getLocalPhotoFileInfo, isLocalPhotoStoragePath, photoThumbnailStoragePath, readLocalPhotoFile } from "@/lib/photo/local-storage";
 import { isServerSupabaseConfigured } from "@/lib/supabase/config";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { deletePrivateAssets, downloadPrivateAsset, uploadPrivateAsset } from "@/lib/supabase/storage";
@@ -108,10 +108,24 @@ async function sourceImage(type: "photo" | "food", imageId: string) {
   const table = type === "photo" ? "photo_entries" : "food_images";
   const { data, error } = await client.from(table).select("storage_path,mime_type").eq("id", imageId).single();
   if (error || !data) throw new CalendarServiceError("所选图片不存在。", 400);
-  const bytes = type === "photo" && isLocalPhotoStoragePath(data.storage_path) ? await readLocalPhotoFile(data.storage_path)
-    : type === "food" && isLocalFoodStoragePath(data.storage_path) ? await readLocalFoodFile(data.storage_path)
-    : new Uint8Array(await downloadPrivateAsset(data.storage_path));
-  return { bytes: new Uint8Array(bytes), mimeType: data.mime_type as string };
+  try {
+    if (type === "photo" && isLocalPhotoStoragePath(data.storage_path)) {
+      const thumbnailPath = photoThumbnailStoragePath(data.storage_path);
+      const storagePath = await getLocalPhotoFileInfo(thumbnailPath) ? thumbnailPath : data.storage_path;
+      const bytes = await readLocalPhotoFile(storagePath);
+      return { bytes: new Uint8Array(bytes), mimeType: data.mime_type as string };
+    }
+    if (type === "food" && isLocalFoodStoragePath(data.storage_path)) {
+      const thumbnailPath = foodThumbnailStoragePath(data.storage_path);
+      const storagePath = await getLocalFoodFileInfo(thumbnailPath) ? thumbnailPath : data.storage_path;
+      const bytes = await readLocalFoodFile(storagePath);
+      return { bytes: new Uint8Array(bytes), mimeType: data.mime_type as string };
+    }
+    const bytes = await downloadPrivateAsset(data.storage_path);
+    return { bytes: new Uint8Array(bytes), mimeType: data.mime_type as string };
+  } catch {
+    throw new CalendarServiceError("无法读取所选图片。", 409);
+  }
 }
 
 export async function generateEntry(userId: string, date: string, sourceIds: string[], userNote: string) {
