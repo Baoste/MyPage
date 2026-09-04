@@ -65,23 +65,6 @@ export async function getCalendarMonth(month: string): Promise<CalendarMonthDay[
   return [...days.values()];
 }
 
-export async function getLatestCalendarContentMonth() {
-  ensureConfigured();
-  const client = createServerSupabaseClient();
-  const [photo, food, entry] = await Promise.all([
-    client.from("photo_entries").select("occurred_at").eq("status", "ready").order("occurred_at", { ascending: false }).limit(1).maybeSingle(),
-    client.from("food_entries").select("occurred_at").eq("status", "ready").order("occurred_at", { ascending: false }).limit(1).maybeSingle(),
-    client.from("calendar_entries").select("entry_date").order("entry_date", { ascending: false }).limit(1).maybeSingle(),
-  ]);
-  const dates = [photo.data?.occurred_at, food.data?.occurred_at, entry.data?.entry_date]
-    .filter((value): value is string => Boolean(value))
-    .map((value) => value.includes("T")
-      ? new Intl.DateTimeFormat("en-CA", { timeZone: CALENDAR_TIMEZONE }).format(new Date(value))
-      : value)
-    .sort((a, b) => b.localeCompare(a));
-  return dates[0]?.slice(0, 7) ?? null;
-}
-
 export async function getCalendarMonthNote(month: string) {
   if (!isCalendarMonth(month)) throw new CalendarServiceError("月份格式无效。", 400);
   ensureConfigured();

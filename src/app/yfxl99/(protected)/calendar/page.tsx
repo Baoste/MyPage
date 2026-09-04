@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { requirePrivateSession } from "@/lib/auth/session";
 import type { CalendarMonthDay } from "@/lib/calendar/contracts";
-import { getCalendarMonth, getCalendarMonthNote, getLatestCalendarContentMonth } from "@/services/calendarService";
+import { getCalendarMonth, getCalendarMonthNote } from "@/services/calendarService";
 import CalendarExperience from "./CalendarExperience";
 import CalendarNotes from "./CalendarNotes";
 import styles from "./CalendarPage.module.css";
@@ -18,11 +18,10 @@ function href(value: { year: number; month: number }) { return `/yfxl99/calendar
 export default async function CalendarPage({ searchParams }: CalendarPageProps) {
   await requirePrivateSession(); const today = shanghaiToday(); const params = await searchParams;
   const displayed = parseMonth(params.month, today); const monthKey = `${displayed.year}-${String(displayed.month).padStart(2, "0")}`;
-  let days: CalendarMonthDay[] = []; let unavailable = ""; let latestContentMonth: string | null = null;
+  let days: CalendarMonthDay[] = []; let unavailable = "";
   let monthNote = "留住有照片、有味道的日子。"; let monthNoteError = "";
   try {
     days = await getCalendarMonth(monthKey);
-    if (days.length === 0) latestContentMonth = await getLatestCalendarContentMonth();
   } catch (error) { unavailable = error instanceof Error ? error.message : "日历数据暂时不可用。"; }
   try {
     const savedNote = await getCalendarMonthNote(monthKey);
@@ -34,7 +33,7 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
       <nav className={styles.monthNavigation} aria-label="月份切换"><Link href={href(previous)} className={styles.monthButton}>← 上个月</Link><Link href="/yfxl99/calendar" className={`${styles.monthButton} ${styles.todayButton}`} aria-current={current ? "date" : undefined}>本月</Link><Link href={href(next)} className={styles.monthButton}>下个月 →</Link></nav>
       <h1 id="calendar-title" className={styles.title}><span>{MONTH_NAMES[displayed.month - 1]}</span><span className={styles.year}>{displayed.year}</span></h1>
     </div></header>
-    {unavailable ? <p className={styles.notice}>{unavailable}</p> : days.length === 0 ? <p className={styles.notice}>这个月还没有 Photo、Food 或手账。{latestContentMonth && latestContentMonth !== monthKey ? <> 最近有内容的是 <Link href={`/yfxl99/calendar?month=${latestContentMonth}`}>{latestContentMonth}</Link>。</> : null}</p> : null}<p className={styles.scrollHint}>横向滑动查看完整月份</p>
+    {unavailable ? <p className={styles.notice}>{unavailable}</p> : days.length === 0 ? <p className={styles.notice}>这个月还没有 Photo、Food 或手账。</p> : null}<p className={styles.scrollHint}>横向滑动查看完整月份</p>
     <div className={styles.journalLayout}><CalendarNotes key={`calendar-notes-${monthKey}`} month={monthKey} initialValue={monthNote} initialError={monthNoteError} /><CalendarExperience key={`calendar-grid-${monthKey}`} year={displayed.year} month={displayed.month} today={today} initialDays={days} /></div>
   </div></section>;
 }
