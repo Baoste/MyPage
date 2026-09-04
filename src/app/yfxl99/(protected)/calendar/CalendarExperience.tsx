@@ -68,11 +68,28 @@ function canvasBlob(canvas: HTMLCanvasElement, type: "image/png" | "image/webp",
     quality,
   ));
 }
-function preloadImage(url: string) {
+function preloadImage(url: string, signal?: AbortSignal) {
   return new Promise<void>((resolve, reject) => {
     const image = new Image();
-    image.onload = () => image.decode().then(() => resolve()).catch(() => resolve());
-    image.onerror = () => reject(new Error("手账图片加载失败。"));
+    const cleanup = () => signal?.removeEventListener("abort", abort);
+    const abort = () => {
+      cleanup();
+      image.onload = null;
+      image.onerror = null;
+      image.src = "";
+      reject(new DOMException("已取消加载。", "AbortError"));
+    };
+    if (signal?.aborted) return abort();
+    signal?.addEventListener("abort", abort, { once: true });
+    image.onload = () => image.decode().catch(() => undefined).then(() => {
+      if (signal?.aborted) return;
+      cleanup();
+      resolve();
+    });
+    image.onerror = () => {
+      cleanup();
+      reject(new Error("手账图片加载失败。"));
+    };
     image.src = url;
   });
 }
@@ -90,6 +107,7 @@ export default function CalendarExperience({ year, month, today, initialDays }: 
   const [journalLaunch, setJournalLaunch] = useState(false);
   const [openHasEntry, setOpenHasEntry] = useState(false);
   const [error, setError] = useState("");
+  const requestAbortRef = useRef<AbortController | null>(null);
   const first = (new Date(Date.UTC(year, month - 1, 1)).getUTCDay() + 6) % 7;
   const count = new Date(Date.UTC(year, month, 0)).getUTCDate();
   const cellCount = Math.ceil((first + count) / 7) * 7;
@@ -99,7 +117,12 @@ export default function CalendarExperience({ year, month, today, initialDays }: 
     return value >= 1 && value <= count ? value : null;
   });
 
+  useEffect(() => () => requestAbortRef.current?.abort(), []);
+
   async function open(value: string, entry: CalendarEntryView | null) {
+    requestAbortRef.current?.abort();
+    const controller = new AbortController();
+    requestAbortRef.current = controller;
     const launchFromThumbnail = Boolean(entry?.layout && preview(entry));
     setJournalLaunch(launchFromThumbnail);
     setOpenHasEntry(Boolean(entry?.layout));
@@ -108,23 +131,36 @@ export default function CalendarExperience({ year, month, today, initialDays }: 
     setError("");
     setDay(null);
     try {
-      const request = jsonRequest<CalendarDayPayload>(`/api/private/calendar/days/${value}`);
+      const request = jsonRequest<CalendarDayPayload>(`/api/private/calendar/days/${value}`, { signal: controller.signal });
       const result = launchFromThumbnail
         ? (await Promise.all([request, new Promise((resolve) => window.setTimeout(resolve, JOURNAL_BLUR_SETTLE_MS))]))[0]
         : await request;
       const displayImage = result.entry?.assets.find((asset) => asset.role === "preview")?.url
         ?? result.entry?.assets.find((asset) => asset.role === "thumbnail")?.url;
-      if (launchFromThumbnail && displayImage) await preloadImage(displayImage).catch(() => undefined);
+      if (launchFromThumbnail && displayImage) {
+        try {
+          await preloadImage(displayImage, controller.signal);
+        } catch {
+          if (controller.signal.aborted) return;
+          // The thumbnail can still morph when the larger preview cannot be preloaded.
+        }
+      }
+      if (controller.signal.aborted) return;
       startTransition(() => {
         setDay(result);
         setLoading(false);
       });
     } catch (reason) {
+      if (controller.signal.aborted) return;
       setError(reason instanceof Error ? reason.message : "无法读取当天内容。");
       setLoading(false);
+    } finally {
+      if (requestAbortRef.current === controller) requestAbortRef.current = null;
     }
   }
   function close() {
+    requestAbortRef.current?.abort();
+    requestAbortRef.current = null;
     startTransition(() => {
       setOpenDate(null);
       setDay(null);
@@ -285,7 +321,7 @@ function DayDialog({ date, day, loading, error, initialHasEntry, viewerLaunch, o
   }
 
   if (mode === "view" && (viewerLaunch || day?.entry?.layout)) {
-    return <div className={styles.journalViewerBackdrop} onMouseDown={(event) => event.target === event.currentTarget && !loading && onClose()}>
+    return <div className={styles.journalViewerBackdrop} onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
       {loading ? <p className={styles.srOnly} role="status">正在加载手账</p> : error ? <div className={styles.viewerError} role="alert"><p>{error}</p><button type="button" onClick={onClose}>返回日历</button></div> : day?.entry?.layout ? <section role="dialog" aria-modal="true" aria-label={`${date} 手账`} className={styles.journalViewerStage}>
         <JournalViewer entry={day.entry} busy={busy} message={message} shared busyLabel="删除中…" onEdit={editEntry} onDelete={removeEntry} />
       </section> : null}
