@@ -16,7 +16,7 @@ function shiftMonth({ year, month }: { year: number; month: number }, offset: nu
 function href(value: { year: number; month: number }) { return `/yfxl99/calendar?month=${value.year}-${String(value.month).padStart(2, "0")}`; }
 
 export default async function CalendarPage({ searchParams }: CalendarPageProps) {
-  const session = await requirePrivateSession(); const today = shanghaiToday(); const params = await searchParams;
+  await requirePrivateSession(); const today = shanghaiToday(); const params = await searchParams;
   const displayed = parseMonth(params.month, today); const monthKey = `${displayed.year}-${String(displayed.month).padStart(2, "0")}`;
   let days: CalendarMonthDay[] = []; let unavailable = ""; let latestContentMonth: string | null = null;
   let monthNote = "留住有照片、有味道的日子。"; let monthNoteError = "";
@@ -25,7 +25,7 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
     if (days.length === 0) latestContentMonth = await getLatestCalendarContentMonth();
   } catch (error) { unavailable = error instanceof Error ? error.message : "日历数据暂时不可用。"; }
   try {
-    const savedNote = await getCalendarMonthNote(session.userId, monthKey);
+    const savedNote = await getCalendarMonthNote(monthKey);
     if (savedNote) monthNote = savedNote.content;
   } catch (error) { monthNoteError = error instanceof Error ? error.message : "本月 Notes 暂时不可用。"; }
   const previous = shiftMonth(displayed, -1), next = shiftMonth(displayed, 1), current = displayed.year === today.year && displayed.month === today.month;

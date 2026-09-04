@@ -82,11 +82,11 @@ export async function getLatestCalendarContentMonth() {
   return dates[0]?.slice(0, 7) ?? null;
 }
 
-export async function getCalendarMonthNote(userId: string, month: string) {
+export async function getCalendarMonthNote(month: string) {
   if (!isCalendarMonth(month)) throw new CalendarServiceError("月份格式无效。", 400);
   ensureConfigured();
   const client = createServerSupabaseClient();
-  const { data, error } = await client.from("calendar_month_notes").select("content,updated_at").eq("owner_user_id", userId).eq("note_month", `${month}-01`).maybeSingle();
+  const { data, error } = await client.from("calendar_month_notes").select("content,updated_at").eq("note_month", `${month}-01`).maybeSingle();
   if (error) {
     if (missingSchema(error)) throw new CalendarServiceError("请先执行最新 Calendar 数据库 Migration。", 503);
     throw new CalendarServiceError("无法读取本月 Notes。", 500);
@@ -99,7 +99,10 @@ export async function saveCalendarMonthNote(userId: string, month: string, conte
   if (typeof content !== "string" || Array.from(content).length > CALENDAR_MAX_MONTH_NOTE_LENGTH) throw new CalendarServiceError("每月 Notes 不能超过 2000 字。", 400);
   ensureConfigured();
   const client = createServerSupabaseClient();
-  const { data, error } = await client.from("calendar_month_notes").upsert({ owner_user_id: userId, note_month: `${month}-01`, content }, { onConflict: "owner_user_id,note_month" }).select("content,updated_at").single();
+  const noteMonth = `${month}-01`;
+  const previous = await client.from("calendar_month_notes").select("owner_user_id").eq("note_month", noteMonth).maybeSingle();
+  if (previous.error) throw new CalendarServiceError("无法读取本月 Notes。", 500);
+  const { data, error } = await client.from("calendar_month_notes").upsert({ owner_user_id: previous.data?.owner_user_id ?? userId, note_month: noteMonth, content }, { onConflict: "note_month" }).select("content,updated_at").single();
   if (error || !data) {
     if (error && missingSchema(error)) throw new CalendarServiceError("请先执行最新 Calendar 数据库 Migration。", 503);
     throw new CalendarServiceError("无法保存本月 Notes。", 500);

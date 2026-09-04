@@ -8,6 +8,7 @@
 - 不为每一天预建数据库记录。只有首次生成或保存手账时，才创建当天的 `calendar_entries`。
 - 所有已登录账号共享同一本日历：可查看、生成、重新生成、编辑和删除任意日期的手账；未登录访问仍由 `/yfxl99` Session 拦截。
 - 每个自然日全局最多一条手账，所有账号共同编辑当天的同一条记录。
+- 左侧 Notes 每月全局最多一条，所有登录账号共同查看和编辑。
 - 有 Photo 或 Food 的日期格高亮；已有成品时优先显示扁平化 Preview。
 - 点击有素材或手账的日期，弹出卡牌浏览当天 Photo、Food、图片及评论。
 - 用户可取消不希望发送给 AI 的素材，并在每组 Photo/Food 内继续选择具体图片（最多 8 张），再填写最多 2000 字的补充要求。
@@ -26,6 +27,7 @@
 - `supabase/migrations/202609040002_calendar_thumbnails.sql`
 - `supabase/migrations/202609040003_calendar_month_notes.sql`
 - `supabase/migrations/202609040004_calendar_shared_entries.sql`
+- `supabase/migrations/202609040005_calendar_shared_month_notes.sql`
 
 ### `calendar_entries`
 
