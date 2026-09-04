@@ -27,6 +27,7 @@ const chenyuluoyan = localFont({
   weight: "500",
   style: "normal",
   display: "swap",
+  preload: false,
 });
 
 const siteDescription = stripHighlightMarkers(siteConfig.description);

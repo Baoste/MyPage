@@ -676,6 +676,7 @@ function JournalEditor({ entry, onSaved }: { entry: CalendarEntryView; onSaved: 
     }
   }
   return <div className={styles.editor}>
+    <span className={styles.srOnly} style={{ fontFamily: FONT_FAMILIES.chenyuluoyan }} aria-hidden="true">沉鱼落雁字体加载</span>
     <div className={styles.panelHeading}><div><p>Journal editor</p><h3>手账排版</h3></div><span>1:1</span></div>
     <div className={styles.canvas} ref={canvasRef} style={{ backgroundImage: cover ? `url(${cover.url})` : undefined, backgroundPosition: `${layout.cover.cropX * 100}% ${layout.cover.cropY * 100}%`, backgroundSize: `${layout.cover.scale * 100}%` }}>
       <div className={`${styles.layerFrame} ${styles.textFrame} ${selected.type === "text" ? styles.selectedLayer : ""}`} style={{ left: `${layout.text.x * 100}%`, top: `${layout.text.y * 100}%`, width: `${layout.text.width * 100}%`, height: `${layout.text.height * 100}%`, zIndex: layout.text.zIndex }}>
