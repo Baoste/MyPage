@@ -10,6 +10,12 @@ const JOURNAL_BLUR_SETTLE_MS = 720;
 const FONT_FAMILIES: Record<CalendarTextFont, string> = {
   aventa: 'var(--font-aventa), "Microsoft YaHei", sans-serif',
   morganite: 'var(--font-morganite), "Microsoft YaHei", sans-serif',
+  chenyuluoyan: 'var(--font-chenyuluoyan), "Microsoft YaHei", sans-serif',
+};
+const FONT_CSS_VARIABLES: Record<CalendarTextFont, string> = {
+  aventa: "--font-aventa",
+  morganite: "--font-morganite",
+  chenyuluoyan: "--font-chenyuluoyan",
 };
 const TEXT_FONT_SIZES = [16, 18, 20, 24, 28, 32, 36, 42, 48, 56, 64, 72, 96, 120, 144, 160];
 type PointLayer = { type: "text" } | { type: "sticker"; index: number };
@@ -574,7 +580,7 @@ function JournalEditor({ entry, onSaved }: { entry: CalendarEntryView; onSaved: 
       context.save(); context.translate(sticker.x * 1024, sticker.y * 1024); context.rotate(sticker.rotation * Math.PI / 180);
       context.drawImage(source, -width / 2, -height / 2, width, height); context.restore();
     }
-    const cssVariable = layout.text.style.font === "morganite" ? "--font-morganite" : "--font-aventa";
+    const cssVariable = FONT_CSS_VARIABLES[layout.text.style.font];
     const loadedFamily = getComputedStyle(document.documentElement).getPropertyValue(cssVariable).trim() || "sans-serif";
     const fontSize = layout.text.style.fontSize;
     const lineHeight = fontSize * 1.35;
@@ -670,7 +676,7 @@ function JournalEditor({ entry, onSaved }: { entry: CalendarEntryView; onSaved: 
         <div className={styles.controlHeading}><div><b>文字</b><span>像文档一样排版，再到画布中调整边界</span></div><output>{text.length}/4000</output></div>
         <label className={styles.textareaControl}><span className={styles.srOnly}>手账文字</span><textarea value={text} maxLength={4000} onChange={(event) => setText(event.target.value)} /></label>
         <div className={styles.formatToolbar} role="toolbar" aria-label="文字格式">
-          <label className={`${styles.toolbarField} ${styles.fontField}`}><span>字体</span><select value={layout.text.style.font} onChange={(event) => updateTextStyle({ font: event.target.value as CalendarTextFont })}><option value="aventa">Aventa</option><option value="morganite">Morganite</option></select></label>
+          <label className={`${styles.toolbarField} ${styles.fontField}`}><span>字体</span><select value={layout.text.style.font} onChange={(event) => updateTextStyle({ font: event.target.value as CalendarTextFont })}><option value="aventa">Aventa</option><option value="morganite">Morganite</option><option value="chenyuluoyan">沉鱼落雁</option></select></label>
           <label className={`${styles.toolbarField} ${styles.sizeField}`}><span>字号</span><select value={layout.text.style.fontSize} onChange={(event) => updateTextStyle({ fontSize: Number(event.target.value) })}>{fontSizes.map((size) => <option value={size} key={size}>{size}</option>)}</select></label>
           <label className={styles.toolbarColor} title="文字颜色"><span>颜色</span><i style={{ backgroundColor: layout.text.style.color }} aria-hidden="true" /><input type="color" value={layout.text.style.color} aria-label="文字颜色" onChange={(event) => updateTextStyle({ color: event.target.value })} /></label>
           <span className={styles.toolbarDivider} aria-hidden="true" />
@@ -691,7 +697,7 @@ function JournalEditor({ entry, onSaved }: { entry: CalendarEntryView; onSaved: 
         </div>
         <fieldset className={styles.dateStyleControls}>
           <legend>日历格日期数字</legend>
-          <label>字体<select value={layout.dateNumber.font} onChange={(event) => setLayout({ ...layout, dateNumber: { ...layout.dateNumber, font: event.target.value as CalendarTextFont } })}><option value="aventa">Aventa</option><option value="morganite">Morganite</option></select></label>
+          <label>字体<select value={layout.dateNumber.font} onChange={(event) => setLayout({ ...layout, dateNumber: { ...layout.dateNumber, font: event.target.value as CalendarTextFont } })}><option value="aventa">Aventa</option><option value="morganite">Morganite</option><option value="chenyuluoyan">沉鱼落雁</option></select></label>
           <label>颜色<span className={styles.colorControl}><input type="color" value={layout.dateNumber.color} onChange={(event) => setLayout({ ...layout, dateNumber: { ...layout.dateNumber, color: event.target.value } })} /><output>{layout.dateNumber.color}</output></span></label>
         </fieldset>
       </section>

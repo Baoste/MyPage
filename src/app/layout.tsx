@@ -21,6 +21,14 @@ const morganite = localFont({
   display: "swap",
 });
 
+const chenyuluoyan = localFont({
+  src: "./fonts/ChenYuluoyan-Thin.woff2",
+  variable: "--font-chenyuluoyan",
+  weight: "500",
+  style: "normal",
+  display: "swap",
+});
+
 const siteDescription = stripHighlightMarkers(siteConfig.description);
 
 export const metadata: Metadata = {
@@ -47,7 +55,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (
-    <html lang="zh-CN" className={`${aventa.variable} ${morganite.variable}`}>
+    <html lang="zh-CN" className={`${aventa.variable} ${morganite.variable} ${chenyuluoyan.variable}`}>
       <body>{children}</body>
     </html>
   );
