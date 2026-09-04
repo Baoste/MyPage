@@ -22,4 +22,5 @@ export const privateNavigation = [
   { label: "Home", href: "/yfxl99" },
   { label: "Photos", href: "/yfxl99/photos" },
   { label: "Food", href: "/yfxl99/food" },
+  { label: "Calendar", href: "/yfxl99/calendar" },
 ] as const;
