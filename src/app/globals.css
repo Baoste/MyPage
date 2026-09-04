@@ -161,6 +161,14 @@ textarea:focus-visible {
   color: var(--private-ink);
 }
 
+.private-navbar {
+  transition: filter 700ms cubic-bezier(.4, 0, .2, 1);
+}
+
+body.calendar-journal-viewer-open .private-navbar {
+  filter: blur(12px);
+}
+
 @keyframes fade {
   from { filter: blur(3px); opacity: 0; }
   to { filter: blur(0); opacity: 1; }

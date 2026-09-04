@@ -365,9 +365,6 @@
 
 .journalViewerBackdrop {
   align-items: center;
-  animation: journal-backdrop-in 700ms cubic-bezier(.4, 0, .2, 1) both;
-  -webkit-backdrop-filter: blur(12px);
-  backdrop-filter: blur(12px);
   background: transparent;
   display: flex;
   inset: 0;
@@ -377,11 +374,24 @@
   z-index: 100;
 }
 
-@keyframes journal-backdrop-in {
-  from {
-    -webkit-backdrop-filter: blur(0);
-    backdrop-filter: blur(0);
-  }
+.header,
+.notice,
+.scrollHint,
+.notesPanel,
+.weekHeader,
+.dayCell,
+.emptyDay {
+  transition: filter 700ms cubic-bezier(.4, 0, .2, 1);
+}
+
+:global(body.calendar-journal-viewer-open) .header,
+:global(body.calendar-journal-viewer-open) .notice,
+:global(body.calendar-journal-viewer-open) .scrollHint,
+:global(body.calendar-journal-viewer-open) .notesPanel,
+:global(body.calendar-journal-viewer-open) .weekHeader,
+:global(body.calendar-journal-viewer-open) .dayCell:not([aria-busy="true"]),
+:global(body.calendar-journal-viewer-open) .emptyDay {
+  filter: blur(12px);
 }
 
 .journalViewerStage {

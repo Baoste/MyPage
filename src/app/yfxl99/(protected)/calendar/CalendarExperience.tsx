@@ -217,6 +217,13 @@ function DayDialog({ date, day, loading, error, initialHasEntry, viewerLaunch, o
     };
   }, []);
 
+  useEffect(() => {
+    if (!viewerLaunch || mode !== "view") return;
+    const body = document.body;
+    body.classList.add("calendar-journal-viewer-open");
+    return () => body.classList.remove("calendar-journal-viewer-open");
+  }, [mode, viewerLaunch]);
+
   function toggleSource(sourceKey: string, imageIds: string[], checked: boolean) {
     setSelectedSources((current) => checked ? [...new Set([...current, sourceKey])] : current.filter((item) => item !== sourceKey));
     setSelectedImages((current) => checked

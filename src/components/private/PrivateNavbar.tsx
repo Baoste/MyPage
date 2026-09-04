@@ -24,7 +24,7 @@ export function PrivateNavbar({ username }: { username: string }) {
   }
 
   return (
-    <header className="border-b border-[#cec5b8] print-hidden">
+    <header className="private-navbar border-b border-[#cec5b8] print-hidden">
       <div className="container-shell flex min-h-[4.75rem] flex-wrap items-center justify-between gap-x-7 gap-y-2 py-3">
         <Link href="/yfxl99" className="display-type text-xl">Private Space</Link>
         <div className="flex max-w-full items-center gap-4 overflow-x-auto sm:gap-6">
