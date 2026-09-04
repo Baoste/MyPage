@@ -106,7 +106,21 @@ export async function generateCalendarJournal(context: string, images: AiImageIn
     type: "input_image",
     image_url: `data:${image.mimeType};base64,${Buffer.from(image.bytes).toString("base64")}`,
   }));
-  const coverPrompt = `Square editorial journal collage cover, restrained cool gray paper texture, hand-drawn scrapbook feeling, calm and spacious composition, no readable text. Daily memory context: ${context.slice(0, 1200)}. Keep approximately 30–40% of the canvas intentionally empty or visually quiet for later handwriting. This reserved writing area should be a clean solid-color paper region, soft neutral background, subtle paper texture, or a large low-detail area with relatively uniform color. Do not place photos, stickers, drawings, or dense decorations in this writing space. Use only a selective subset of the provided reference images when appropriate; it is not necessary to include every image. Arrange visual elements loosely around the edges or in one concentrated area, leaving generous negative space. Avoid dense collage layouts, excessive layering, and edge-to-edge coverage. The empty writing area is a primary compositional element, not leftover space. The overall result should feel like a partially completed personal journal page: understated, airy, handmade, and ready for handwritten notes.`;
+  const coverPrompt = `
+    Square editorial journal collage cover, restrained cool gray paper texture, hand-drawn scrapbook feeling, calm, balanced, and gently layered composition, no readable text.
+
+    Daily memory context: ${context.slice(0, 1200)}.
+
+    Keep approximately 30–40% of the canvas intentionally quiet for later handwriting, rather than leaving a large empty section. The reserved writing area should feel naturally integrated into the composition: a clean solid-color paper region, soft neutral background, subtle paper texture, or a calm low-detail area with relatively uniform color. Keep this area free from photos, stickers, prominent drawings, or dense decorations.
+
+    Use a selective subset of the provided reference images when appropriate; it is not necessary to include every image. Create 2–4 clear visual anchors using photos, small illustrations, paper scraps, tape, stamps, or subtle hand-drawn marks. Arrange them loosely around the edges, corners, or in one concentrated cluster, with gentle overlap and visual rhythm.
+
+    The remaining 60–70% of the page should contain enough visual interest to make the journal feel partially completed: small collage clusters, understated decorative details, light pencil marks, torn-paper edges, tiny doodles, subtle texture variations, or layered paper fragments. Avoid large uninterrupted blank areas outside the designated writing space.
+
+    Maintain breathing room between elements, but do not make the composition excessively sparse. Avoid dense collage layouts, excessive layering, edge-to-edge coverage, or large isolated empty zones.
+
+    The empty writing area should remain clearly usable, but it should not dominate the whole composition. The overall result should feel like a partially completed personal journal page: understated, airy, handmade, visually engaging, and ready for handwritten notes, with a balanced mix of collage details and intentional writing space.
+    `;
   const stickerPrompt = `A small hand-drawn scrapbook sticker sheet inspired by this day: ${context.slice(0, 700)}. Two simple isolated motifs, black ink and muted warm accent, transparent background, no text.`;
   const [textPayload, cover, sticker] = await Promise.all([
     post("/responses", {
