@@ -89,6 +89,39 @@ export interface PrivateAccountSummary {
   username: string;
 }
 
+export type PrivateNotificationKind =
+  | "photo_published"
+  | "food_published"
+  | "photo_commented"
+  | "food_commented";
+
+export interface PrivateNotification {
+  id: string;
+  kind: PrivateNotificationKind;
+  actorUsername: string;
+  resourceType: "photo" | "food";
+  resourceId: string;
+  resourceLabel: string;
+  commentExcerpt?: string;
+  readAt?: string;
+  createdAt: string;
+}
+
+export interface PrivateNotificationRow {
+  id: string;
+  recipient_user_id: string;
+  actor_user_id: string | null;
+  actor_username: string;
+  kind: PrivateNotificationKind;
+  resource_type: "photo" | "food";
+  resource_id: string;
+  resource_label: string;
+  comment_excerpt: string | null;
+  event_key: string;
+  read_at: string | null;
+  created_at: string;
+}
+
 export type PhotoImageMimeType = "image/jpeg" | "image/png" | "image/webp";
 
 export interface PhotoImage {

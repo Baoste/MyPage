@@ -168,6 +168,7 @@ npx supabase db push
 14. `supabase/migrations/202609040004_calendar_shared_entries.sql`
 15. `supabase/migrations/202609040005_calendar_shared_month_notes.sql`
 16. `supabase/migrations/202609050001_photo_groups_and_images.sql`
+17. `supabase/migrations/202609050002_private_notifications.sql`
 
 第一份 Migration 创建：
 

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
+import { PrivateNotifications } from "@/components/private/PrivateNotifications";
 import { privateNavigation } from "@/config/site";
 
 export function PrivateNavbar({ username }: { username: string }) {
@@ -49,6 +50,7 @@ export function PrivateNavbar({ username }: { username: string }) {
           >
             @{username}
           </span>
+          <PrivateNotifications />
           <button
             type="button"
             onClick={logout}

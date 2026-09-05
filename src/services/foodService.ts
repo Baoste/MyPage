@@ -32,6 +32,7 @@ import {
   getPrivateSignedUrl,
   PRIVATE_DIARY_BUCKET,
 } from "@/lib/supabase/storage";
+import { createCommentNotification, createPublishedNotifications } from "@/services/notificationService";
 import type {
   FoodComment,
   FoodCommentRow,
@@ -580,6 +581,24 @@ export async function createFoodComment(groupId: string, contentValue: unknown) 
     }
     throw new FoodServiceError("暂时无法发布评论。", 500);
   }
+  try {
+    const { data: group } = await client.from("food_entries")
+      .select("owner_user_id,category").eq("id", groupId).maybeSingle();
+    if (group) {
+      await createCommentNotification({
+        resourceType: "food",
+        resourceId: groupId,
+        resourceLabel: group.category,
+        commentId: (data as FoodCommentRow).id,
+        comment: content,
+        recipientUserId: group.owner_user_id,
+        actorUserId: session.userId,
+        actorUsername: session.username,
+      });
+    }
+  } catch (notificationError) {
+    console.error("Unable to create a food comment notification.", { groupId, notificationError });
+  }
   return mapComment(data as FoodCommentRow);
 }
 
@@ -932,7 +951,12 @@ export async function completeFoodUpload(groupId: string, requestId: string) {
 
   const group = await selectDraft(groupId, requestId, session.userId);
   if (!group) throw new FoodServiceError("上传草稿不存在或已经过期。", 404);
-  if (group.status === "ready") return { groupId };
+  if (group.status === "ready") {
+    await createPublishedNotifications({ resourceType: "food", resourceId: groupId, resourceLabel: group.category, actorUserId: session.userId, actorUsername: session.username }).catch((notificationError) => {
+      console.error("Unable to create food publication notifications.", { groupId, notificationError });
+    });
+    return { groupId };
+  }
   const images = await selectDraftImages(groupId);
   if (images.length < 1 || images.length > 12) {
     throw new FoodServiceError("上传草稿中的图片数量无效。", 422);
@@ -958,6 +982,9 @@ export async function completeFoodUpload(groupId: string, requestId: string) {
     .select("id")
     .maybeSingle();
   if (error || !data) throw new FoodServiceError("无法完成美食记录。", 500);
+  await createPublishedNotifications({ resourceType: "food", resourceId: groupId, resourceLabel: group.category, actorUserId: session.userId, actorUsername: session.username }).catch((notificationError) => {
+    console.error("Unable to create food publication notifications.", { groupId, notificationError });
+  });
   return { groupId };
 }
 

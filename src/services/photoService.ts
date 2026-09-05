@@ -29,6 +29,7 @@ import {
 import { isServerSupabaseConfigured } from "@/lib/supabase/config";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { deletePrivateAssets, getPrivateSignedUrl } from "@/lib/supabase/storage";
+import { createCommentNotification, createPublishedNotifications } from "@/services/notificationService";
 import {
   createPhotoActivityStats,
   daysBetween,
@@ -545,6 +546,24 @@ export async function createPhotoComment(photoId: string, contentValue: unknown)
     }
     throw new PhotoServiceError("暂时无法发布评论。", 500);
   }
+  try {
+    const { data: photo } = await client.from("photo_entries")
+      .select("owner_user_id,title").eq("id", photoId).maybeSingle();
+    if (photo) {
+      await createCommentNotification({
+        resourceType: "photo",
+        resourceId: photoId,
+        resourceLabel: photo.title,
+        commentId: (data as PhotoCommentRow).id,
+        comment: content,
+        recipientUserId: photo.owner_user_id,
+        actorUserId: session.userId,
+        actorUsername: session.username,
+      });
+    }
+  } catch (notificationError) {
+    console.error("Unable to create a photo comment notification.", { photoId, notificationError });
+  }
   return mapComment(data as PhotoCommentRow);
 }
 
@@ -834,7 +853,12 @@ export async function completePhotoUpload(photoId: string, requestId: string) {
   assertUuid(requestId, "上传请求标识");
   const photo = await selectPhoto(photoId, requestId, session.userId);
   if (!photo) throw new PhotoServiceError("上传草稿不存在或已经过期。", 404);
-  if (photo.status === "ready") return { photoId };
+  if (photo.status === "ready") {
+    await createPublishedNotifications({ resourceType: "photo", resourceId: photoId, resourceLabel: photo.title, actorUserId: session.userId, actorUsername: session.username }).catch((notificationError) => {
+      console.error("Unable to create photo publication notifications.", { photoId, notificationError });
+    });
+    return { photoId };
+  }
   const images = await selectPhotoImages(photoId);
   if (images.length < 1 || images.length > PHOTO_UPLOAD_LIMITS.maximumImages) {
     throw new PhotoServiceError("上传草稿中的图片数量无效。", 422);
@@ -879,6 +903,9 @@ export async function completePhotoUpload(photoId: string, requestId: string) {
     .select("id")
     .maybeSingle();
   if (error || !data) throw new PhotoServiceError("无法完成照片记录。", 500);
+  await createPublishedNotifications({ resourceType: "photo", resourceId: photoId, resourceLabel: photo.title, actorUserId: session.userId, actorUsername: session.username }).catch((notificationError) => {
+    console.error("Unable to create photo publication notifications.", { photoId, notificationError });
+  });
   return { photoId };
 }
 
