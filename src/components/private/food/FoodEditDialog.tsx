@@ -46,6 +46,7 @@ export function FoodEditDialog({ group, onClose, onSaved }: FoodEditDialogProps)
   const router = useRouter();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const addImageInputRef = useRef<HTMLInputElement>(null);
+  const imagesChangedRef = useRef(false);
   const [category, setCategory] = useState(group.category);
   const [review, setReview] = useState(group.review ?? "");
   const [rating, setRating] = useState<FoodRating | 0>(group.rating ?? 0);
@@ -76,7 +77,6 @@ export function FoodEditDialog({ group, onClose, onSaved }: FoodEditDialogProps)
     if (images.length + files.length > 12) return setMessage("每组最多保存 12 张图片。");
     setIsEditingImages(true);
     setMessage("正在添加图片…");
-    let changed = false;
     try {
       for (const file of files) {
         const prepared = await prepareEditableImage(file);
@@ -88,7 +88,7 @@ export function FoodEditDialog({ group, onClose, onSaved }: FoodEditDialogProps)
           const data = await response.json() as { ok?: boolean; message?: string; image?: FoodImageViewModel };
           if (!response.ok || !data.ok || !data.image) throw new Error(responseMessage(data));
           setImages((current) => [...current, data.image!]);
-          changed = true;
+          imagesChangedRef.current = true;
         } finally {
           URL.revokeObjectURL(prepared.previewUrl);
         }
@@ -97,7 +97,6 @@ export function FoodEditDialog({ group, onClose, onSaved }: FoodEditDialogProps)
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "添加图片失败，请稍后再试。");
     } finally {
-      if (changed) router.refresh();
       setIsEditingImages(false);
       if (addImageInputRef.current) addImageInputRef.current.value = "";
     }
@@ -117,11 +116,11 @@ export function FoodEditDialog({ group, onClose, onSaved }: FoodEditDialogProps)
         const data = await response.json() as { ok?: boolean; message?: string; image?: FoodImageViewModel };
         if (!response.ok || !data.ok || !data.image) throw new Error(responseMessage(data));
         setImages((current) => current.map((image) => image.id === imageId ? data.image! : image));
+        imagesChangedRef.current = true;
       } finally {
         URL.revokeObjectURL(prepared.previewUrl);
       }
       setMessage("图片已替换。");
-      router.refresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "替换图片失败，请稍后再试。");
     } finally {
@@ -139,8 +138,8 @@ export function FoodEditDialog({ group, onClose, onSaved }: FoodEditDialogProps)
       const data = await response.json() as { ok?: boolean; message?: string };
       if (!response.ok || !data.ok) throw new Error(responseMessage(data));
       setImages((current) => current.filter((item) => item.id !== image.id));
+      imagesChangedRef.current = true;
       setMessage("图片已删除。");
-      router.refresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "删除图片失败，请稍后再试。");
     } finally {
@@ -153,6 +152,7 @@ export function FoodEditDialog({ group, onClose, onSaved }: FoodEditDialogProps)
     if (isDirty && !window.confirm("放弃尚未保存的修改吗？")) return;
     await animatePrivateDialogClose(dialogRef.current);
     onClose();
+    if (imagesChangedRef.current) router.refresh();
   }
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
