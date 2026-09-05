@@ -1,7 +1,9 @@
 import type { FoodLocation, PhotoImageMimeType } from "@/types";
 
 export const PHOTO_UPLOAD_LIMITS = {
+  maximumImages: 12,
   maximumImageBytes: 10 * 1024 * 1024,
+  maximumGroupBytes: 60 * 1024 * 1024,
   maximumTitleLength: 120,
   maximumDescriptionLength: 2000,
   maximumTags: 20,
@@ -24,8 +26,7 @@ export interface PhotoUpdateInput {
   tags: string[];
 }
 
-export interface PhotoUploadRequestInput extends PhotoUpdateInput {
-  requestId: string;
+export interface PhotoUploadImageInput {
   clientId: string;
   width: number;
   height: number;
@@ -34,9 +35,15 @@ export interface PhotoUploadRequestInput extends PhotoUpdateInput {
   capturedAt?: string;
 }
 
+export interface PhotoUploadRequestInput extends PhotoUpdateInput {
+  requestId: string;
+  images: PhotoUploadImageInput[];
+}
+
 export interface PhotoUploadTarget {
   clientId: string;
   photoId: string;
+  imageId: string;
   storagePath: string;
   uploadUrl: string;
   thumbnailStoragePath: string;
@@ -47,7 +54,7 @@ export interface PhotoUploadIntentResponse {
   ok: true;
   photoId: string;
   requestId: string;
-  upload?: PhotoUploadTarget;
+  uploads: PhotoUploadTarget[];
   alreadyComplete: boolean;
 }
 
@@ -169,37 +176,56 @@ export function validatePhotoUploadRequest(
   if (!isRecord(value)) return { ok: false, message: "提交内容格式不正确。" };
 
   const requestId = typeof value.requestId === "string" ? value.requestId : "";
-  const clientId = typeof value.clientId === "string" ? value.clientId : "";
-  const mimeType = typeof value.mimeType === "string" ? value.mimeType : "";
-  const capturedAt = value.capturedAt === undefined ? undefined : validDateTime(value.capturedAt);
-  if (!UUID_PATTERN.test(requestId) || !UUID_PATTERN.test(clientId)) {
+  if (!UUID_PATTERN.test(requestId)) {
     return { ok: false, message: "上传请求标识无效。" };
   }
-  if (
-    !PHOTO_IMAGE_MIME_TYPES.includes(mimeType as PhotoImageMimeType)
-    || !Number.isInteger(value.width)
-    || !Number.isInteger(value.height)
-    || !Number.isInteger(value.byteSize)
-    || (value.width as number) <= 0
-    || (value.height as number) <= 0
-    || (value.width as number) > 50_000
-    || (value.height as number) > 50_000
-    || (value.byteSize as number) <= 0
-    || (value.byteSize as number) > PHOTO_UPLOAD_LIMITS.maximumImageBytes
-    || (value.capturedAt !== undefined && !capturedAt)
-  ) return { ok: false, message: "图片类型、尺寸或大小不符合要求。" };
+  if (!Array.isArray(value.images) || value.images.length < 1 || value.images.length > PHOTO_UPLOAD_LIMITS.maximumImages) {
+    return { ok: false, message: "每组请选择 1～12 张图片。" };
+  }
+  const images: PhotoUploadImageInput[] = [];
+  let totalBytes = 0;
+  const clientIds = new Set<string>();
+  for (const item of value.images) {
+    if (!isRecord(item)) return { ok: false, message: "图片信息格式不正确。" };
+    const clientId = typeof item.clientId === "string" ? item.clientId : "";
+    const mimeType = typeof item.mimeType === "string" ? item.mimeType : "";
+    const capturedAt = item.capturedAt === undefined ? undefined : validDateTime(item.capturedAt);
+    if (
+      !UUID_PATTERN.test(clientId)
+      || clientIds.has(clientId)
+      || !PHOTO_IMAGE_MIME_TYPES.includes(mimeType as PhotoImageMimeType)
+      || !Number.isInteger(item.width)
+      || !Number.isInteger(item.height)
+      || !Number.isInteger(item.byteSize)
+      || (item.width as number) <= 0
+      || (item.height as number) <= 0
+      || (item.width as number) > 50_000
+      || (item.height as number) > 50_000
+      || (item.byteSize as number) <= 0
+      || (item.byteSize as number) > PHOTO_UPLOAD_LIMITS.maximumImageBytes
+      || (item.capturedAt !== undefined && !capturedAt)
+    ) return { ok: false, message: "图片类型、尺寸或大小不符合要求。" };
+    clientIds.add(clientId);
+    totalBytes += item.byteSize as number;
+    images.push({
+      clientId,
+      width: item.width as number,
+      height: item.height as number,
+      byteSize: item.byteSize as number,
+      mimeType: mimeType as PhotoImageMimeType,
+      capturedAt: capturedAt ?? undefined,
+    });
+  }
+  if (totalBytes > PHOTO_UPLOAD_LIMITS.maximumGroupBytes) {
+    return { ok: false, message: "单组图片总大小不能超过 60MB。" };
+  }
 
   return {
     ok: true,
     value: {
       ...metadata.value,
       requestId,
-      clientId,
-      width: value.width as number,
-      height: value.height as number,
-      byteSize: value.byteSize as number,
-      mimeType: mimeType as PhotoImageMimeType,
-      capturedAt: capturedAt ?? undefined,
+      images,
     },
   };
 }

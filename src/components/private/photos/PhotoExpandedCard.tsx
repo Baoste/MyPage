@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { PrivateDetailImage } from "@/components/private/PrivateDetailImage";
@@ -13,23 +14,31 @@ import type { PhotoViewModel } from "@/types";
 
 export function PhotoExpandedCard({
   photo,
+  initialImageIndex,
   mutationsEnabled,
   onClose,
 }: {
   photo: PhotoViewModel;
+  initialImageIndex: number;
   mutationsEnabled: boolean;
   onClose: () => void;
 }) {
   const router = useRouter();
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const [imageIndex, setImageIndex] = useState(initialImageIndex);
   const [editOpen, setEditOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [mutationMessage, setMutationMessage] = useState("");
-  const expandedImageUrl = photo.thumbnailUrl || photo.imageUrl;
+  const image = photo.images[imageIndex];
+  const expandedImageUrl = image?.thumbnailUrl || image?.imageUrl;
 
   useEffect(() => {
     closeButtonRef.current?.focus({ preventScroll: true });
   }, []);
+
+  function move(amount: number) {
+    setImageIndex((current) => (current + amount + photo.images.length) % photo.images.length);
+  }
 
   async function deleteEntry() {
     if (!window.confirm(`确定删除“${photo.title ?? "无题"}”和对应图片吗？删除后无法恢复。`)) return;
@@ -56,15 +65,18 @@ export function PhotoExpandedCard({
         className="food-expanded-shell overflow-hidden rounded-[1.75rem] border border-[#d7d0c4] bg-[#f7f3ec] text-[#302d29]"
         onKeyDown={(event) => {
           if (event.key === "Escape") onClose();
+          if (event.key === "ArrowLeft" && photo.images.length > 1) move(-1);
+          if (event.key === "ArrowRight" && photo.images.length > 1) move(1);
         }}
       >
         <div className="grid md:grid-cols-[minmax(0,1.25fr)_minmax(18rem,0.75fr)]">
           <div className="relative min-h-[18rem] overflow-hidden bg-[#dcd5c9] sm:min-h-[28rem] md:min-h-[34rem]">
             {expandedImageUrl ? (
               <PrivateDetailImage
-                thumbnailUrl={photo.thumbnailUrl}
-                originalUrl={photo.imageUrl}
-                alt={photo.title ?? `拍摄于 ${formatPhotoDateTime(photo)}`}
+                key={image.id}
+                thumbnailUrl={image.thumbnailUrl}
+                originalUrl={image.imageUrl}
+                alt={`${photo.title ?? "无题照片"}，第 ${imageIndex + 1} 张，共 ${photo.images.length} 张`}
                 sizes="(max-width: 767px) 100vw, 55vw"
                 objectFit="contain"
               />
@@ -73,6 +85,15 @@ export function PhotoExpandedCard({
                 图片暂时无法显示
               </p>
             )}
+            <span className="absolute left-4 top-4 rounded-full bg-[#f8f4ed] px-3 py-1.5 text-[0.62rem] font-semibold tabular-nums text-[#504a43] shadow-sm">
+              {imageIndex + 1} / {photo.images.length}
+            </span>
+            {photo.images.length > 1 ? (
+              <>
+                <button type="button" aria-label="上一张图片" onClick={() => move(-1)} className="absolute left-4 top-1/2 grid size-11 -translate-y-1/2 place-items-center rounded-full bg-[#f8f4ed] text-[#3c3833] shadow-md transition-transform hover:scale-105"><svg className="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="m15 5-7 7 7 7" /></svg></button>
+                <button type="button" aria-label="下一张图片" onClick={() => move(1)} className="absolute right-4 top-1/2 grid size-11 -translate-y-1/2 place-items-center rounded-full bg-[#f8f4ed] text-[#3c3833] shadow-md transition-transform hover:scale-105"><svg className="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="m9 5 7 7-7 7" /></svg></button>
+              </>
+            ) : null}
           </div>
 
           <div className="flex min-w-0 flex-col p-5 sm:p-7 md:p-8">
@@ -129,6 +150,16 @@ export function PhotoExpandedCard({
                   </li>
                 ))}
               </ul>
+            ) : null}
+
+            {photo.images.length > 1 ? (
+              <div className="mt-6 flex gap-2 overflow-x-auto pb-1" aria-label="同组图片">
+                {photo.images.map((item, index) => (
+                  <button key={item.id} type="button" aria-label={`查看第 ${index + 1} 张图片`} aria-current={index === imageIndex ? "true" : undefined} onClick={() => setImageIndex(index)} className={`relative size-14 shrink-0 overflow-hidden rounded-xl border-2 transition-opacity ${index === imageIndex ? "border-[#a64b2a]" : "border-transparent opacity-55 hover:opacity-90"}`}>
+                    {item.thumbnailUrl || item.imageUrl ? <Image unoptimized src={item.thumbnailUrl || item.imageUrl} alt="" fill sizes="3.5rem" className="object-cover" loading="lazy" /> : null}
+                  </button>
+                ))}
+              </div>
             ) : null}
 
             {mutationsEnabled ? (

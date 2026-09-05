@@ -104,13 +104,14 @@ export async function getCalendarDay(date: string): Promise<CalendarDayPayload> 
   ]);
   if (photoResult.error || foodResult.error) throw new CalendarServiceError("无法读取当天素材。", 500);
   const photoIds = (photoResult.data ?? []).map((row) => row.id), foodIds = (foodResult.data ?? []).map((row) => row.id);
-  const [photoComments, foodComments, foodImages] = await Promise.all([
+  const [photoComments, foodComments, photoImages, foodImages] = await Promise.all([
     photoIds.length ? client.from("photo_comments").select("id,photo_entry_id,author_username,content").in("photo_entry_id", photoIds).order("created_at") : Promise.resolve({ data: [], error: null }),
     foodIds.length ? client.from("food_comments").select("id,food_entry_id,author_username,content").in("food_entry_id", foodIds).order("created_at") : Promise.resolve({ data: [], error: null }),
+    photoIds.length ? client.from("photo_images").select("id,photo_entry_id").in("photo_entry_id", photoIds).order("sort_order") : Promise.resolve({ data: [], error: null }),
     foodIds.length ? client.from("food_images").select("id,food_entry_id").in("food_entry_id", foodIds).order("sort_order") : Promise.resolve({ data: [], error: null }),
   ]);
   const sources: CalendarDaySource[] = [
-    ...(photoResult.data ?? []).map((row) => ({ id: row.id, type: "photo" as const, title: row.title || "一张照片", description: row.description || "", occurredAt: row.occurred_at, imageIds: [row.id], imageUrls: [`/api/private/photos/images/${row.id}/file?variant=thumbnail`], comments: (photoComments.data ?? []).filter((item) => item.photo_entry_id === row.id).map((item) => ({ id: item.id, author: item.author_username, content: item.content })) })),
+    ...(photoResult.data ?? []).map((row) => { const images = (photoImages.data ?? []).filter((item) => item.photo_entry_id === row.id); return { id: row.id, type: "photo" as const, title: row.title || "一组照片", description: row.description || "", occurredAt: row.occurred_at, imageIds: images.map((item) => item.id), imageUrls: images.map((item) => `/api/private/photos/images/${item.id}/file?variant=thumbnail`), comments: (photoComments.data ?? []).filter((item) => item.photo_entry_id === row.id).map((item) => ({ id: item.id, author: item.author_username, content: item.content })) }; }),
     ...(foodResult.data ?? []).map((row) => { const images = (foodImages.data ?? []).filter((item) => item.food_entry_id === row.id); return { id: row.id, type: "food" as const, title: row.category || "一顿饭", description: [row.location_city_name, row.rating ? `${row.rating}/5` : "", row.review].filter(Boolean).join(" · "), occurredAt: row.occurred_at, imageIds: images.map((item) => item.id), imageUrls: images.map((item) => `/api/private/food/images/${item.id}/file?variant=thumbnail`), comments: (foodComments.data ?? []).filter((item) => item.food_entry_id === row.id).map((item) => ({ id: item.id, author: item.author_username, content: item.content })) }; }),
   ].sort((a, b) => a.occurredAt.localeCompare(b.occurredAt));
   return { date, sources, entry: await getEntry(date), aiAvailable: isCalendarAiAvailable() };
@@ -118,7 +119,7 @@ export async function getCalendarDay(date: string): Promise<CalendarDayPayload> 
 
 async function sourceImage(type: "photo" | "food", imageId: string) {
   const client = createServerSupabaseClient();
-  const table = type === "photo" ? "photo_entries" : "food_images";
+  const table = type === "photo" ? "photo_images" : "food_images";
   const { data, error } = await client.from(table).select("storage_path,mime_type").eq("id", imageId).single();
   if (error || !data) throw new CalendarServiceError("所选图片不存在。", 400);
   try {

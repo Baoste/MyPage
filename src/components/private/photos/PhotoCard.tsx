@@ -7,7 +7,7 @@ import {
   formatPhotoShortDate,
   photoLocationLabel,
 } from "@/components/private/photos/photo-format";
-import type { PhotoViewModel } from "@/types";
+import type { PhotoImageViewModel, PhotoViewModel } from "@/types";
 
 const LONG_PRESS_MILLISECONDS = 450;
 const MOVEMENT_TOLERANCE = 10;
@@ -16,6 +16,8 @@ const FALLBACK_CARD_GAP = 18;
 
 interface PhotoCardProps {
   photo: PhotoViewModel;
+  image: PhotoImageViewModel;
+  imageIndex: number;
   isExpanded: boolean;
   onExpand: () => void;
   onElementChange: (photoId: string, element: HTMLElement | null) => void;
@@ -23,6 +25,8 @@ interface PhotoCardProps {
 
 export function PhotoCard({
   photo,
+  image,
+  imageIndex,
   isExpanded,
   onExpand,
   onElementChange,
@@ -35,18 +39,18 @@ export function PhotoCard({
   const [isFlipped, setIsFlipped] = useState(false);
   const [collapsedRowSpan, setCollapsedRowSpan] = useState(24);
   const [dimensions, setDimensions] = useState(() => ({
-    width: Math.max(1, photo.width),
-    height: Math.max(1, photo.height),
+    width: Math.max(1, image.width),
+    height: Math.max(1, image.height),
   }));
-  const [imageUrl, setImageUrl] = useState(photo.thumbnailUrl || photo.imageUrl);
-  const [hasImageError, setHasImageError] = useState(!(photo.thumbnailUrl || photo.imageUrl));
+  const [imageUrl, setImageUrl] = useState(image.thumbnailUrl || image.imageUrl);
+  const [hasImageError, setHasImageError] = useState(!(image.thumbnailUrl || image.imageUrl));
   const [isRefreshing, setIsRefreshing] = useState(false);
   const displayRatio = dimensions.height / dimensions.width;
 
   const setArticleRef = useCallback((element: HTMLElement | null) => {
     articleRef.current = element;
-    onElementChange(photo.id, element);
-  }, [onElementChange, photo.id]);
+    onElementChange(image.id, element);
+  }, [image.id, onElementChange]);
 
   useLayoutEffect(() => {
     const article = articleRef.current;
@@ -140,7 +144,7 @@ export function PhotoCard({
     if (isRefreshing) return;
     setIsRefreshing(true);
     try {
-      const response = await fetch(`/api/private/photos/images/${photo.id}/url`, {
+      const response = await fetch(`/api/private/photos/images/${image.id}/url`, {
         cache: "no-store",
       });
       const data = await response.json() as { ok?: boolean; imageUrl?: string };
@@ -166,7 +170,7 @@ export function PhotoCard({
       >
         <button
           type="button"
-          aria-label={`${photo.title ?? "无题照片"}；点击翻转，长按展开详情`}
+          aria-label={`${photo.title ?? "无题照片"}，第 ${imageIndex + 1} 张，共 ${photo.images.length} 张；点击翻转，长按展开详情`}
           aria-pressed={isFlipped}
           aria-expanded={isExpanded}
           className="photo-card-button food-card-button absolute inset-0 block h-full w-full touch-pan-y text-left"
@@ -210,7 +214,7 @@ export function PhotoCard({
                 {photo.title ?? "无题"}
               </span>
               <span className="absolute right-3 top-3 rounded-full bg-[#292d27] px-2.5 py-1 text-[0.58rem] font-semibold tabular-nums text-white shadow-sm">
-                {formatPhotoShortDate(photo)}
+                {photo.images.length > 1 ? `${imageIndex + 1}/${photo.images.length}` : formatPhotoShortDate(photo)}
               </span>
             </span>
             <span className="food-card-face food-card-back flex flex-col justify-between bg-[#30352e] p-4 text-[#f5f1e8] sm:p-5">

@@ -1,44 +1,30 @@
 "use client";
 
-import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { FoodImagePicker } from "@/components/private/food/FoodImagePicker";
 import { FoodLocationPicker } from "@/components/private/food/FoodLocationPicker";
-import { createThumbnailFile } from "@/lib/image/thumbnail";
+import type { SelectedFoodUploadImage } from "@/components/private/food/food-upload-types";
 import {
   chinaDateTimeLocalToIso,
-  inspectFoodImage,
   toDateTimeLocalValue,
 } from "@/lib/food/image-metadata";
 import {
   PHOTO_TIMEZONE,
-  PHOTO_UPLOAD_LIMITS,
   type PhotoApiErrorResponse,
   type PhotoUploadIntentResponse,
   type PhotoUploadRequestInput,
   type PhotoUploadTarget,
 } from "@/lib/photo/contracts";
 import { animatePrivateDialogClose } from "@/lib/motion";
-import type { FoodLocation, PhotoImageMimeType } from "@/types";
+import type { FoodLocation } from "@/types";
 
-type UploadPhase = "idle" | "inspecting" | "initializing" | "uploading" | "finalizing" | "failed";
-
-interface SelectedPhoto {
-  clientId: string;
-  file: File;
-  thumbnailFile: File | null;
-  previewUrl: string;
-  width: number;
-  height: number;
-  mimeType: PhotoImageMimeType;
-  byteSize: number;
-  capturedAt?: string;
-}
+type UploadPhase = "idle" | "initializing" | "uploading" | "finalizing" | "failed";
 
 interface UploadDraft {
   photoId: string;
   requestId: string;
-  target: PhotoUploadTarget;
+  targets: PhotoUploadTarget[];
 }
 
 const initialLocation: FoodLocation = {
@@ -61,25 +47,23 @@ function parseTags(value: string) {
 export function PhotoUploadDialog({ onClose }: { onClose: () => void }) {
   const router = useRouter();
   const dialogRef = useRef<HTMLDialogElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
   const requestIdRef = useRef("");
-  const activeRequestRef = useRef<XMLHttpRequest | null>(null);
-  const latestPhotoRef = useRef<SelectedPhoto | null>(null);
+  const activeRequestsRef = useRef(new Set<XMLHttpRequest>());
+  const latestImagesRef = useRef<SelectedFoodUploadImage[]>([]);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [location, setLocation] = useState<FoodLocation>(initialLocation);
   const [occurredAtLocal, setOccurredAtLocal] = useState("");
   const [timeWasEdited, setTimeWasEdited] = useState(false);
   const [tagsText, setTagsText] = useState("");
-  const [selectedPhoto, setSelectedPhoto] = useState<SelectedPhoto | null>(null);
+  const [images, setImages] = useState<SelectedFoodUploadImage[]>([]);
   const [phase, setPhase] = useState<UploadPhase>("idle");
-  const [progress, setProgress] = useState(0);
   const [draft, setDraft] = useState<UploadDraft | null>(null);
   const [message, setMessage] = useState("");
 
-  const isBusy = ["inspecting", "initializing", "uploading", "finalizing"].includes(phase);
+  const isBusy = ["initializing", "uploading", "finalizing"].includes(phase);
   const isLocked = isBusy || draft !== null;
-  const isDirty = Boolean(title || description || tagsText || selectedPhoto || location.cityName);
+  const isDirty = Boolean(title || description || tagsText || images.length || location.cityName);
 
   async function closeWithMotion() {
     await animatePrivateDialogClose(dialogRef.current);
@@ -89,6 +73,7 @@ export function PhotoUploadDialog({ onClose }: { onClose: () => void }) {
   useEffect(() => {
     const dialog = dialogRef.current;
     if (!dialog) return;
+    const activeRequests = activeRequestsRef.current;
     dialog.showModal();
     requestIdRef.current = window.crypto.randomUUID();
     setOccurredAtLocal(toDateTimeLocalValue());
@@ -96,68 +81,40 @@ export function PhotoUploadDialog({ onClose }: { onClose: () => void }) {
     document.body.style.overflow = "hidden";
     return () => {
       document.body.style.overflow = previousOverflow;
-      activeRequestRef.current?.abort();
-      if (latestPhotoRef.current) URL.revokeObjectURL(latestPhotoRef.current.previewUrl);
+      activeRequests.forEach((request) => request.abort());
+      latestImagesRef.current.forEach((image) => URL.revokeObjectURL(image.previewUrl));
       if (dialog.open) dialog.close();
     };
   }, []);
 
   useEffect(() => {
-    latestPhotoRef.current = selectedPhoto;
-  }, [selectedPhoto]);
+    latestImagesRef.current = images;
+  }, [images]);
 
-  async function chooseFile(file: File | undefined) {
-    if (!file) return;
-    if (file.size > PHOTO_UPLOAD_LIMITS.maximumImageBytes) {
-      setMessage("单张图片不能超过 10MB。");
-      return;
-    }
-    setPhase("inspecting");
-    setMessage("正在读取图片信息…");
-    try {
-      const metadata = await inspectFoodImage(file);
-      const thumbnailFile = await createThumbnailFile(file);
-      if (!thumbnailFile) throw new Error("无法生成缩略图。");
-      const next: SelectedPhoto = {
-        clientId: window.crypto.randomUUID(),
-        file,
-        thumbnailFile,
-        previewUrl: URL.createObjectURL(file),
-        ...metadata,
-      };
-      if (selectedPhoto) URL.revokeObjectURL(selectedPhoto.previewUrl);
-      setSelectedPhoto(next);
-      if (!timeWasEdited) setOccurredAtLocal(toDateTimeLocalValue(next.capturedAt ?? Date.now()));
-      setMessage("");
-      setPhase("idle");
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "无法读取选择的图片。");
-      setPhase("failed");
-    } finally {
-      if (inputRef.current) inputRef.current.value = "";
-    }
+  function updateImage(clientId: string, changes: Partial<SelectedFoodUploadImage>) {
+    setImages((current) => current.map((image) => image.clientId === clientId ? { ...image, ...changes } : image));
   }
 
-  function buildPayload(photo: SelectedPhoto): PhotoUploadRequestInput {
+  function changeImages(nextImages: SelectedFoodUploadImage[]) {
+    if (!timeWasEdited) setOccurredAtLocal(toDateTimeLocalValue(nextImages[0]?.capturedAt ?? Date.now()));
+    setImages(nextImages);
+  }
+
+  function buildPayload(): PhotoUploadRequestInput {
     return {
       requestId: requestIdRef.current,
-      clientId: photo.clientId,
       title: title || undefined,
       description: description || undefined,
       occurredAt: chinaDateTimeLocalToIso(occurredAtLocal) ?? "",
       timezone: PHOTO_TIMEZONE,
       location,
       tags: parseTags(tagsText),
-      width: photo.width,
-      height: photo.height,
-      byteSize: photo.byteSize,
-      mimeType: photo.mimeType,
-      capturedAt: photo.capturedAt,
+      images: images.map((image) => ({ clientId: image.clientId, width: image.width, height: image.height, byteSize: image.byteSize, mimeType: image.mimeType, capturedAt: image.capturedAt })),
     };
   }
 
   function validateForm() {
-    if (!selectedPhoto) return "请选择一张图片。";
+    if (!images.length) return "请至少选择一张图片。";
     if (!location.countryCode || !location.cityName.trim()) return "请选择国家并填写中文城市。";
     if (!chinaDateTimeLocalToIso(occurredAtLocal)) return "请选择有效的拍摄时间。";
     const tags = parseTags(tagsText);
@@ -167,49 +124,48 @@ export function PhotoUploadDialog({ onClose }: { onClose: () => void }) {
     return null;
   }
 
-  async function initializeIntent(photo: SelectedPhoto) {
+  async function initializeIntent() {
     const response = await fetch("/api/private/photos/uploads/init", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(buildPayload(photo)),
+      body: JSON.stringify(buildPayload()),
     });
     const data = await response.json() as PhotoUploadIntentResponse | PhotoApiErrorResponse;
     if (!response.ok || !data.ok) throw new Error(responseMessage(data));
     if (data.alreadyComplete) return { complete: true as const, draft: null };
-    if (!data.upload) throw new Error("没有收到安全上传地址。");
     const nextDraft = {
       photoId: data.photoId,
       requestId: data.requestId,
-      target: data.upload,
+      targets: data.uploads,
     };
     setDraft(nextDraft);
     return { complete: false as const, draft: nextDraft };
   }
 
-  function uploadFile(file: File, uploadUrl: string, contentType: string) {
+  function uploadFile(clientId: string, file: File, uploadUrl: string, contentType: string) {
     return new Promise<void>((resolve, reject) => {
       const request = new XMLHttpRequest();
-      activeRequestRef.current = request;
-      setProgress(1);
+      activeRequestsRef.current.add(request);
+      updateImage(clientId, { status: "uploading", progress: 1, error: undefined });
       request.open("PUT", uploadUrl);
       request.setRequestHeader("Content-Type", contentType);
       request.upload.onprogress = (event) => {
         if (!event.lengthComputable) return;
-        setProgress(Math.min(99, Math.max(1, Math.round((event.loaded / event.total) * 100))));
+        updateImage(clientId, { progress: Math.min(99, Math.max(1, Math.round((event.loaded / event.total) * 100))) });
       };
       request.onload = () => {
-        activeRequestRef.current = null;
+        activeRequestsRef.current.delete(request);
         if (request.status >= 200 && request.status < 300) {
-          setProgress(100);
+          updateImage(clientId, { status: "uploaded", progress: 100, error: undefined });
           resolve();
         } else reject(new Error(`上传失败（${request.status || "网络错误"}）`));
       };
       request.onerror = () => {
-        activeRequestRef.current = null;
+        activeRequestsRef.current.delete(request);
         reject(new Error("网络连接失败。"));
       };
       request.onabort = () => {
-        activeRequestRef.current = null;
+        activeRequestsRef.current.delete(request);
         reject(new Error("上传已取消。"));
       };
       request.send(file);
@@ -227,8 +183,8 @@ export function PhotoUploadDialog({ onClose }: { onClose: () => void }) {
     const data = await response.json() as { ok?: boolean; message?: string };
     if (!response.ok || !data.ok) throw new Error(responseMessage(data));
     setMessage("已经保存，正在刷新画廊…");
-    if (latestPhotoRef.current) URL.revokeObjectURL(latestPhotoRef.current.previewUrl);
-    latestPhotoRef.current = null;
+    latestImagesRef.current.forEach((image) => URL.revokeObjectURL(image.previewUrl));
+    latestImagesRef.current = [];
     router.refresh();
     await closeWithMotion();
   }
@@ -238,14 +194,12 @@ export function PhotoUploadDialog({ onClose }: { onClose: () => void }) {
     if (isBusy) return;
     const validationMessage = validateForm();
     if (validationMessage) return setMessage(validationMessage);
-    const photo = selectedPhoto;
-    if (!photo) return;
     try {
       setPhase("initializing");
       setMessage("正在建立安全上传地址…");
       const initialized = draft
         ? { complete: false as const, draft }
-        : await initializeIntent(photo);
+        : await initializeIntent();
       if (initialized.complete) {
         router.refresh();
         await closeWithMotion();
@@ -253,9 +207,24 @@ export function PhotoUploadDialog({ onClose }: { onClose: () => void }) {
       }
       setPhase("uploading");
       setMessage("正在上传图片，请不要关闭页面…");
-      await uploadFile(photo.file, initialized.draft.target.uploadUrl, photo.mimeType);
-      if (!photo.thumbnailFile) throw new Error("无法生成缩略图。");
-      await uploadFile(photo.thumbnailFile, initialized.draft.target.thumbnailUploadUrl, photo.thumbnailFile.type);
+      const targets = new Map(initialized.draft.targets.map((target) => [target.clientId, target]));
+      const pending = images.filter((image) => image.status !== "uploaded");
+      const results: PromiseSettledResult<void>[] = [];
+      for (let index = 0; index < pending.length; index += 3) {
+        const batch = pending.slice(index, index + 3);
+        results.push(...await Promise.allSettled(batch.map(async (image) => {
+          const target = targets.get(image.clientId);
+          if (!target) throw new Error("缺少图片上传地址。");
+          await uploadFile(image.clientId, image.file, target.uploadUrl, image.mimeType);
+          if (!image.thumbnailFile) throw new Error("无法生成缩略图。");
+          await uploadFile(image.clientId, image.thumbnailFile, target.thumbnailUploadUrl, image.thumbnailFile.type);
+        })));
+      }
+      if (results.some((result) => result.status === "rejected")) {
+        setPhase("failed");
+        setMessage("部分图片上传失败，请重试后再完成保存。");
+        return;
+      }
       await finalizeUpload(initialized.draft);
     } catch (error) {
       setPhase("failed");
@@ -263,10 +232,36 @@ export function PhotoUploadDialog({ onClose }: { onClose: () => void }) {
     }
   }
 
+  async function retryImage(clientId: string) {
+    const image = images.find((item) => item.clientId === clientId);
+    if (!image || isBusy) return;
+    try {
+      setPhase("initializing");
+      setMessage("正在更新安全上传地址…");
+      const initialized = await initializeIntent();
+      if (initialized.complete || !initialized.draft) {
+        router.refresh();
+        await closeWithMotion();
+        return;
+      }
+      const target = initialized.draft.targets.find((item) => item.clientId === clientId);
+      if (!target) throw new Error("缺少图片上传地址。");
+      setPhase("uploading");
+      await uploadFile(image.clientId, image.file, target.uploadUrl, image.mimeType);
+      if (!image.thumbnailFile) throw new Error("无法生成缩略图。");
+      await uploadFile(image.clientId, image.thumbnailFile, target.thumbnailUploadUrl, image.thumbnailFile.type);
+      setPhase("failed");
+      setMessage("这张图片已上传，可继续完成保存。");
+    } catch (error) {
+      setPhase("failed");
+      setMessage(error instanceof Error ? error.message : "重试失败。");
+    }
+  }
+
   async function requestClose() {
     if (dialogRef.current?.dataset.closing) return;
     if (isDirty && !window.confirm("放弃这张尚未保存的照片吗？")) return;
-    activeRequestRef.current?.abort();
+    activeRequestsRef.current.forEach((request) => request.abort());
     if (draft) {
       try {
         const response = await fetch("/api/private/photos/uploads/cancel", {
@@ -280,8 +275,8 @@ export function PhotoUploadDialog({ onClose }: { onClose: () => void }) {
         return;
       }
     }
-    if (latestPhotoRef.current) URL.revokeObjectURL(latestPhotoRef.current.previewUrl);
-    latestPhotoRef.current = null;
+    latestImagesRef.current.forEach((image) => URL.revokeObjectURL(image.previewUrl));
+    latestImagesRef.current = [];
     await closeWithMotion();
   }
 
@@ -308,37 +303,7 @@ export function PhotoUploadDialog({ onClose }: { onClose: () => void }) {
         </header>
 
         <div className="min-h-0 flex-1 space-y-7 overflow-y-auto px-5 py-6 sm:px-8">
-          <fieldset disabled={isLocked}>
-            <div className="flex items-end justify-between gap-4">
-              <div>
-                <legend className="text-sm font-semibold text-[#39342f]">图片</legend>
-                <p className="mt-1 text-xs leading-5 text-[#776f66]">JPEG / PNG / WebP，最大 10MB。</p>
-              </div>
-              <label className={`shrink-0 rounded-full border border-[#9e9488] px-3.5 py-2 text-xs font-semibold text-[#4a433d] ${isLocked ? "pointer-events-none opacity-45" : "cursor-pointer"}`}>
-                {phase === "inspecting" ? "正在读取…" : selectedPhoto ? "重新选择" : "选择图片"}
-                <input ref={inputRef} type="file" accept="image/jpeg,image/png,image/webp" disabled={isLocked} className="sr-only" onChange={(event) => void chooseFile(event.target.files?.[0])} />
-              </label>
-            </div>
-            {selectedPhoto ? (
-              <div className="mt-4 rounded-2xl border border-[#d0c7bb] bg-[#f7f3ec] p-2.5">
-                <div className="relative max-h-[26rem] min-h-52 overflow-hidden rounded-xl bg-[#ddd7ca]" style={{ aspectRatio: `${selectedPhoto.width} / ${selectedPhoto.height}` }}>
-                  <Image unoptimized src={selectedPhoto.previewUrl} alt="待上传照片预览" fill sizes="42rem" className="object-contain" />
-                </div>
-                <div className="mt-2 flex flex-wrap items-center justify-between gap-2 px-1 text-[0.66rem] text-[#71695f]">
-                  <span className="max-w-[70%] truncate">{selectedPhoto.file.name}</span>
-                  <span>{Math.round(selectedPhoto.byteSize / 1024)}KB · {selectedPhoto.width}×{selectedPhoto.height}</span>
-                </div>
-                {phase === "uploading" || progress > 0 ? (
-                  <div className="px-1 pb-1 pt-2">
-                    <progress aria-label="照片上传进度" max={100} value={progress} className="h-1.5 w-full accent-[#a64b2a]" />
-                    <p className="mt-1 text-[0.62rem] text-[#696158]">{progress >= 100 ? "已上传" : `上传中 ${progress}%`}</p>
-                  </div>
-                ) : null}
-              </div>
-            ) : (
-              <button type="button" disabled={isLocked} onClick={() => inputRef.current?.click()} className="mt-4 grid min-h-36 w-full place-items-center rounded-2xl border border-dashed border-[#b9afa3] text-sm text-[#756d64] disabled:opacity-45">选择一张照片</button>
-            )}
-          </fieldset>
+          <FoodImagePicker images={images} disabled={isLocked} onChange={changeImages} onError={setMessage} onRetry={(clientId) => void retryImage(clientId)} />
 
           <label className="block text-xs font-semibold text-[#5d554e]">
             标题
@@ -352,7 +317,7 @@ export function PhotoUploadDialog({ onClose }: { onClose: () => void }) {
               拍摄时间
               <input type="datetime-local" value={occurredAtLocal} onChange={(event) => { setOccurredAtLocal(event.target.value); setTimeWasEdited(true); }} disabled={isLocked} required className="mt-2 w-full rounded-xl border border-[#bdb3a7] bg-[#fbf8f2] px-3 py-2.5 text-sm font-normal text-[#302d29]" />
             </label>
-            <button type="button" disabled={isLocked || !selectedPhoto} onClick={() => { setTimeWasEdited(false); setOccurredAtLocal(toDateTimeLocalValue(selectedPhoto?.capturedAt ?? Date.now())); }} className="h-[42px] rounded-full border border-[#bdb3a7] px-4 text-xs font-semibold disabled:opacity-40">读取照片时间</button>
+            <button type="button" disabled={isLocked || !images.length} onClick={() => { setTimeWasEdited(false); setOccurredAtLocal(toDateTimeLocalValue(images[0]?.capturedAt ?? Date.now())); }} className="h-[42px] rounded-full border border-[#bdb3a7] px-4 text-xs font-semibold disabled:opacity-40">读取首张时间</button>
           </div>
           <p className="-mt-5 text-[0.66rem] leading-5 text-[#7b736a]">固定为中国北京时间（{PHOTO_TIMEZONE}）。优先读取 EXIF，没有时使用当前时间。</p>
 
@@ -372,7 +337,7 @@ export function PhotoUploadDialog({ onClose }: { onClose: () => void }) {
         <footer className="flex flex-wrap items-center justify-between gap-4 border-t border-[#cec5b8] bg-[#eee8de] px-5 py-4 sm:px-8">
           <p aria-live="polite" className={`min-w-0 flex-1 text-xs leading-5 ${phase === "failed" ? "text-[#96392c]" : "text-[#6f675e]"}`}>{message || "图片只会保存到私密目录。"}</p>
           <button type="submit" disabled={isBusy} className="min-w-32 rounded-full bg-[#2e332c] px-5 py-3 text-xs font-semibold tracking-[0.1em] text-white disabled:opacity-50">
-            {phase === "inspecting" ? "读取中…" : phase === "initializing" ? "准备中…" : phase === "uploading" ? "上传中…" : phase === "finalizing" ? "保存中…" : draft ? "重试上传" : "开始上传"}
+            {phase === "initializing" ? "准备中…" : phase === "uploading" ? "上传中…" : phase === "finalizing" ? "保存中…" : draft ? "重试上传" : "开始上传"}
           </button>
         </footer>
       </form>

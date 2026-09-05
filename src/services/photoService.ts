@@ -40,7 +40,10 @@ import type {
   PhotoCommentRow,
   PhotoEntry,
   PhotoEntryRow,
+  PhotoImage,
+  PhotoImageRow,
   PhotoImageMimeType,
+  PhotoImageViewModel,
   PhotoPage,
   PhotoViewModel,
 } from "@/types";
@@ -148,10 +151,26 @@ function mimeTypeFromPath(storagePath: string): PhotoImageMimeType {
   return "image/jpeg";
 }
 
-function mapPhoto(row: PhotoEntryRow): PhotoEntry {
+function mapPhotoImage(row: PhotoImageRow): PhotoImage {
   return {
     id: row.id,
+    photoEntryId: row.photo_entry_id,
     storagePath: row.storage_path,
+    sortOrder: row.sort_order,
+    width: row.width,
+    height: row.height,
+    mimeType: row.mime_type,
+    byteSize: Number(row.byte_size),
+    capturedAt: row.captured_at ?? undefined,
+    legacyPath: row.legacy_path,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function mapPhoto(row: PhotoEntryRow, images: PhotoImage[] = []): PhotoEntry {
+  return {
+    id: row.id,
     title: row.title ?? undefined,
     description: row.description ?? undefined,
     date: row.photo_date,
@@ -166,11 +185,7 @@ function mapPhoto(row: PhotoEntryRow): PhotoEntry {
       cityName: row.location_city_name,
     },
     tags: row.tags ?? [],
-    width: row.width,
-    height: row.height,
-    mimeType: row.mime_type,
-    byteSize: row.byte_size,
-    capturedAt: row.captured_at ?? undefined,
+    images,
     uploadedBy: row.uploader ?? undefined,
     legacyRecord: row.legacy_record,
     createdAt: row.created_at,
@@ -192,7 +207,6 @@ function mapLegacyPhoto(row: LegacyPhotoRow): PhotoEntry {
   const occurredAt = legacyOccurredAt(row.photo_date);
   return {
     id: row.id,
-    storagePath: row.storage_path,
     title: row.title ?? undefined,
     description: row.description ?? undefined,
     date: row.photo_date,
@@ -204,11 +218,20 @@ function mapLegacyPhoto(row: LegacyPhotoRow): PhotoEntry {
       cityName: row.location?.trim() || "未指定",
     },
     tags: row.tags ?? [],
-    width: 4,
-    height: 3,
-    mimeType: mimeTypeFromPath(row.storage_path),
-    byteSize: 1,
-    capturedAt: occurredAt,
+    images: [{
+      id: row.id,
+      photoEntryId: row.id,
+      storagePath: row.storage_path,
+      sortOrder: 0,
+      width: 4,
+      height: 3,
+      mimeType: mimeTypeFromPath(row.storage_path),
+      byteSize: 1,
+      capturedAt: occurredAt,
+      legacyPath: true,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    }],
     legacyRecord: true,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -233,32 +256,52 @@ async function mapWithConcurrency<T, R>(
   return results;
 }
 
-async function photoImageUrl(photoId: string, storagePath: string, version?: string) {
+async function photoImageUrl(imageId: string, storagePath: string, version?: string) {
   return isLocalPhotoStoragePath(storagePath)
-    ? `/api/private/photos/images/${encodeURIComponent(photoId)}/file${version ? `?v=${encodeURIComponent(version)}` : ""}`
+    ? `/api/private/photos/images/${encodeURIComponent(imageId)}/file${version ? `?v=${encodeURIComponent(version)}` : ""}`
     : getPrivateSignedUrl(storagePath);
 }
 
-async function photoThumbnailUrl(photoId: string, storagePath: string, version?: string) {
+async function photoThumbnailUrl(imageId: string, storagePath: string, version?: string) {
   if (!isLocalPhotoStoragePath(storagePath)) return getPrivateSignedUrl(storagePath);
   const thumbnailPath = photoThumbnailStoragePath(storagePath);
   const suffix = version ? `&v=${encodeURIComponent(version)}` : "";
   return (await getLocalPhotoFileInfo(thumbnailPath))
-    ? `/api/private/photos/images/${encodeURIComponent(photoId)}/file?variant=thumbnail${suffix}`
-    : `/api/private/photos/images/${encodeURIComponent(photoId)}/file${version ? `?v=${encodeURIComponent(version)}` : ""}`;
+    ? `/api/private/photos/images/${encodeURIComponent(imageId)}/file?variant=thumbnail${suffix}`
+    : `/api/private/photos/images/${encodeURIComponent(imageId)}/file${version ? `?v=${encodeURIComponent(version)}` : ""}`;
 }
 
-async function toViewModel(photo: PhotoEntry): Promise<PhotoViewModel> {
+async function toImageViewModel(image: PhotoImage): Promise<PhotoImageViewModel> {
   try {
     return {
-      ...photo,
-      imageUrl: await photoImageUrl(photo.id, photo.storagePath, photo.updatedAt),
-      thumbnailUrl: await photoThumbnailUrl(photo.id, photo.storagePath, photo.updatedAt),
+      ...image,
+      imageUrl: await photoImageUrl(image.id, image.storagePath, image.updatedAt),
+      thumbnailUrl: await photoThumbnailUrl(image.id, image.storagePath, image.updatedAt),
     };
   } catch (error) {
-    console.error("Unable to sign one photo.", { photoId: photo.id, error });
-    return { ...photo, imageUrl: "", thumbnailUrl: "" };
+    console.error("Unable to sign one photo image.", { imageId: image.id, error });
+    return { ...image, imageUrl: "", thumbnailUrl: "" };
   }
+}
+
+async function hydratePhotoEntries(rows: PhotoEntryRow[]): Promise<PhotoViewModel[]> {
+  if (!rows.length) return [];
+  const client = createServerSupabaseClient();
+  const { data, error } = await client
+    .from("photo_images")
+    .select("*")
+    .in("photo_entry_id", rows.map((row) => row.id))
+    .order("sort_order", { ascending: true });
+  if (error) throw new PhotoServiceError("Photos 数据库迁移不完整，请执行最新 Migration。", 503);
+  const byEntry = new Map<string, PhotoImage[]>();
+  for (const row of (data ?? []) as PhotoImageRow[]) {
+    const image = mapPhotoImage(row);
+    byEntry.set(image.photoEntryId, [...(byEntry.get(image.photoEntryId) ?? []), image]);
+  }
+  const entries = rows.map((row) => mapPhoto(row, byEntry.get(row.id) ?? []));
+  const images = await mapWithConcurrency(entries.flatMap((entry) => entry.images), 6, toImageViewModel);
+  const imageMap = new Map(images.map((image) => [image.id, image]));
+  return entries.map((entry) => ({ ...entry, images: entry.images.map((image) => imageMap.get(image.id)!) }));
 }
 
 async function getLegacyPhotoEntries() {
@@ -270,7 +313,8 @@ async function getLegacyPhotoEntries() {
     .order("created_at", { ascending: false });
   if (error) throw new Error("Unable to load legacy photos.");
   const photos = ((data ?? []) as LegacyPhotoRow[]).map(mapLegacyPhoto);
-  return mapWithConcurrency(photos, 6, toViewModel);
+  const images = await mapWithConcurrency(photos.map((photo) => photo.images[0]), 6, toImageViewModel);
+  return photos.map((photo, index) => ({ ...photo, images: [images[index]] }));
 }
 
 async function loadPhotoEntries(): Promise<{
@@ -294,8 +338,14 @@ async function loadPhotoEntries(): Promise<{
     }
     throw new Error("Unable to load photos.");
   }
-  const photos = ((data ?? []) as PhotoEntryRow[]).map(mapPhoto);
-  return { photos: await mapWithConcurrency(photos, 6, toViewModel), schemaReady: true };
+  try {
+    return { photos: await hydratePhotoEntries((data ?? []) as PhotoEntryRow[]), schemaReady: true };
+  } catch (hydrationError) {
+    if (hydrationError instanceof PhotoServiceError && hydrationError.status === 503) {
+      return { photos: await getLegacyPhotoEntries(), schemaReady: false };
+    }
+    throw hydrationError;
+  }
 }
 
 async function loadPhotoPage(cursorValue?: string | null): Promise<PhotoPage & {
@@ -342,12 +392,14 @@ async function loadPhotoPage(cursorValue?: string | null): Promise<PhotoPage & {
   const nextCursor = fetchedRows.length > PHOTOS_PER_PAGE && rows.length > 0
     ? encodePhotoCursor(rows[rows.length - 1])
     : null;
-  const photos = rows.map(mapPhoto);
-  return {
-    photos: await mapWithConcurrency(photos, 6, toViewModel),
-    nextCursor,
-    schemaReady: true,
-  };
+  try {
+    return { photos: await hydratePhotoEntries(rows), nextCursor, schemaReady: true };
+  } catch (hydrationError) {
+    if (hydrationError instanceof PhotoServiceError && hydrationError.status === 503) {
+      return { photos: await getLegacyPhotoEntries(), nextCursor: null, schemaReady: false };
+    }
+    throw hydrationError;
+  }
 }
 
 function photoStatisticsSources(photos: PhotoViewModel[]): PhotoStatisticsSource[] {
@@ -512,21 +564,34 @@ async function selectPhoto(photoId: string, requestId?: string, ownerUserId?: st
   return data as PhotoEntryRow | null;
 }
 
-async function deletePhotoMedia(storagePath: string) {
-  if (isLocalPhotoStoragePath(storagePath)) {
-    await deleteLocalPhotoFiles([storagePath, photoThumbnailStoragePath(storagePath)]);
-  } else {
-    await deletePrivateAssets([storagePath]);
-  }
+async function selectPhotoImages(photoId: string) {
+  const client = createServerSupabaseClient();
+  const { data, error } = await client.from("photo_images").select("*").eq("photo_entry_id", photoId).order("sort_order");
+  if (error) throw new PhotoServiceError("无法读取照片组内图片。", 500);
+  return (data ?? []) as PhotoImageRow[];
 }
 
-async function removeDraft(photo: PhotoEntryRow) {
-  await deletePhotoMedia(photo.storage_path);
+async function deletePhotoMedia(paths: string[]) {
+  const localPaths: string[] = [];
+  const remotePaths: string[] = [];
+  for (const storagePath of [...new Set(paths)]) {
+    if (isLocalPhotoStoragePath(storagePath) && await getLocalPhotoFileInfo(storagePath)) {
+      localPaths.push(storagePath, photoThumbnailStoragePath(storagePath));
+    } else {
+      remotePaths.push(storagePath);
+    }
+  }
+  await deleteLocalPhotoFiles(localPaths);
+  await deletePrivateAssets(remotePaths);
+}
+
+async function removeDraft(photoId: string, paths: string[]) {
+  await deletePhotoMedia(paths);
   const client = createServerSupabaseClient();
   const { error } = await client
     .from("photo_entries")
     .delete()
-    .eq("id", photo.id)
+    .eq("id", photoId)
     .eq("status", "draft");
   if (error) throw new PhotoServiceError("无法清理照片上传草稿。", 500);
 }
@@ -536,36 +601,42 @@ async function cleanupStaleDrafts() {
   const boundary = new Date(Date.now() - STALE_DRAFT_MILLISECONDS).toISOString();
   const { data, error } = await client
     .from("photo_entries")
-    .select("*")
+    .select("id")
     .eq("status", "draft")
     .lt("created_at", boundary)
     .limit(10);
   if (error) return;
-  for (const row of (data ?? []) as PhotoEntryRow[]) {
+  for (const row of (data ?? []) as Array<{ id: string }>) {
     try {
-      await removeDraft(row);
+      const images = await selectPhotoImages(row.id);
+      await removeDraft(row.id, images.map((image) => image.storage_path));
     } catch (cleanupError) {
       console.error("Unable to clean a stale photo draft.", { photoId: row.id, cleanupError });
     }
   }
 }
 
-function descriptorMatches(input: PhotoUploadRequestInput, photo: PhotoEntryRow) {
-  return photo.mime_type === input.mimeType
-    && photo.byte_size === input.byteSize
-    && photo.width === input.width
-    && photo.height === input.height;
+function descriptorsMatch(input: PhotoUploadRequestInput, images: PhotoImageRow[]) {
+  return images.length === input.images.length && images.every((image, index) => {
+    const expected = input.images[index];
+    return image.sort_order === index
+      && image.mime_type === expected.mimeType
+      && Number(image.byte_size) === expected.byteSize
+      && image.width === expected.width
+      && image.height === expected.height;
+  });
 }
 
-function uploadTarget(input: PhotoUploadRequestInput, photo: PhotoEntryRow) {
-  return {
-    clientId: input.clientId,
-    photoId: photo.id,
-    storagePath: photo.storage_path,
-    uploadUrl: `/api/private/photos/uploads/${encodeURIComponent(photo.id)}?requestId=${encodeURIComponent(input.requestId)}`,
-    thumbnailStoragePath: photoThumbnailStoragePath(photo.storage_path),
-    thumbnailUploadUrl: `/api/private/photos/uploads/${encodeURIComponent(photo.id)}?requestId=${encodeURIComponent(input.requestId)}&variant=thumbnail`,
-  };
+function uploadTargets(input: PhotoUploadRequestInput, images: PhotoImageRow[]) {
+  return images.map((image) => ({
+    clientId: input.images[image.sort_order].clientId,
+    photoId: image.photo_entry_id,
+    imageId: image.id,
+    storagePath: image.storage_path,
+    uploadUrl: `/api/private/photos/uploads/${encodeURIComponent(image.photo_entry_id)}/${encodeURIComponent(image.id)}?requestId=${encodeURIComponent(input.requestId)}`,
+    thumbnailStoragePath: photoThumbnailStoragePath(image.storage_path),
+    thumbnailUploadUrl: `/api/private/photos/uploads/${encodeURIComponent(image.photo_entry_id)}/${encodeURIComponent(image.id)}?requestId=${encodeURIComponent(input.requestId)}&variant=thumbnail`,
+  }));
 }
 
 export async function initializePhotoUpload(input: PhotoUploadRequestInput) {
@@ -591,25 +662,43 @@ export async function initializePhotoUpload(input: PhotoUploadRequestInput) {
   if (existingData) {
     const existing = existingData as PhotoEntryRow;
     if (existing.status === "ready") {
-      return { photoId: existing.id, requestId: input.requestId, alreadyComplete: true };
+      return { photoId: existing.id, requestId: input.requestId, uploads: [], alreadyComplete: true };
     }
-    if (!descriptorMatches(input, existing)) {
+    const images = await selectPhotoImages(existing.id);
+    if (!descriptorsMatch(input, images)) {
       throw new PhotoServiceError("这个上传请求已被其他内容使用，请重新打开上传面板。", 409);
     }
     return {
       photoId: existing.id,
       requestId: input.requestId,
-      upload: uploadTarget(input, existing),
+      uploads: uploadTargets(input, images),
       alreadyComplete: false,
     };
   }
 
   const photoId = randomUUID();
-  const extension = extensionForPhotoMimeType(input.mimeType);
-  const storagePath = `photos/${photoId}/${photoId}.${extension}`;
-  const { data, error } = await client.from("photo_entries").insert({
+  const imageRows = input.images.map((image, index): PhotoImageRow => {
+    const imageId = index === 0 ? photoId : randomUUID();
+    const extension = extensionForPhotoMimeType(image.mimeType);
+    return {
+      id: imageId,
+      photo_entry_id: photoId,
+      storage_path: `photos/${photoId}/${imageId}.${extension}`,
+      sort_order: index,
+      width: image.width,
+      height: image.height,
+      mime_type: image.mimeType,
+      byte_size: image.byteSize,
+      captured_at: image.capturedAt ?? null,
+      legacy_path: false,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+  });
+  const firstImage = imageRows[0];
+  const { error: entryError } = await client.from("photo_entries").insert({
     id: photoId,
-    storage_path: storagePath,
+    storage_path: firstImage.storage_path,
     title: input.title ?? null,
     description: input.description ?? null,
     photo_date: photoDateInTimezone(input.occurredAt, input.timezone),
@@ -623,27 +712,43 @@ export async function initializePhotoUpload(input: PhotoUploadRequestInput) {
     location_region_name: input.location.regionName ?? null,
     location_city_code: input.location.cityCode ?? null,
     location_city_name: input.location.cityName,
-    width: input.width,
-    height: input.height,
-    mime_type: input.mimeType,
-    byte_size: input.byteSize,
-    captured_at: input.capturedAt ?? input.occurredAt,
+    width: firstImage.width,
+    height: firstImage.height,
+    mime_type: firstImage.mime_type,
+    byte_size: firstImage.byte_size,
+    captured_at: firstImage.captured_at ?? input.occurredAt,
     status: "draft",
     upload_request_id: input.requestId,
     owner_user_id: session.userId,
     legacy_record: false,
-  }).select("*").single();
-  if (error || !data) {
-    if (isMissingPhotoSchemaError(error)) {
+  });
+  if (entryError) {
+    if (isMissingPhotoSchemaError(entryError)) {
       throw new PhotoServiceError("请先执行最新 Photos 数据库 Migration。", 503);
     }
     throw new PhotoServiceError("无法创建照片上传草稿。", 500);
   }
-  const photo = data as PhotoEntryRow;
+
+  const { error: imagesError } = await client.from("photo_images").insert(imageRows.map((image) => ({
+    id: image.id,
+    photo_entry_id: image.photo_entry_id,
+    storage_path: image.storage_path,
+    sort_order: image.sort_order,
+    width: image.width,
+    height: image.height,
+    mime_type: image.mime_type,
+    byte_size: image.byte_size,
+    captured_at: image.captured_at,
+    legacy_path: image.legacy_path,
+  })));
+  if (imagesError) {
+    await client.from("photo_entries").delete().eq("id", photoId);
+    throw new PhotoServiceError("无法创建照片组内图片记录。", 500);
+  }
   return {
     photoId,
     requestId: input.requestId,
-    upload: uploadTarget(input, photo),
+    uploads: uploadTargets(input, imageRows),
     alreadyComplete: false,
   };
 }
@@ -667,6 +772,7 @@ function assertPhotoContents(
 
 export async function uploadPhotoImage(
   photoId: string,
+  imageId: string,
   requestId: string,
   bytes: Uint8Array,
   contentType: string,
@@ -675,23 +781,35 @@ export async function uploadPhotoImage(
   const session = await requirePrivateSession();
   assertConfigured();
   assertUuid(photoId, "照片标识");
+  assertUuid(imageId, "图片标识");
   assertUuid(requestId, "上传请求标识");
   const photo = await selectPhoto(photoId, requestId, session.userId);
   if (!photo || photo.status !== "draft") {
     throw new PhotoServiceError("上传草稿不存在或已经过期。", 404);
   }
-  if (contentType !== photo.mime_type) {
+  const client = createServerSupabaseClient();
+  const { data, error } = await client
+    .from("photo_images")
+    .select("*")
+    .eq("id", imageId)
+    .eq("photo_entry_id", photoId)
+    .maybeSingle();
+  if (error) throw new PhotoServiceError("无法读取待上传图片记录。", 500);
+  if (!data) throw new PhotoServiceError("待上传图片不存在。", 404);
+  const image = data as PhotoImageRow;
+
+  if (contentType !== image.mime_type) {
     throw new PhotoServiceError("图片格式与选择时不一致。", 422);
   }
   if (variant === "original") {
-    assertPhotoContents(photo, bytes);
+    assertPhotoContents(image, bytes);
   } else {
-    const dimensions = imageDimensionsFromBytes(bytes, photo.mime_type);
+    const dimensions = imageDimensionsFromBytes(bytes, image.mime_type);
     if (
       !dimensions
       || dimensions.width <= 0
       || dimensions.height <= 0
-      || Math.max(dimensions.width, dimensions.height) > Math.max(photo.width, photo.height)
+      || Math.max(dimensions.width, dimensions.height) > Math.max(image.width, image.height)
     ) {
       throw new PhotoServiceError("缩略图不符合要求。", 422);
     }
@@ -699,12 +817,12 @@ export async function uploadPhotoImage(
   try {
     await writeLocalPhotoFiles(
       variant === "original"
-        ? [photo.storage_path]
-        : [photoThumbnailStoragePath(photo.storage_path)],
+        ? [image.storage_path]
+        : [photoThumbnailStoragePath(image.storage_path)],
       bytes,
     );
   } catch (error) {
-    console.error("Unable to write a local photo.", { photoId, error });
+    console.error("Unable to write a local photo.", { photoId, imageId, error });
     throw new PhotoServiceError("无法写入本地图片目录，请检查 PHOTO_STORAGE_ROOT。", 500);
   }
 }
@@ -717,33 +835,35 @@ export async function completePhotoUpload(photoId: string, requestId: string) {
   const photo = await selectPhoto(photoId, requestId, session.userId);
   if (!photo) throw new PhotoServiceError("上传草稿不存在或已经过期。", 404);
   if (photo.status === "ready") return { photoId };
+  const images = await selectPhotoImages(photoId);
+  if (images.length < 1 || images.length > PHOTO_UPLOAD_LIMITS.maximumImages) {
+    throw new PhotoServiceError("上传草稿中的图片数量无效。", 422);
+  }
 
   try {
-    const info = await getLocalPhotoFileInfo(photo.storage_path);
-    if (!info || info.size !== photo.byte_size) {
-      throw new PhotoServiceError("上传后的图片信息与选择时不一致。", 422);
-    }
-    const bytes = await readLocalPhotoFileHeader(photo.storage_path, MAXIMUM_IMAGE_HEADER_BYTES);
-    if (!bytes) throw new PhotoServiceError("无法读取已上传图片。", 422);
-    const thumbnailPath = photoThumbnailStoragePath(photo.storage_path);
-    const thumbnailInfo = await getLocalPhotoFileInfo(thumbnailPath);
-    if (!thumbnailInfo) {
-      throw new PhotoServiceError("缩略图不存在或已上传失败。", 422);
-    }
-    assertPhotoContents(photo, bytes, info.size);
-    const thumbnailBytes = await readLocalPhotoFileHeader(thumbnailPath, MAXIMUM_IMAGE_HEADER_BYTES);
-    if (!thumbnailBytes) throw new PhotoServiceError("无法读取缩略图。", 422);
-    const thumbnailDimensions = imageDimensionsFromBytes(thumbnailBytes, photo.mime_type);
-    if (
-      !thumbnailDimensions
-      || Math.max(thumbnailDimensions.width, thumbnailDimensions.height) > Math.max(photo.width, photo.height)
-      || thumbnailInfo.size > info.size
-    ) {
-      throw new PhotoServiceError("缩略图不符合要求。", 422);
-    }
+    await mapWithConcurrency(images, 3, async (image) => {
+      const info = await getLocalPhotoFileInfo(image.storage_path);
+      if (!info || info.size !== image.byte_size) {
+        throw new PhotoServiceError("上传后的图片信息与选择时不一致。", 422);
+      }
+      const bytes = await readLocalPhotoFileHeader(image.storage_path, MAXIMUM_IMAGE_HEADER_BYTES);
+      if (!bytes) throw new PhotoServiceError("无法读取已上传图片。", 422);
+      const thumbnailPath = photoThumbnailStoragePath(image.storage_path);
+      const thumbnailInfo = await getLocalPhotoFileInfo(thumbnailPath);
+      if (!thumbnailInfo) throw new PhotoServiceError("缩略图不存在或已上传失败。", 422);
+      assertPhotoContents(image, bytes, info.size);
+      const thumbnailBytes = await readLocalPhotoFileHeader(thumbnailPath, MAXIMUM_IMAGE_HEADER_BYTES);
+      if (!thumbnailBytes) throw new PhotoServiceError("无法读取缩略图。", 422);
+      const thumbnailDimensions = imageDimensionsFromBytes(thumbnailBytes, image.mime_type);
+      if (
+        !thumbnailDimensions
+        || Math.max(thumbnailDimensions.width, thumbnailDimensions.height) > Math.max(image.width, image.height)
+        || thumbnailInfo.size > info.size
+      ) throw new PhotoServiceError("缩略图不符合要求。", 422);
+    });
   } catch (error) {
     try {
-      await removeDraft(photo);
+      await removeDraft(photoId, images.map((image) => image.storage_path));
     } catch (cleanupError) {
       console.error("Unable to roll back an invalid photo upload.", { photoId, cleanupError });
     }
@@ -769,7 +889,8 @@ export async function cancelPhotoUpload(photoId: string, requestId: string) {
   assertUuid(requestId, "上传请求标识");
   const photo = await selectPhoto(photoId, requestId, session.userId);
   if (!photo || photo.status === "ready") return;
-  await removeDraft(photo);
+  const images = await selectPhotoImages(photoId);
+  await removeDraft(photoId, images.map((image) => image.storage_path));
 }
 
 export async function updatePhoto(photoId: string, input: PhotoUpdateInput) {
@@ -826,12 +947,6 @@ function validateEditablePhotoImage(input: EditablePhotoImageInput) {
     || input.bytes.byteLength > PHOTO_UPLOAD_LIMITS.maximumImageBytes
     || input.thumbnailBytes.byteLength < 1
     || input.thumbnailBytes.byteLength > PHOTO_UPLOAD_LIMITS.maximumImageBytes
-    || !Number.isInteger(input.width)
-    || !Number.isInteger(input.height)
-    || input.width < 1
-    || input.height < 1
-    || input.width > 50_000
-    || input.height > 50_000
     || !imageSignatureMatches(input.bytes, input.mimeType)
     || !imageSignatureMatches(input.thumbnailBytes, input.thumbnailMimeType)
   ) throw new PhotoServiceError("替换图片的格式、尺寸或大小无效。", 422);
@@ -840,40 +955,107 @@ function validateEditablePhotoImage(input: EditablePhotoImageInput) {
   const thumbnailDimensions = imageDimensionsFromBytes(input.thumbnailBytes, input.thumbnailMimeType);
   if (
     !dimensions
-    || dimensions.width !== input.width
-    || dimensions.height !== input.height
+    || dimensions.width < 1
+    || dimensions.height < 1
+    || dimensions.width > 50_000
+    || dimensions.height > 50_000
     || !thumbnailDimensions
     || Math.max(thumbnailDimensions.width, thumbnailDimensions.height) > Math.max(dimensions.width, dimensions.height)
   ) throw new PhotoServiceError("替换图片的实际尺寸与提交信息不一致。", 422);
 
-  if (!input.capturedAt) return undefined;
-  const milliseconds = Date.parse(input.capturedAt);
-  if (
-    !Number.isFinite(milliseconds)
-    || milliseconds < Date.UTC(1900, 0, 1)
-    || milliseconds > Date.now() + 24 * 60 * 60 * 1_000
-  ) throw new PhotoServiceError("替换图片的拍摄时间无效。", 422);
-  return new Date(milliseconds).toISOString();
+  let capturedAt: string | undefined;
+  if (input.capturedAt) {
+    const milliseconds = Date.parse(input.capturedAt);
+    if (
+      !Number.isFinite(milliseconds)
+      || milliseconds < Date.UTC(1900, 0, 1)
+      || milliseconds > Date.now() + 24 * 60 * 60 * 1_000
+    ) throw new PhotoServiceError("图片的拍摄时间无效。", 422);
+    capturedAt = new Date(milliseconds).toISOString();
+  }
+  return { width: dimensions.width, height: dimensions.height, capturedAt };
 }
 
-export async function replacePhotoImage(photoId: string, input: EditablePhotoImageInput) {
+async function editablePhotoGroup(photoId: string) {
+  const client = createServerSupabaseClient();
+  const { data, error } = await client.from("photo_entries").select("*").eq("id", photoId).maybeSingle();
+  if (error) throw new PhotoServiceError("无法读取照片记录。", 500);
+  if (!data || data.status !== "ready") throw new PhotoServiceError("照片记录不存在或当前不可修改。", 404);
+  return { client, photo: data as PhotoEntryRow };
+}
+
+export async function addPhotoImage(photoId: string, input: EditablePhotoImageInput) {
   await requirePrivateSession();
   assertConfigured();
   assertUuid(photoId, "照片标识");
-  const capturedAt = validateEditablePhotoImage(input);
-  const photo = await selectPhoto(photoId);
-  if (!photo || photo.status !== "ready") throw new PhotoServiceError("照片不存在或当前不可修改。", 404);
+  const validated = validateEditablePhotoImage(input);
+  const { client } = await editablePhotoGroup(photoId);
+  const images = await selectPhotoImages(photoId);
+  if (images.length >= PHOTO_UPLOAD_LIMITS.maximumImages) throw new PhotoServiceError("每组最多保存 12 张图片。", 409);
+  if (images.reduce((total, image) => total + Number(image.byte_size), 0) + input.bytes.byteLength > PHOTO_UPLOAD_LIMITS.maximumGroupBytes) {
+    throw new PhotoServiceError("单组图片总大小不能超过 60MB。", 413);
+  }
+
+  const imageId = randomUUID();
+  const extension = extensionForPhotoMimeType(input.mimeType as PhotoImageMimeType);
+  const storagePath = `photos/${photoId}/${imageId}.${extension}`;
+  const thumbnailPath = photoThumbnailStoragePath(storagePath);
+  try {
+    await writeLocalPhotoFile(storagePath, input.bytes);
+    await writeLocalPhotoFile(thumbnailPath, input.thumbnailBytes);
+  } catch (error) {
+    await deleteLocalPhotoFiles([storagePath, thumbnailPath]).catch(() => undefined);
+    console.error("Unable to write a new photo image.", { photoId, imageId, error });
+    throw new PhotoServiceError("无法写入新增图片，请检查图片存储目录。", 500);
+  }
+
+  const sortOrder = images.reduce((maximum, image) => Math.max(maximum, image.sort_order), -1) + 1;
+  const { data, error } = await client.from("photo_images").insert({
+    id: imageId,
+    photo_entry_id: photoId,
+    storage_path: storagePath,
+    sort_order: sortOrder,
+    width: validated.width,
+    height: validated.height,
+    mime_type: input.mimeType,
+    byte_size: input.bytes.byteLength,
+    captured_at: validated.capturedAt ?? null,
+    legacy_path: false,
+  }).select("*").single();
+  if (error || !data) {
+    await deleteLocalPhotoFiles([storagePath, thumbnailPath]).catch(() => undefined);
+    throw new PhotoServiceError("无法保存新增图片。", 500);
+  }
+  return toImageViewModel(mapPhotoImage(data as PhotoImageRow));
+}
+
+export async function replacePhotoImage(photoId: string, imageId: string, input: EditablePhotoImageInput) {
+  await requirePrivateSession();
+  assertConfigured();
+  assertUuid(photoId, "照片标识");
+  assertUuid(imageId, "图片标识");
+  const validated = validateEditablePhotoImage(input);
+  const { client, photo } = await editablePhotoGroup(photoId);
+  const { data: imageData, error: imageError } = await client.from("photo_images").select("*")
+    .eq("id", imageId).eq("photo_entry_id", photoId).maybeSingle();
+  if (imageError) throw new PhotoServiceError("无法读取待替换图片。", 500);
+  if (!imageData) throw new PhotoServiceError("图片不存在。", 404);
+  const image = imageData as PhotoImageRow;
+  const images = await selectPhotoImages(photoId);
+  const nextTotalBytes = images.reduce((total, item) => total + Number(item.byte_size), 0)
+    - Number(image.byte_size) + input.bytes.byteLength;
+  if (nextTotalBytes > PHOTO_UPLOAD_LIMITS.maximumGroupBytes) throw new PhotoServiceError("单组图片总大小不能超过 60MB。", 413);
 
   const extension = extensionForPhotoMimeType(input.mimeType as PhotoImageMimeType);
-  const storagePath = `photos/${photoId}/${photoId}.${extension}`;
+  const storagePath = `photos/${photoId}/${imageId}.${extension}`;
   const thumbnailPath = photoThumbnailStoragePath(storagePath);
-  const replacesSameLocalPath = photo.storage_path === storagePath && isLocalPhotoStoragePath(photo.storage_path);
-  const previousBytes = replacesSameLocalPath ? await readLocalPhotoFile(photo.storage_path) : null;
+  const replacesSameLocalPath = image.storage_path === storagePath && isLocalPhotoStoragePath(image.storage_path);
+  const previousBytes = replacesSameLocalPath ? await readLocalPhotoFile(image.storage_path) : null;
   const previousThumbnailInfo = replacesSameLocalPath
-    ? await getLocalPhotoFileInfo(photoThumbnailStoragePath(photo.storage_path))
+    ? await getLocalPhotoFileInfo(photoThumbnailStoragePath(image.storage_path))
     : null;
   const previousThumbnailBytes = previousThumbnailInfo
-    ? await readLocalPhotoFile(photoThumbnailStoragePath(photo.storage_path))
+    ? await readLocalPhotoFile(photoThumbnailStoragePath(image.storage_path))
     : null;
 
   const rollbackFiles = async () => {
@@ -895,33 +1077,74 @@ export async function replacePhotoImage(photoId: string, input: EditablePhotoIma
     throw new PhotoServiceError("无法写入替换图片，请检查图片存储目录。", 500);
   }
 
-  const client = createServerSupabaseClient();
   const { data, error } = await client
-    .from("photo_entries")
+    .from("photo_images")
     .update({
       storage_path: storagePath,
-      width: input.width,
-      height: input.height,
+      width: validated.width,
+      height: validated.height,
       mime_type: input.mimeType,
       byte_size: input.bytes.byteLength,
-      captured_at: capturedAt ?? photo.captured_at,
-      legacy_record: false,
+      captured_at: validated.capturedAt ?? image.captured_at,
+      legacy_path: false,
     })
-    .eq("id", photoId)
-    .eq("status", "ready")
-    .select("id")
+    .eq("id", imageId)
+    .eq("photo_entry_id", photoId)
+    .select("*")
     .maybeSingle();
   if (error || !data) {
     await rollbackFiles().catch(() => undefined);
     throw new PhotoServiceError("无法保存替换图片。", 500);
   }
 
-  if (photo.storage_path !== storagePath) {
-    await deletePhotoMedia(photo.storage_path).catch((cleanupError) => {
-      console.error("Unable to remove the replaced photo media.", { photoId, cleanupError });
+  if (photo.storage_path === image.storage_path) {
+    await client.from("photo_entries").update({
+      storage_path: storagePath,
+      width: validated.width,
+      height: validated.height,
+      mime_type: input.mimeType,
+      byte_size: input.bytes.byteLength,
+      captured_at: validated.capturedAt ?? image.captured_at,
+      legacy_record: false,
+    }).eq("id", photoId);
+  }
+  if (image.storage_path !== storagePath) {
+    await deletePhotoMedia([image.storage_path]).catch((cleanupError) => {
+      console.error("Unable to remove the replaced photo media.", { photoId, imageId, cleanupError });
     });
   }
-  return { photoId };
+  return toImageViewModel(mapPhotoImage(data as PhotoImageRow));
+}
+
+export async function deletePhotoImage(photoId: string, imageId: string) {
+  await requirePrivateSession();
+  assertConfigured();
+  assertUuid(photoId, "照片标识");
+  assertUuid(imageId, "图片标识");
+  const { client, photo } = await editablePhotoGroup(photoId);
+  const images = await selectPhotoImages(photoId);
+  const image = images.find((item) => item.id === imageId);
+  if (!image) throw new PhotoServiceError("图片不存在。", 404);
+  if (images.length <= 1) throw new PhotoServiceError("每组至少保留一张图片；如需全部删除，请删除整组记录。", 409);
+  const replacement = images.find((item) => item.id !== imageId)!;
+  if (photo.storage_path === image.storage_path) {
+    const { error: entryError } = await client.from("photo_entries").update({
+      storage_path: replacement.storage_path,
+      width: replacement.width,
+      height: replacement.height,
+      mime_type: replacement.mime_type,
+      byte_size: replacement.byte_size,
+      captured_at: replacement.captured_at,
+      legacy_record: false,
+    }).eq("id", photoId);
+    if (entryError) throw new PhotoServiceError("无法更新照片组的封面图片。", 500);
+  }
+  const { data, error } = await client.from("photo_images").delete()
+    .eq("id", imageId).eq("photo_entry_id", photoId).select("id").maybeSingle();
+  if (error || !data) throw new PhotoServiceError("无法删除图片。", 500);
+  await deletePhotoMedia([image.storage_path]).catch((cleanupError) => {
+    console.error("Unable to remove deleted photo media.", { photoId, imageId, cleanupError });
+  });
 }
 
 export async function deletePhoto(photoId: string) {
@@ -931,6 +1154,8 @@ export async function deletePhoto(photoId: string) {
   const photo = await selectPhoto(photoId);
   if (!photo) throw new PhotoServiceError("照片不存在。", 404);
   if (photo.status !== "ready") throw new PhotoServiceError("这张照片当前不可删除。", 409);
+  const images = await selectPhotoImages(photoId);
+  const paths = [...images.map((image) => image.storage_path), photo.storage_path];
 
   const client = createServerSupabaseClient();
   const { data: hidden, error: hiddenError } = await client
@@ -943,7 +1168,7 @@ export async function deletePhoto(photoId: string) {
   if (hiddenError || !hidden) throw new PhotoServiceError("无法锁定待删除的照片。", 409);
 
   try {
-    await deletePhotoMedia(photo.storage_path);
+    await deletePhotoMedia(paths);
   } catch {
     const { error: restoreError } = await client
       .from("photo_entries")
@@ -967,18 +1192,18 @@ export async function deletePhoto(photoId: string) {
 }
 
 export async function readPhotoImageFile(
-  photoId: string,
+  imageId: string,
   variant: "original" | "thumbnail" = "original",
 ) {
   await requirePrivateSession();
   assertConfigured();
-  assertUuid(photoId, "照片标识");
+  assertUuid(imageId, "图片标识");
   const client = createServerSupabaseClient();
   const { data, error } = await client
-    .from("photo_entries")
-    .select("storage_path,mime_type,byte_size")
-    .eq("id", photoId)
-    .eq("status", "ready")
+    .from("photo_images")
+    .select("storage_path,mime_type,byte_size,photo_entries!inner(status)")
+    .eq("id", imageId)
+    .eq("photo_entries.status", "ready")
     .maybeSingle();
   if (error) throw new PhotoServiceError("无法读取照片记录。", 500);
   if (!data) throw new PhotoServiceError("照片不存在。", 404);
@@ -997,30 +1222,30 @@ export async function readPhotoImageFile(
   return { bytes: await readLocalPhotoFile(storagePath), mimeType: photo.mime_type };
 }
 
-export async function refreshPhotoImageUrl(photoId: string) {
+export async function refreshPhotoImageUrl(imageId: string) {
   await requirePrivateSession();
   assertConfigured();
-  assertUuid(photoId, "照片标识");
+  assertUuid(imageId, "图片标识");
   const client = createServerSupabaseClient();
   const { data, error } = await client
-    .from("photo_entries")
-    .select("storage_path")
-    .eq("id", photoId)
-    .eq("status", "ready")
+    .from("photo_images")
+    .select("storage_path,photo_entries!inner(status)")
+    .eq("id", imageId)
+    .eq("photo_entries.status", "ready")
     .maybeSingle();
   if (error && isMissingPhotoSchemaError(error)) {
     const legacy = await client
       .from("photo_entries")
       .select("storage_path")
-      .eq("id", photoId)
+      .eq("id", imageId)
       .maybeSingle();
     if (legacy.error) throw new PhotoServiceError("无法刷新图片地址。", 500);
     if (!legacy.data) throw new PhotoServiceError("照片不存在。", 404);
-    return photoThumbnailUrl(photoId, (legacy.data as { storage_path: string }).storage_path);
+    return photoThumbnailUrl(imageId, (legacy.data as { storage_path: string }).storage_path);
   }
   if (error) throw new PhotoServiceError("无法刷新图片地址。", 500);
   if (!data) throw new PhotoServiceError("照片不存在。", 404);
-  return photoThumbnailUrl(photoId, (data as { storage_path: string }).storage_path);
+  return photoThumbnailUrl(imageId, (data as { storage_path: string }).storage_path);
 }
 
 export async function getPhotoActivityStats(

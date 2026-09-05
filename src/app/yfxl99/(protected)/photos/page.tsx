@@ -12,7 +12,7 @@ export default async function PhotosPage() {
   const uploadDisabledReason = !supabaseConfigured
     ? "当前没有可用的 Supabase 数据库配置；画廊仍可浏览，但暂时不能上传。"
     : !schemaReady
-      ? "当前仍在使用旧版 Photos 数据结构。请执行 202608190001_photo_local_gallery.sql 后启用上传、修改和删除。"
+      ? "当前仍在使用旧版 Photos 数据结构。请执行 202609050001_photo_groups_and_images.sql 后启用分组上传、修改和删除。"
       : undefined;
 
   return (

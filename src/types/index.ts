@@ -91,9 +91,28 @@ export interface PrivateAccountSummary {
 
 export type PhotoImageMimeType = "image/jpeg" | "image/png" | "image/webp";
 
+export interface PhotoImage {
+  id: string;
+  photoEntryId: string;
+  storagePath: string;
+  sortOrder: number;
+  width: number;
+  height: number;
+  mimeType: PhotoImageMimeType;
+  byteSize: number;
+  capturedAt?: string;
+  legacyPath: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PhotoImageViewModel extends PhotoImage {
+  imageUrl: string;
+  thumbnailUrl: string;
+}
+
 export interface PhotoEntry {
   id: string;
-  storagePath: string;
   title?: string;
   description?: string;
   date: string;
@@ -101,20 +120,15 @@ export interface PhotoEntry {
   timezone: string;
   location: FoodLocation;
   tags: string[];
-  width: number;
-  height: number;
-  mimeType: PhotoImageMimeType;
-  byteSize: number;
-  capturedAt?: string;
+  images: PhotoImage[];
   uploadedBy?: PrivateAccountSummary;
   legacyRecord: boolean;
   createdAt: string;
   updatedAt: string;
 }
 
-export interface PhotoViewModel extends PhotoEntry {
-  imageUrl: string;
-  thumbnailUrl: string;
+export interface PhotoViewModel extends Omit<PhotoEntry, "images"> {
+  images: PhotoImageViewModel[];
 }
 
 export interface PhotoPage {
@@ -305,6 +319,21 @@ export interface PhotoEntryRow {
   owner_user_id: string | null;
   uploader?: PrivateAccountSummary | null;
   legacy_record: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PhotoImageRow {
+  id: string;
+  photo_entry_id: string;
+  storage_path: string;
+  sort_order: number;
+  width: number;
+  height: number;
+  mime_type: PhotoImageMimeType;
+  byte_size: number;
+  captured_at: string | null;
+  legacy_path: boolean;
   created_at: string;
   updated_at: string;
 }

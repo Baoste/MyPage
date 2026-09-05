@@ -167,6 +167,7 @@ npx supabase db push
 13. `supabase/migrations/202609040003_calendar_month_notes.sql`
 14. `supabase/migrations/202609040004_calendar_shared_entries.sql`
 15. `supabase/migrations/202609040005_calendar_shared_month_notes.sql`
+16. `supabase/migrations/202609050001_photo_groups_and_images.sql`
 
 第一份 Migration 创建：
 
@@ -378,7 +379,7 @@ coverFile: [
 
 ### 添加 Photo
 
-先执行 `202608190001_photo_local_gallery.sql`，再登录打开 `/yfxl99/photos`，点击右下角“+”。一次上传一张 JPEG/PNG/WebP，单张上限 10MB；可填写标题、描述、中文地区、北京时间和最多 20 个标签。拍摄时间优先读取 EXIF，没有时使用当前北京时间。
+先依次执行 `202608190001_photo_local_gallery.sql` 和 `202609050001_photo_groups_and_images.sql`，再登录打开 `/yfxl99/photos`，点击右下角“+”。每组可上传 1–12 张 JPEG/PNG/WebP，单张上限 10MB、单组上限 60MB；保存后可在修改面板继续添加、替换或删除组内图片。可填写标题、描述、中文地区、北京时间和最多 20 个标签。
 
 ```text
 POST /api/private/photos/uploads/init
@@ -406,6 +407,7 @@ src/components/private/PrivateCommentSection.tsx
 src/lib/photo/
 src/services/photoService.ts
 supabase/migrations/202608190001_photo_local_gallery.sql
+supabase/migrations/202609050001_photo_groups_and_images.sql
 supabase/migrations/202609010003_photo_comments.sql
 ```
 

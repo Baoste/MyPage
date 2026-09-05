@@ -198,6 +198,14 @@ Migration 尚未执行时，页面继续兼容显示旧照片，但会明确提�
 - [x] 已建立上传 `init / PUT / complete / cancel`、记录修改/删除、本地图片鉴权读取和旧图片 URL 刷新共 7 个 API 路由。
 - [x] 已增加 `src/lib/photo/` 的输入校验、统计和本地存储层，并保留旧 Supabase Storage 路径兼容。
 - [x] 已增加 `202608190001_photo_local_gallery.sql`；它只是一份待执行 Migration，本次没有连接正式数据库执行，也没有修改已有照片。
+
+## 分组照片
+
+执行 `supabase/migrations/202609050001_photo_groups_and_images.sql` 后，`photo_entries` 保存一组照片的标题、描述、时间、地点和标签，`photo_images` 保存组内有序图片。旧照片会自动变成只有一张图片的组，不移动本地原图或缩略图。
+
+- 每组 1–12 张，单张最大 10MB，单组最大 60MB。
+- 已保存的组可继续添加、替换或删除单张图片，最后一张需通过删除整组记录移除。
+- 新增和替换时由服务端直接解析原图像素尺寸，不依赖页面提交的宽高。
 - [x] Chrome 验证桌面 4 列、手机 2 列、原图比例、关闭复位、旧卡先收起再展开新卡、无 Dialog 和无横向溢出；运行时错误为 0。
 - [x] production build 验证 `/yfxl99/photos` 未登录返回 `307 → /yfxl99`，本地图片与上传初始化 API 未登录返回 `401`。
 - [x] `npm run typecheck`、`npm run lint`、`npm run build` 全部通过。

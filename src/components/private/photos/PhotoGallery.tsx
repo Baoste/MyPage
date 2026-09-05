@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { EmptyState } from "@/components/common/EmptyState";
 import { PhotoCard } from "@/components/private/photos/PhotoCard";
 import { PhotoExpandedCard } from "@/components/private/photos/PhotoExpandedCard";
@@ -20,7 +20,7 @@ export function PhotoGallery({
   nextCursor: string | null;
   mutationsEnabled: boolean;
 }) {
-  const [expandedPhotoId, setExpandedPhotoId] = useState<string | null>(null);
+  const [expandedImageId, setExpandedImageId] = useState<string | null>(null);
   const [loadedPhotos, setLoadedPhotos] = useState(photos);
   const [cursor, setCursor] = useState(nextCursor);
   const [isLoading, setIsLoading] = useState(false);
@@ -28,11 +28,14 @@ export function PhotoGallery({
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
   const loadingRef = useRef(false);
   const requestControllerRef = useRef<AbortController | null>(null);
+  const imageEntries = useMemo(
+    () => loadedPhotos.flatMap((photo) => photo.images.map((image, imageIndex) => ({ photo, image, imageIndex }))),
+    [loadedPhotos],
+  );
   const hasMore = cursor !== null;
-
-  const expandedPhoto = loadedPhotos.find((photo) => photo.id === expandedPhotoId) ?? null;
-  const expandedPhotoIndex = expandedPhoto
-    ? loadedPhotos.findIndex((photo) => photo.id === expandedPhoto.id)
+  const expandedImage = imageEntries.find(({ image }) => image.id === expandedImageId) ?? null;
+  const expandedPhotoIndex = expandedImage
+    ? loadedPhotos.findIndex((photo) => photo.id === expandedImage.photo.id)
     : -1;
   const hasPreviousPhoto = expandedPhotoIndex > 0;
   const hasNextPhoto = expandedPhotoIndex >= 0 && (
@@ -85,14 +88,14 @@ export function PhotoGallery({
 
   async function moveExpandedPhoto(amount: number) {
     const target = loadedPhotos[expandedPhotoIndex + amount];
-    if (target) {
-      setExpandedPhotoId(target.id);
+    if (target?.images[0]) {
+      setExpandedImageId(target.images[0].id);
       return;
     }
     if (amount < 1 || !cursor) return;
     const existingIds = new Set(loadedPhotos.map((photo) => photo.id));
     const nextPhoto = (await loadMore()).find((photo) => !existingIds.has(photo.id));
-    if (nextPhoto) setExpandedPhotoId(nextPhoto.id);
+    if (nextPhoto?.images[0]) setExpandedImageId(nextPhoto.images[0].id);
   }
 
   useEffect(() => {
@@ -110,18 +113,18 @@ export function PhotoGallery({
   useEffect(() => () => requestControllerRef.current?.abort(), []);
 
   useEffect(() => {
-    if (!expandedPhotoId) return;
+    if (!expandedImageId) return;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setExpandedPhotoId(null);
+      if (event.key === "Escape") setExpandedImageId(null);
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => {
       document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [expandedPhotoId]);
+  }, [expandedImageId]);
 
   if (loadedPhotos.length === 0 && !hasMore) {
     return <EmptyState title="还没有照片" message="点击右下角的加号，保存第一张日常照片。" />;
@@ -130,12 +133,14 @@ export function PhotoGallery({
   return (
     <>
       <div className="photo-gallery food-gallery grid grid-cols-1 min-[360px]:grid-cols-2 md:grid-cols-3 xl:grid-cols-4">
-        {loadedPhotos.map((photo) => (
+        {imageEntries.map(({ photo, image, imageIndex }) => (
           <PhotoCard
-            key={photo.id}
+            key={image.id}
             photo={photo}
-            isExpanded={expandedPhotoId === photo.id}
-            onExpand={() => setExpandedPhotoId(photo.id)}
+            image={image}
+            imageIndex={imageIndex}
+            isExpanded={expandedImageId === image.id}
+            onExpand={() => setExpandedImageId(image.id)}
             onElementChange={() => undefined}
           />
         ))}
@@ -183,22 +188,23 @@ export function PhotoGallery({
         </span>
       </div>
 
-      {expandedPhoto ? (
+      {expandedImage ? (
         <div className="private-media-overlay fixed inset-0 z-50 grid place-items-center p-4 sm:p-6">
           <button
             type="button"
             aria-label="关闭照片详情"
             className="absolute inset-0 bg-[#14120f]/52 backdrop-blur-md"
-            onClick={() => setExpandedPhotoId(null)}
+            onClick={() => setExpandedImageId(null)}
           />
           <div className="private-media-stage">
             <button type="button" disabled={!hasPreviousPhoto} onClick={() => void moveExpandedPhoto(-1)} aria-label="上一组照片" className="private-media-nav private-media-nav-previous"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12.5 6.5-5.5 5.5 5.5 5.5" /><path d="m18 6.5-5.5 5.5 5.5 5.5" /></svg></button>
             <div className="private-media-panel max-h-[92svh] w-full overflow-auto">
               <PhotoExpandedCard
-                key={expandedPhoto.id}
-                photo={expandedPhoto}
+                key={expandedImage.photo.id}
+                photo={expandedImage.photo}
+                initialImageIndex={expandedImage.imageIndex}
                 mutationsEnabled={mutationsEnabled}
-                onClose={() => setExpandedPhotoId(null)}
+                onClose={() => setExpandedImageId(null)}
               />
             </div>
             <button type="button" disabled={!hasNextPhoto} onClick={() => void moveExpandedPhoto(1)} aria-label="下一组照片" className="private-media-nav private-media-nav-next"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m11.5 6.5 5.5 5.5-5.5 5.5" /><path d="m6 6.5 5.5 5.5-5.5 5.5" /></svg></button>
