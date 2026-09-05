@@ -4,7 +4,6 @@ import Image from "next/image";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   formatPhotoDateTime,
-  formatPhotoShortDate,
   photoLocationLabel,
 } from "@/components/private/photos/photo-format";
 import type { PhotoImageViewModel, PhotoViewModel } from "@/types";
@@ -213,9 +212,11 @@ export function PhotoCard({
               <span className="absolute bottom-3 left-3 max-w-[calc(100%-1.5rem)] truncate rounded-full bg-[#f8f4ed] px-3 py-1.5 text-[0.62rem] font-semibold tracking-[0.03em] text-[#453f38] shadow-sm">
                 {photo.title ?? "无题"}
               </span>
-              <span className="absolute right-3 top-3 rounded-full bg-[#292d27] px-2.5 py-1 text-[0.58rem] font-semibold tabular-nums text-white shadow-sm">
-                {photo.images.length > 1 ? `${imageIndex + 1}/${photo.images.length}` : formatPhotoShortDate(photo)}
-              </span>
+              {photo.images.length > 1 ? (
+                <span className="absolute right-3 top-3 rounded-full bg-[#292d27] px-2.5 py-1 text-[0.58rem] font-semibold tabular-nums text-white shadow-sm">
+                  {imageIndex + 1}/{photo.images.length}
+                </span>
+              ) : null}
             </span>
             <span className="food-card-face food-card-back flex flex-col justify-between bg-[#30352e] p-4 text-[#f5f1e8] sm:p-5">
               <span>
